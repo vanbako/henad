@@ -1,4 +1,20 @@
 // latch3exma.v
-module latch3exma();
-    // Latch between EX and MA
+// Latch between Execute (EX) and Memory Address (MA) stages
+module latch3exma(
+    input  wire        clk,
+    input  wire        rst,
+    input  wire [11:0] instr_in,
+    input  wire [11:0] pc_in,
+    output reg  [11:0] instr_out,
+    output reg  [11:0] pc_out
+);
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            instr_out <= 12'b0;
+            pc_out    <= 12'b0;
+        end else begin
+            instr_out <= instr_in;
+            pc_out    <= pc_in;
+        end
+    end
 endmodule
