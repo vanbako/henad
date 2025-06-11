@@ -1,4 +1,12 @@
 // stage5ro.v
-module stage5ro();
-    // Register Operation logic
+// Register Operation stage placeholder.  The program counter is simply
+// passed through.
+module stage5ro(
+    input  wire        clk,
+    input  wire        rst,
+    input  wire [11:0] pc_in,
+    output wire [11:0] pc_out
+);
+    // No register operation logic yet.  Propagate the PC.
+    assign pc_out = pc_in;
 endmodule

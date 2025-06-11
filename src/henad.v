@@ -5,7 +5,14 @@ module henad(
     input wire rst
 );
     // Pipeline registers
-    reg [11:0] if_pc;
+    // Program counter value for each stage
+    reg [11:0] if_pc; // fetch stage PC
+    reg [11:0] id_pc; // decode stage PC
+    reg [11:0] ex_pc; // execute stage PC
+    reg [11:0] ma_pc; // memory address stage PC
+    reg [11:0] ro_pc; // register operation stage PC
+
+    // Instruction flowing through the pipeline
     reg [11:0] id_instr;
     reg [11:0] ex_instr;
     reg [11:0] ma_instr;
@@ -41,13 +48,25 @@ module henad(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             if_pc <= 12'b0;
+            id_pc <= 12'b0;
+            ex_pc <= 12'b0;
+            ma_pc <= 12'b0;
+            ro_pc <= 12'b0;
+
             id_instr <= 12'b0;
             ex_instr <= 12'b0;
             ma_instr <= 12'b0;
             ro_instr <= 12'b0;
         end else begin
             // Advance pipeline
+            // Update PCs
             if_pc <= next_pc;
+            id_pc <= ifid_pc;
+            ex_pc <= id_pc;
+            ma_pc <= ex_pc;
+            ro_pc <= ma_pc;
+
+            // Advance instructions
             id_instr <= ifid_instr;
             ex_instr <= id_instr;
             ma_instr <= ex_instr;
