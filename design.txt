@@ -1,0 +1,155 @@
+- About
+I'm creating a henad (12 bit) 5-stage RISC microarchitecture core
+The main goal is to keep the pipeline as simple as possible and to avoid stalls where possible
+Toolchain is Vivado Lab Edition 2024.2, language verilog
+
+- Details
+FPGA: Artix-7, Board: Basys 3
+instructions, all memories, (GP) general purpose registers, (SSP) shadow stack pointer, (LR) link register, (PC) program counter are henad (12 bit) in size
+floating points are not needed yet. They are for future extension
+no branch prediction, no out-of-order execution, no speculative execution, no interrupts, no exceptions, no cache, no TLB, no MMU
+no instruction set architecture yet, only microarchitecture
+Use handshake signals (like ready/valid) between stages to allow stages to indicate when they can accept new data.
+No multi-cycle instructions like mul, div and mod yet
+Each stage has its own local hazard or control logic that communicates with adjacent stages.
+Use the built-in synchronous Block RAM (BRAM) for both instruction and data memories, single-ported. Make sure to use a one-clock delay (fetch, mem & wb stages)
+Memory initialisation is with a bootloader at runtime
+No memory controller yet
+Single clock domain
+Asynchronous Resets using the Artix-7 flip-flops to bring it in the clock domain
+
+- Instruction format
+12 bit (henad) total, only those needed for the instruction are coded
+[11-8] OPC opcode
+[7-4]  BCC branch condition code (0 = RA, 1 = EQ, 2 = NE, 3 = LT, 4 = GT, 5 = LE, 6 = GE)
+[7-4]  TGT target general purpose register (16x GP)
+[7-4]  TGT target special register (0 = PC, 1 = LR, 2 = SSP)
+[3-0]  SRC source general purpose register (16x GP)
+[3-0]  SRC source special register (0 = PC, 1 = LR, 2 = SSP)
+[7]    higher or lower bits immediate value (0 = low, 1 = high)
+[5-0]  IMM immediate value (6 bit)
+[5-0]  OFF signed 8-bit offset
+unused for the instruction:
+[x-y]    RSV reserved, must be all 0 (for the moment not checked, a check must be implemented when implementing interrupts where it should generate an illegal instruction interrupt if RSV bits are not 0)
+
+Both general purpose and special registers use the same bits in the instruction format
+Regular instructions use general purpose registers, special instructions (CPY, JMP, UPD) use special registers. This will be handled in the decode stage.
+
+Branch condition codes use some of the same bits as TGT, as TGT is not used in branching. This will be handled in the decode stage.
+
+i after the instruction means immediate value
+s after the instruction means signed operation
+
+NOP
+HLT
+LUI #imm
+MOV Rs, Rt
+MOVi #imm, Rt
+MOVis #imm, Rt
+ADD Rs, Rt
+ADDi #imm, Rt
+ADDs Rs, Rt
+ADDis #imm, Rt
+SUB Rs, Rt
+SUBi #imm, Rt
+SUBs Rs, Rt
+SUBis #imm, Rt
+NOT Rt
+AND Rs, Rt
+ANDi #imm, Rt
+OR Rs, Rt
+ORi #imm, Rt
+XOR Rs, Rt
+XORi #imm, Rt
+SL Rs, Rt
+SLi #imm, Rt
+SR Rs, Rt
+SRi #imm, Rt
+SRs Rs, Rt
+SRis #imm, Rt
+CMP Rs, Rt
+CMPi #imm, Rt
+CMPs Rs, Rt
+CMPis #imm, Rt
+BCC Rs
+BCCi #imm
+BCCis #imm
+LD offset(Rs), Rt
+LDi (imm), Rt
+ST Rs, offset(Rt)
+STi #imm, (Rt)
+SRMOV PC+off, LR
+SRBCC LR+off
+
+That's too many instructions for 4 bits opcode, so there will be a need for a special instruction which switches between instruction sets
+
+- Pipeline Stages
+1. IA/IF: Instruction Address & Fetch
+2. ID:    Instruction Decode
+3. EX:    Execute
+4. MA/MO: Memory Address & Operation
+5. RA/RO: Register Address & Operation
+
+- General purpose registers
+0-15 Rx : general purpose
+
+- special registers
+PC  : program counter
+LR  : link register
+SSP : shadow stack pointer (not used yet)
+
+FL: flag register
+	zero
+	carry
+	negative
+	overflow
+
+- signals
+	reset
+
+- memories
+flash (Basys 3 Artix-7 FPGA trainer board)
+instruction:
+	4096 henads (12 bits) in size
+	read-only during pipeline operation (BRAM in Artix-7)
+data:
+	4096 henads (12 bits) in size
+	read-write (BRAM in Artix-7)
+
+- modules
+testbench
+henad
+	reggp
+	regflag
+	reglr
+	meminstr
+	memdata
+	controlunit
+		forwardunit
+		hazardunit
+		control1ia
+			stage1ia
+			latch1iaif
+		control1if
+			stage1if
+			latch1ifid
+		control2id
+			stage2id
+			latch2idex
+		control3ex
+			stage3ex
+			latch3exma
+		control4ma
+			stage4ma
+			latch4mamo
+		control4mo
+			stage4mo
+			latch4mora
+		control5ra
+			stage5ra
+			latch5raro
+		control5ro
+			stage5ro
+
+- Read After Write Hazards
+- Control Hazards
