@@ -46,15 +46,21 @@ module henad(
 
     // Stage and control instantiations
 
-    // Instruction Address control (no signals yet)
-    control1ia u_control1ia();
+    // Instruction Address control
+    wire [11:0] iaif_pc;
+    control1ia u_control1ia(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(if_pc),
+        .pc_out(iaif_pc)
+    );
 
     // IF stage control
     wire [11:0] next_pc;
     control1if u_control1if(
         .clk(clk),
         .rst(rst),
-        .pc_in(if_pc),
+        .pc_in(iaif_pc),
         .pc_out(next_pc),
         .mem_addr(instr_mem_addr),
         .instr_mem_data(instr_mem_data),
