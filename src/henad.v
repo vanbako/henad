@@ -25,8 +25,31 @@ module henad(
     // IF/ID latch outputs
     wire [11:0] ifid_instr;
     wire [11:0] ifid_pc;
+    // ID/EX latch outputs
+    wire [11:0] idex_instr;
+    wire [11:0] idex_pc;
+    // EX/MA latch outputs
+    wire [11:0] exma_instr;
+    wire [11:0] exma_pc;
+    // MA/MO latch outputs
+    wire [11:0] mamo_instr;
+    wire [11:0] mamo_pc;
+    // MO/RA latch outputs
+    wire [11:0] mora_instr;
+    wire [11:0] mora_pc;
+    // RA/RO latch outputs
+    wire [11:0] raro_instr;
+    wire [11:0] raro_pc;
+    // Final RO stage outputs
+    wire [11:0] final_instr;
+    wire [11:0] final_pc;
 
-    // IF stage (now handled in control1if)
+    // Stage and control instantiations
+
+    // Instruction Address control (no signals yet)
+    control1ia u_control1ia();
+
+    // IF stage control
     wire [11:0] next_pc;
     control1if u_control1if(
         .clk(clk),
@@ -42,6 +65,66 @@ module henad(
         .clk(clk),
         .addr(instr_mem_addr),
         .data(instr_mem_data)
+    );
+
+    // ID stage control
+    control2id u_control2id(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(ifid_pc),
+        .instr_in(ifid_instr),
+        .pc_out(idex_pc),
+        .instr_out(idex_instr)
+    );
+
+    // EX stage control
+    control3ex u_control3ex(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(idex_pc),
+        .instr_in(idex_instr),
+        .pc_out(exma_pc),
+        .instr_out(exma_instr)
+    );
+
+    // Memory address stage control
+    control4ma u_control4ma(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(exma_pc),
+        .instr_in(exma_instr),
+        .pc_out(mamo_pc),
+        .instr_out(mamo_instr)
+    );
+
+    // Memory operation stage control
+    control4mo u_control4mo(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(mamo_pc),
+        .instr_in(mamo_instr),
+        .pc_out(mora_pc),
+        .instr_out(mora_instr)
+    );
+
+    // Register address stage control
+    control5ra u_control5ra(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(mora_pc),
+        .instr_in(mora_instr),
+        .pc_out(raro_pc),
+        .instr_out(raro_instr)
+    );
+
+    // Register operation stage control
+    control5ro u_control5ro(
+        .clk(clk),
+        .rst(rst),
+        .pc_in(raro_pc),
+        .instr_in(raro_instr),
+        .pc_out(final_pc),
+        .instr_out(final_instr)
     );
 
     // Pipeline advance
@@ -62,15 +145,15 @@ module henad(
             // Update PCs
             if_pc <= next_pc;
             id_pc <= ifid_pc;
-            ex_pc <= id_pc;
-            ma_pc <= ex_pc;
-            ro_pc <= ma_pc;
+            ex_pc <= idex_pc;
+            ma_pc <= exma_pc;
+            ro_pc <= final_pc;
 
             // Advance instructions
             id_instr <= ifid_instr;
-            ex_instr <= id_instr;
-            ma_instr <= ex_instr;
-            ro_instr <= ma_instr;
+            ex_instr <= idex_instr;
+            ma_instr <= exma_instr;
+            ro_instr <= final_instr;
         end
     end
 endmodule
