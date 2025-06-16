@@ -15,9 +15,9 @@ module control1ia(
     stage1ia u_stage1ia(
         .clk(clk),
         .rst(rst),
+        .mem_addr(mem_addr),
         .pc_in(pc_in),
-        .pc_out(stage_pc),
-        .mem_addr(mem_addr)
+        .pc_out(stage_pc)
     );
 
     // Latch between IA and IF stages

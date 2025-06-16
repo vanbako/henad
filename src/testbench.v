@@ -35,7 +35,7 @@ module testbench;
     // Display reset and PC values on every tick
     integer tick = 0;
     always @(posedge clk) begin
-        $display("tick %0d : rst=%b IAIF=%h IF=%h ID=%h EX=%h MA=%h MAMO=%h MORA=%h RARO=%h RO=%h",
+        $display("tick %0d : rst=%b IA=%h IAIF=%h IFID=%h IDEX=%h EXMA=%h MAMO=%h MORA=%h RARO=%h FINAL=%h",
                  tick, rst,
                  uut.ia_pc,
                  uut.iaif_pc,
@@ -46,6 +46,15 @@ module testbench;
                  uut.mora_pc,
                  uut.raro_pc,
                  uut.final_pc);
+        $display("tick %0d : IFID_instr=%h IDEX_instr=%h EXMA_instr=%h MAMO_instr=%h MORA_instr=%h RARO_instr=%h FINAL_instr=%h",
+                 tick,
+                 uut.ifid_instr,
+                 uut.idex_instr,
+                 uut.exma_instr,
+                 uut.mamo_instr,
+                 uut.mora_instr,
+                 uut.raro_instr,
+                 uut.final_instr);
         tick = tick + 1;
     end
 endmodule

@@ -26,15 +26,23 @@ module henad(
     wire [11:0] raro_instr;
     wire [11:0] final_instr;
 
+    // Update ia_pc every tick when rst is deasserted
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            ia_pc <= 12'b0;
+        else
+            ia_pc <= ia_pc + 12'd1;
+    end
+
     // Stage and control instantiations
 
     // IA stage control
     control1ia u_control1ia(
         .clk(clk),
         .rst(rst),
+        .mem_addr(instr_mem_addr),
         .pc_in(ia_pc),
-        .pc_out(iaif_pc),
-        .mem_addr(instr_mem_addr)
+        .pc_out(iaif_pc)
     );
 
     // IF stage control
@@ -42,10 +50,9 @@ module henad(
         .clk(clk),
         .rst(rst),
         .pc_in(iaif_pc),
-        .pc_out(ia_pc),
-        .instr_mem_data(instr_mem_data),
-        .ifid_instr(ifid_instr),
-        .ifid_pc(ifid_pc)
+        .pc_out(ifid_pc),
+        .instr_out(ifid_instr),
+        .instr_mem_data(instr_mem_data)
     );
     meminstr u_meminstr(
         .clk(clk),
