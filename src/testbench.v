@@ -37,15 +37,15 @@ module testbench;
     always @(posedge clk) begin
         $display("tick %0d : rst=%b IAIF=%h IF=%h ID=%h EX=%h MA=%h MAMO=%h MORA=%h RARO=%h RO=%h",
                  tick, rst,
+                 uut.ia_pc,
                  uut.iaif_pc,
-                 uut.if_pc,
-                 uut.id_pc,
-                 uut.ex_pc,
-                 uut.ma_pc,
+                 uut.ifid_pc,
+                 uut.ifex_pc,
+                 uut.exma_pc,
                  uut.mamo_pc,
                  uut.mora_pc,
                  uut.raro_pc,
-                 uut.ro_pc);
+                 uut.final_pc);
         tick = tick + 1;
     end
 endmodule

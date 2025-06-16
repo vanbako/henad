@@ -4,68 +4,47 @@ module henad(
     input wire clk,
     input wire rst
 );
-    // Pipeline registers
-    // Program counter value for each stage
-    reg [11:0] if_pc; // fetch stage PC
-    reg [11:0] id_pc; // decode stage PC
-    reg [11:0] ex_pc; // execute stage PC
-    reg [11:0] ma_pc; // memory address stage PC
-    reg [11:0] ro_pc; // register operation stage PC
+    reg [11:0] ia_pc; // instruction address stage PC
 
-    // Instruction flowing through the pipeline
-    reg [11:0] id_instr;
-    reg [11:0] ex_instr;
-    reg [11:0] ma_instr;
-    reg [11:0] ro_instr;
-
-    // Instruction memory
     wire [11:0] instr_mem_data;
     wire [11:0] instr_mem_addr;
 
-    // IF/ID latch outputs
-    wire [11:0] ifid_instr;
+    wire [11:0] iaif_pc;
     wire [11:0] ifid_pc;
-    // ID/EX latch outputs
-    wire [11:0] idex_instr;
     wire [11:0] idex_pc;
-    // EX/MA latch outputs
-    wire [11:0] exma_instr;
     wire [11:0] exma_pc;
-    // MA/MO latch outputs
-    wire [11:0] mamo_instr;
     wire [11:0] mamo_pc;
-    // MO/RA latch outputs
-    wire [11:0] mora_instr;
     wire [11:0] mora_pc;
-    // RA/RO latch outputs
-    wire [11:0] raro_instr;
     wire [11:0] raro_pc;
-    // Final RO stage outputs
-    wire [11:0] final_instr;
     wire [11:0] final_pc;
+
+    wire [11:0] ifid_instr;
+    wire [11:0] idex_instr;
+    wire [11:0] exma_instr;
+    wire [11:0] mamo_instr;
+    wire [11:0] mora_instr;
+    wire [11:0] raro_instr;
+    wire [11:0] final_instr;
 
     // Stage and control instantiations
 
-    // Instruction Address control
-    wire [11:0] iaif_pc;
+    // IA stage control
     control1ia u_control1ia(
         .clk(clk),
         .rst(rst),
-        .pc_in(if_pc),
+        .pc_in(ia_pc),
         .pc_out(iaif_pc)
+        .mem_addr(instr_mem_addr),
     );
 
     // IF stage control
-    wire [11:0] next_pc;
     control1if u_control1if(
         .clk(clk),
         .rst(rst),
         .pc_in(iaif_pc),
-        .pc_out(next_pc),
-        .mem_addr(instr_mem_addr),
+        .pc_out(ifid_pc),
         .instr_mem_data(instr_mem_data),
         .ifid_instr(ifid_instr),
-        .ifid_pc(ifid_pc)
     );
     meminstr u_meminstr(
         .clk(clk),
@@ -132,34 +111,4 @@ module henad(
         .pc_out(final_pc),
         .instr_out(final_instr)
     );
-
-    // Pipeline advance
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            if_pc <= 12'b0;
-            id_pc <= 12'b0;
-            ex_pc <= 12'b0;
-            ma_pc <= 12'b0;
-            ro_pc <= 12'b0;
-
-            id_instr <= 12'b0;
-            ex_instr <= 12'b0;
-            ma_instr <= 12'b0;
-            ro_instr <= 12'b0;
-        end else begin
-            // Advance pipeline
-            // Update PCs
-            if_pc <= next_pc;
-            id_pc <= ifid_pc;
-            ex_pc <= idex_pc;
-            ma_pc <= exma_pc;
-            ro_pc <= final_pc;
-
-            // Advance instructions
-            id_instr <= ifid_instr;
-            ex_instr <= idex_instr;
-            ma_instr <= exma_instr;
-            ro_instr <= final_instr;
-        end
-    end
 endmodule
