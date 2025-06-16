@@ -4,18 +4,25 @@ module control2id(
     input  wire        rst,
     input  wire [11:0] pc_in,
     input  wire [11:0] instr_in,
+    input  wire [3:0]  instr_set_in,
     output wire [11:0] pc_out,
-    output wire [11:0] instr_out
+    output wire [11:0] instr_out,
+    output wire [3:0]  instr_set_out
 );
     // Output of the stage before being latched
     wire [11:0] stage_pc;
 
     // Stage 2 Instruction Decode
+    wire [3:0] stage_set;
+
     stage2id u_stage2id(
         .clk(clk),
         .rst(rst),
+        .instr_in(instr_in),
+        .instr_set_in(instr_set_in),
         .pc_in(pc_in),
-        .pc_out(stage_pc)
+        .pc_out(stage_pc),
+        .instr_set_out(stage_set)
     );
 
     // Latch between ID and EX stages
@@ -23,8 +30,10 @@ module control2id(
         .clk(clk),
         .rst(rst),
         .instr_in(instr_in),
+        .instr_set_in(stage_set),
         .pc_in(stage_pc),
         .instr_out(instr_out),
+        .instr_set_out(instr_set_out),
         .pc_out(pc_out)
     );
 endmodule

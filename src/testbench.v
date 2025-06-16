@@ -55,6 +55,15 @@ module testbench;
                  uut.mora_instr,
                  uut.raro_instr,
                  uut.final_instr);
+        $display("tick %0d : IFID_set=%h IDEX_set=%h EXMA_set=%h MAMO_set=%h MORA_set=%h RARO_set=%h FINAL_set=%h",
+                 tick,
+                 uut.ifid_set,
+                 uut.idex_set,
+                 uut.exma_set,
+                 uut.mamo_set,
+                 uut.mora_set,
+                 uut.raro_set,
+                 uut.final_set);
         tick = tick + 1;
     end
 endmodule

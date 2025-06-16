@@ -4,12 +4,15 @@ module control3ex(
     input  wire        rst,
     input  wire [11:0] pc_in,
     input  wire [11:0] instr_in,
+    input  wire [3:0]  instr_set_in,
     output wire [11:0] pc_out,
-    output wire [11:0] instr_out
+    output wire [11:0] instr_out,
+    output wire [3:0]  instr_set_out
 );
     wire [11:0] stage_pc;
 
     // Execute stage
+
     stage3ex u_stage3ex(
         .clk(clk),
         .rst(rst),
@@ -22,8 +25,10 @@ module control3ex(
         .clk(clk),
         .rst(rst),
         .instr_in(instr_in),
+        .instr_set_in(instr_set_in),
         .pc_in(stage_pc),
         .instr_out(instr_out),
+        .instr_set_out(instr_set_out),
         .pc_out(pc_out)
     );
 endmodule
