@@ -1,5 +1,6 @@
 // henad.v
 // Top-level Henad 5-stage RISC core
+`include "src/iset.vh"
 module henad(
     input wire clk,
     input wire rst
@@ -25,6 +26,15 @@ module henad(
     wire [11:0] mora_instr;
     wire [11:0] raro_instr;
     wire [11:0] final_instr;
+
+    wire [3:0] ifid_set;
+    // Instruction set value at each pipeline stage
+    wire [3:0] idex_set;
+    wire [3:0] exma_set;
+    wire [3:0] mamo_set;
+    wire [3:0] mora_set;
+    wire [3:0] raro_set;
+    wire [3:0] final_set;
 
     // Update ia_pc every tick when rst is deasserted
     always @(posedge clk or posedge rst) begin
@@ -60,14 +70,19 @@ module henad(
         .data(instr_mem_data)
     );
 
+    // Initial instruction set for the pipeline
+    assign ifid_set = `ISET_BASE;
+
     // ID stage control
     control2id u_control2id(
         .clk(clk),
         .rst(rst),
         .pc_in(ifid_pc),
         .instr_in(ifid_instr),
+        .instr_set_in(ifid_set),
         .pc_out(idex_pc),
-        .instr_out(idex_instr)
+        .instr_out(idex_instr),
+        .instr_set_out(idex_set)
     );
 
     // EX stage control
@@ -76,8 +91,10 @@ module henad(
         .rst(rst),
         .pc_in(idex_pc),
         .instr_in(idex_instr),
+        .instr_set_in(idex_set),
         .pc_out(exma_pc),
-        .instr_out(exma_instr)
+        .instr_out(exma_instr),
+        .instr_set_out(exma_set)
     );
 
     // Memory address stage control
@@ -86,8 +103,10 @@ module henad(
         .rst(rst),
         .pc_in(exma_pc),
         .instr_in(exma_instr),
+        .instr_set_in(exma_set),
         .pc_out(mamo_pc),
-        .instr_out(mamo_instr)
+        .instr_out(mamo_instr),
+        .instr_set_out(mamo_set)
     );
 
     // Memory operation stage control
@@ -96,8 +115,10 @@ module henad(
         .rst(rst),
         .pc_in(mamo_pc),
         .instr_in(mamo_instr),
+        .instr_set_in(mamo_set),
         .pc_out(mora_pc),
-        .instr_out(mora_instr)
+        .instr_out(mora_instr),
+        .instr_set_out(mora_set)
     );
 
     // Register address stage control
@@ -106,8 +127,10 @@ module henad(
         .rst(rst),
         .pc_in(mora_pc),
         .instr_in(mora_instr),
+        .instr_set_in(mora_set),
         .pc_out(raro_pc),
-        .instr_out(raro_instr)
+        .instr_out(raro_instr),
+        .instr_set_out(raro_set)
     );
 
     // Register operation stage control
@@ -116,7 +139,9 @@ module henad(
         .rst(rst),
         .pc_in(raro_pc),
         .instr_in(raro_instr),
+        .instr_set_in(raro_set),
         .pc_out(final_pc),
-        .instr_out(final_instr)
+        .instr_out(final_instr),
+        .instr_set_out(final_set)
     );
 endmodule

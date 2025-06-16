@@ -4,8 +4,10 @@ module control5ro(
     input  wire        rst,
     input  wire [11:0] pc_in,
     input  wire [11:0] instr_in,
+    input  wire [3:0]  instr_set_in,
     output wire [11:0] pc_out,
-    output wire [11:0] instr_out
+    output wire [11:0] instr_out,
+    output wire [3:0]  instr_set_out
 );
     // Final Register Operation stage
     stage5ro u_stage5ro(
@@ -17,4 +19,5 @@ module control5ro(
 
     // No further stage, so pass instruction through
     assign instr_out = instr_in;
+    assign instr_set_out = instr_set_in;
 endmodule
