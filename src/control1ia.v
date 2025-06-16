@@ -3,7 +3,9 @@ module control1ia(
     input  wire        clk,
     input  wire        rst,
     input  wire [11:0] pc_in,
-    output wire [11:0] pc_out
+    output wire [11:0] pc_out,
+    // Address output to the instruction memory
+    output wire [11:0] mem_addr
 );
     // Output from the stage before being latched
     wire [11:0] stage_pc;
@@ -14,7 +16,8 @@ module control1ia(
         .clk(clk),
         .rst(rst),
         .pc_in(pc_in),
-        .pc_out(stage_pc)
+        .pc_out(stage_pc),
+        .mem_addr(mem_addr)
     );
 
     // Latch between IA and IF stages

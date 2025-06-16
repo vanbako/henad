@@ -40,7 +40,7 @@ module testbench;
                  uut.ia_pc,
                  uut.iaif_pc,
                  uut.ifid_pc,
-                 uut.ifex_pc,
+                 uut.idex_pc,
                  uut.exma_pc,
                  uut.mamo_pc,
                  uut.mora_pc,

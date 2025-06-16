@@ -33,8 +33,8 @@ module henad(
         .clk(clk),
         .rst(rst),
         .pc_in(ia_pc),
-        .pc_out(iaif_pc)
-        .mem_addr(instr_mem_addr),
+        .pc_out(iaif_pc),
+        .mem_addr(instr_mem_addr)
     );
 
     // IF stage control
@@ -42,9 +42,10 @@ module henad(
         .clk(clk),
         .rst(rst),
         .pc_in(iaif_pc),
-        .pc_out(ifid_pc),
+        .pc_out(ia_pc),
         .instr_mem_data(instr_mem_data),
         .ifid_instr(ifid_instr),
+        .ifid_pc(ifid_pc)
     );
     meminstr u_meminstr(
         .clk(clk),
