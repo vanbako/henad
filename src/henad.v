@@ -60,7 +60,11 @@ module henad(
     control1if u_control1if(
         .clk(clk),
         .rst(rst),
-        .pc_in(iaif_pc),
+        // Feed the current fetch stage PC directly so the next PC
+        // increment is based on the most recent value rather than the
+        // one stored in the IA/IF latch. This keeps the PC advancing on
+        // every clock tick.
+        .pc_in(if_pc),
         .pc_out(next_pc),
         .mem_addr(instr_mem_addr),
         .instr_mem_data(instr_mem_data),
