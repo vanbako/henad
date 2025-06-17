@@ -8,11 +8,13 @@
 module stage2id(
     input  wire        clk,
     input  wire        rst,
+    input  wire        enable,
     input  wire [11:0] instr_in,
     input  wire [3:0]  instr_set_in,
     input  wire [11:0] pc_in,
     output wire [11:0] pc_out,
-    output wire [3:0]  instr_set_out
+    output wire [3:0]  instr_set_out,
+    output wire        enable_out
 );
     // No real decode logic yet.  The instruction set would normally
     // change when a special "SW" instruction is decoded.  For now the
@@ -24,4 +26,6 @@ module stage2id(
     assign pc_out = pc_in;
     assign instr_set_out = (opcode == `OPC_SW) ? instr_set_in + 4'd1
                                                : instr_set_in;
+    // Propagate enable
+    assign enable_out = enable;
 endmodule
