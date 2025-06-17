@@ -4,6 +4,7 @@
 module latch4mora(
     input  wire        clk,
     input  wire        rst,
+    input  wire        enable,
     input  wire [11:0] instr_in,
     input  wire [3:0]  instr_set_in,
     input  wire [11:0] pc_in,
@@ -16,7 +17,7 @@ module latch4mora(
             instr_out <= 12'b0;
             instr_set_out <= `ISET_BASE;
             pc_out    <= 12'b0;
-        end else begin
+        end else if (enable) begin
             instr_out <= instr_in;
             instr_set_out <= instr_set_in;
             pc_out    <= pc_in;
