@@ -56,6 +56,9 @@ module henad(
 
     // Update ia_pc and enable signals
     always @(posedge clk or posedge rst) begin
+        if (stage1ia_en) begin
+            ia_pc <= ia_pc + 12'd1;
+        end
         if (rst) begin
             ia_pc       <= 12'b0;
             stage1ia_en <= 1'b0;
@@ -67,7 +70,6 @@ module henad(
             stage5ra_en <= 1'b0;
             stage5ro_en <= 1'b0;
         end else begin
-            ia_pc       <= ia_pc + 12'd1;
             stage1ia_en <= 1'b1;
             stage1if_en <= stage1if_en_w;
             stage2id_en <= stage2id_en_w;
