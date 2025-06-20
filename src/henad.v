@@ -112,7 +112,7 @@ module henad(
     );
 
     // Initial instruction set for the pipeline
-    assign ifid_set = `ISET_BASE;
+    assign ifid_set = `ISET_R;
 
     // ID stage control
     control2id u_control2id(

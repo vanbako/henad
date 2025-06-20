@@ -15,7 +15,7 @@ module latch2idex(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             instr_out <= 12'b0;
-            instr_set_out <= `ISET_BASE;
+            instr_set_out <= `ISET_R;
             pc_out    <= 12'b0;
         end else if (enable) begin
             instr_out <= instr_in;
