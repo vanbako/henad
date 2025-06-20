@@ -1,4 +1,5 @@
 // control2id.v
+`include "src/opcodes.vh"
 module control2id(
     input  wire        clk,
     input  wire        rst,
@@ -16,6 +17,9 @@ module control2id(
 
     // Stage 2 Instruction Decode
     wire [3:0] stage_set;
+    // NOP or SW instructions are fully handled in the decode stage, so the
+    // following instruction value will be forwarded instead of the original.
+    wire [11:0] forwarded_instr;
 
     stage2id u_stage2id(
         .clk(clk),
@@ -29,12 +33,18 @@ module control2id(
         .enable_out(enable_out)
     );
 
+    // Replace the instruction with a NOP once handled.  Both OPC_NOP and
+    // OPC_SW have no further effects down the pipeline.
+    wire [3:0] opcode = instr_in[11:8];
+    assign forwarded_instr = (opcode == `OPC_NOP || opcode == `OPC_SW)
+                             ? 12'b0 : instr_in;
+
     // Latch between ID and EX stages
     latch2idex u_latch2idex(
         .clk(clk),
         .rst(rst),
         .enable(enable_in),
-        .instr_in(instr_in),
+        .instr_in(forwarded_instr),
         .instr_set_in(stage_set),
         .pc_in(stage_pc),
         .instr_out(instr_out),
