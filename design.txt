@@ -33,7 +33,7 @@ unused for the instruction:
 [x-y]    RSV reserved, must be all 0 (for the moment not checked, a check must be implemented when implementing interrupts where it should generate an illegal instruction interrupt if RSV bits are not 0)
 
 Both general purpose and special registers use the same bits in the instruction format
-Regular instructions use general purpose registers, special instructions (CPY, JMP, UPD) use special registers. This will be handled in the decode stage.
+Regular instructions use general purpose registers, special instructions (SRMOV, SRBCC) use special registers. This will be handled in the decode stage.
 
 Branch condition codes use some of the same bits as TGT, as TGT is not used in branching. This will be handled in the decode stage.
 

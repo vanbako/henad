@@ -3,9 +3,11 @@
 `ifndef OPCODES_VH
 `define OPCODES_VH
 
+// OPCODES independent of instruction set
+`define OPC_NOP      4'h0
+`define OPC_SW       4'h1
+
 // REGISTER SET
-`define OPC_R_NOP    4'h0
-`define OPC_R_SW     4'h1
 `define OPC_R_MOV    4'h2
 `define OPC_R_ADD    4'h3
 `define OPC_R_SUB    4'h4
@@ -21,16 +23,12 @@
 `define OPC_R_ST     4'hE
 
 // REGISTER SIGNED SET
-`define OPC_RS_NOP   4'h0
-`define OPC_RS_SW    4'h1
 `define OPC_RS_ADDs  4'h3
 `define OPC_RS_SUBs  4'h4
 `define OPC_RS_SRs   4'hA
 `define OPC_RS_CMPs  4'hB
 
 // IMMEDIATE SET
-`define OPC_I_NOP    4'h0
-`define OPC_I_SW     4'h1
 `define OPC_I_MOVi   4'h2
 `define OPC_I_ADDi   4'h3
 `define OPC_I_SUBi   4'h4
@@ -46,8 +44,6 @@
 `define OPC_I_Li     4'hF
 
 // IMMEDIATE SIGNED SET
-`define OPC_IS_NOP   4'h0
-`define OPC_IS_SW    4'h1
 `define OPC_IS_MOVis 4'h2
 `define OPC_IS_ADDis 4'h3
 `define OPC_IS_SUBis 4'h4
@@ -57,8 +53,6 @@
 `define OPC_IS_Lis   4'hF
 
 // SPECIAL SET
-`define OPC_S_NOP    4'h0
-`define OPC_S_SW     4'h1
 `define OPC_S_SRMOV  4'h2
 `define OPC_S_SRBCC  4'hC
 `define OPC_S_HLT    4'hF
