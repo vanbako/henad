@@ -17,8 +17,10 @@ module control2id(
 
     // Stage 2 Instruction Decode
     wire [3:0] stage_set;
-    // NOP or SW instructions are fully handled in the decode stage, so the
-    // following instruction value will be forwarded instead of the original.
+    // NOP or SW instructions are fully handled in the decode stage.  When
+    // SW is seen the instruction set is updated, so the original instruction
+    // should not proceed further down the pipeline.  In these cases a NOP is
+    // forwarded instead of the actual instruction.
     wire [11:0] forwarded_instr;
 
     stage2id u_stage2id(
