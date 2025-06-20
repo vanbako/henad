@@ -4,10 +4,10 @@
 `define ISET_VH
 
 // Instruction set codes (for opcode set switching)
-`define ISET_BASE   4'h0 // Base set
-`define ISET_BRANCH 4'h1 // Branch set
-`define ISET_MEM    4'h2 // Memory set
-`define ISET_SPEC   4'h3 // Special set
-// ... add more as needed
+`define ISET_R  4'h0 // Register set
+`define ISET_RS 4'h1 // Register signed set
+`define ISET_I  4'h2 // Immediate set
+`define ISET_IS 4'h3 // Immediate signed set
+`define ISET_S  4'h4 // Special set
 
 `endif // ISET_VH
