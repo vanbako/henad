@@ -40,46 +40,47 @@ Branch condition codes use some of the same bits as TGT, as TGT is not used in b
 i after the instruction means immediate value
 s after the instruction means signed operation
 
-NOP
-HLT
-LUI #imm
-MOV Rs, Rt
-MOVi #imm, Rt
-MOVis #imm, Rt
-ADD Rs, Rt
-ADDi #imm, Rt
-ADDs Rs, Rt
-ADDis #imm, Rt
-SUB Rs, Rt
-SUBi #imm, Rt
-SUBs Rs, Rt
-SUBis #imm, Rt
-NOT Rt
-AND Rs, Rt
-ANDi #imm, Rt
-OR Rs, Rt
-ORi #imm, Rt
-XOR Rs, Rt
-XORi #imm, Rt
-SL Rs, Rt
-SLi #imm, Rt
-SR Rs, Rt
-SRi #imm, Rt
-SRs Rs, Rt
-SRis #imm, Rt
-CMP Rs, Rt
-CMPi #imm, Rt
-CMPs Rs, Rt
-CMPis #imm, Rt
-BCC Rs
-BCCi #imm
-BCCis #imm
-LD offset(Rs), Rt
-LDi (imm), Rt
-ST Rs, offset(Rt)
-STi #imm, (Rt)
-SRMOV PC+off, LR
-SRBCC LR+off
+NOP (no operation)
+HLT (halt)
+Li #imm (load immediate)
+Lis #imm (load immediate sign-extend)
+MOV Rs, Rt (move)
+MOVi #imm, Rt (move immediate)
+MOVis #imm, Rt (move immediate sign-extend)
+ADD Rs, Rt (add)
+ADDi #imm, Rt (add immediate)
+ADDs Rs, Rt	(add signed)
+ADDis #imm, Rt (add signed immediate)
+SUB Rs, Rt (subtract)
+SUBi #imm, Rt (subtract immediate)
+SUBs Rs, Rt	(subtract signed)
+SUBis #imm, Rt (subtract signed immediate)
+NOT Rt (bitwise not)
+AND Rs, Rt (bitwise and)
+ANDi #imm, Rt (bitwise and immediate)
+OR Rs, Rt (bitwise or)
+ORi #imm, Rt (bitwise or immediate)
+XOR Rs, Rt (bitwise xor)
+XORi #imm, Rt (bitwise xor immediate)
+SL Rs, Rt (shift left)
+SLi #imm, Rt (shift left immediate)
+SR Rs, Rt (shift right)
+SRi #imm, Rt (shift right immediate)
+SRs Rs, Rt (shift right signed)
+SRis #imm, Rt (shift right signed immediate)
+CMP Rs, Rt (compare)
+CMPi #imm, Rt (compare immediate)
+CMPs Rs, Rt (compare signed)
+CMPis #imm, Rt (compare signed immediate)
+BCC Rs (branch condition code) (branch if condition is met)
+BCCi #imm (branch condition code immediate) (branch if condition is met)
+BCCis #imm (branch condition code immediate signed) (branch if condition is met)
+LD (Rs), Rt (load from data memory)
+LDi (imm), Rt (load from data memory, immediate address)
+ST Rs, (Rt) (store to data memory)
+STi #imm, (Rt) (store immediate to data memory)
+SRMOV PC, LR (store pc in link register)
+SRBCC LR+offset (branch condition code to link register with offset) (branch if condition is met)
 
 That's too many instructions for 4 bits opcode, so there will be a need for a special instruction which switches between instruction sets
 
