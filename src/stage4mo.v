@@ -1,6 +1,6 @@
-// control4mo.v
+// stage4mo.v
 `include "src/iset.vh"
-module control4mo(
+module stage4mo(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,

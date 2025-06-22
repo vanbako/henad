@@ -1,6 +1,6 @@
-// control5ra.v
+// stage3ex.v
 `include "src/iset.vh"
-module control5ra(
+module stage3ex(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,
@@ -12,14 +12,16 @@ module control5ra(
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out
 );
-    // Propagate enable directly to the next stage
+    // The execute stage currently performs no operations.  The program
+    // counter is simply forwarded to the next pipeline stage while the
+    // enable signal propagates unchanged.
     assign enable_out = enable_in;
 
-    // The Register Address stage currently performs no logic and simply
-    // forwards the program counter.
+    // Stage output prior to latching.  This is kept as a separate wire so
+    // that future execute logic can easily be inserted here.
     wire [11:0] stage_pc = pc_in;
 
-    // Latch registers between RA and RO stages
+    // Latch registers between EX and MA stages
     reg [11:0] pc_latch;
     reg [11:0] instr_latch;
     reg [3:0]  set_latch;

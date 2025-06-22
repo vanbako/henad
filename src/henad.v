@@ -83,8 +83,8 @@ module henad(
 
     // Stage and control instantiations
 
-    // IA stage control
-    control1ia u_control1ia(
+    // IA stage
+    stage1ia u_stage1ia(
         .clk(clk),
         .rst(rst),
         .enable_in(stage1ia_en),
@@ -94,8 +94,8 @@ module henad(
         .pc_out(iaif_pc)
     );
 
-    // IF stage control
-    control1if u_control1if(
+    // IF stage
+    stage1if u_stage1if(
         .clk(clk),
         .rst(rst),
         .enable_in(stage1if_en),
@@ -114,8 +114,8 @@ module henad(
     // Initial instruction set for the pipeline
     assign ifid_set = `ISET_R;
 
-    // ID stage control
-    control2id u_control2id(
+    // ID stage
+    stage2id u_stage2id(
         .clk(clk),
         .rst(rst),
         .enable_in(stage2id_en),
@@ -128,8 +128,8 @@ module henad(
         .instr_set_out(idex_set)
     );
 
-    // EX stage control
-    control3ex u_control3ex(
+    // EX stage
+    stage3ex u_stage3ex(
         .clk(clk),
         .rst(rst),
         .enable_in(stage3ex_en),
@@ -142,8 +142,8 @@ module henad(
         .instr_set_out(exma_set)
     );
 
-    // Memory address stage control
-    control4ma u_control4ma(
+    // Memory address stage
+    stage4ma u_stage4ma(
         .clk(clk),
         .rst(rst),
         .enable_in(stage4ma_en),
@@ -156,8 +156,8 @@ module henad(
         .instr_set_out(mamo_set)
     );
 
-    // Memory operation stage control
-    control4mo u_control4mo(
+    // Memory operation stage
+    stage4mo u_stage4mo(
         .clk(clk),
         .rst(rst),
         .enable_in(stage4mo_en),
@@ -170,8 +170,8 @@ module henad(
         .instr_set_out(mora_set)
     );
 
-    // Register address stage control
-    control5ra u_control5ra(
+    // Register address stage
+    stage5ra u_stage5ra(
         .clk(clk),
         .rst(rst),
         .enable_in(stage5ra_en),
@@ -184,8 +184,8 @@ module henad(
         .instr_set_out(raro_set)
     );
 
-    // Register operation stage control
-    control5ro u_control5ro(
+    // Register operation stage
+    stage5ro u_stage5ro(
         .clk(clk),
         .rst(rst),
         .enable_in(stage5ro_en),

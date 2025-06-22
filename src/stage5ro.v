@@ -1,5 +1,5 @@
-// control5ro.v
-module control5ro(
+// stage5ro.v
+module stage5ro(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,

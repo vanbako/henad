@@ -1,5 +1,5 @@
-// control1ia.v
-module control1ia(
+// stage1ia.v
+module stage1ia(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,

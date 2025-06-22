@@ -1,7 +1,7 @@
-// control2id.v
+// stage2id.v
 `include "src/opcodes.vh"
 `include "src/iset.vh"
-module control2id(
+module stage2id(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,

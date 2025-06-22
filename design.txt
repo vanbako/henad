@@ -129,14 +129,14 @@ henad
 	memdata
 	forwardunit
 	hazardunit
-    control1ia
-    control1if
-    control2id
-        control3ex (includes EX stage and EX/MA latch)
-        control4ma (includes MA stage and MA/MO latch)
-        control4mo (includes MO stage and MO/RA latch)
-        control5ra (includes RA stage and RA/RO latch)
-        control5ro (includes RO stage)
+    stage1ia
+    stage1if
+    stage2id
+    stage3ex
+    stage4ma
+    stage4mo
+    stage5ra
+    stage5ro
 
 - Read After Write Hazards
 - Control Hazards

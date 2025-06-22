@@ -1,5 +1,5 @@
-// control1if.v
-module control1if(
+// stage1if.v
+module stage1if(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,

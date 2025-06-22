@@ -1,6 +1,6 @@
-// control4ma.v
+// stage4ma.v
 `include "src/iset.vh"
-module control4ma(
+module stage4ma(
     input  wire        clk,
     input  wire        rst,
     input  wire        enable_in,
