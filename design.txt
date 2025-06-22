@@ -131,9 +131,7 @@ henad
 		hazardunit
                 control1ia
                 control1if (fetch & latch)
-		control2id
-			stage2id
-			latch2idex
+                control2id (decode & latch)
 		control3ex
 			stage3ex
 			latch3exma
