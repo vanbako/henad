@@ -5,31 +5,23 @@ module control1ia(
     input  wire        enable_in,
     output wire        enable_out,
     input  wire [11:0] pc_in,
-    output wire [11:0] pc_out,
+    output reg  [11:0] pc_out,
     // Address output to the instruction memory
     output wire [11:0] mem_addr
 );
-    // Output from the stage before being latched
-    wire [11:0] stage_pc;
+    // The instruction memory address is simply the current program
+    // counter value.
+    assign mem_addr = pc_in;
 
-    // Instruction Address stage.  No complex logic yet; just
-    // forwards the program counter value.
-    stage1ia u_stage1ia(
-        .clk(clk),
-        .rst(rst),
-        .enable(enable_in),
-        .mem_addr(mem_addr),
-        .pc_in(pc_in),
-        .pc_out(stage_pc),
-        .enable_out(enable_out)
-    );
+    // Propagate enable to the next stage
+    assign enable_out = enable_in;
 
-    // Latch between IA and IF stages
-    latch1iaif u_latch1iaif(
-        .clk(clk),
-        .rst(rst),
-        .enable(enable_in),
-        .pc_in(stage_pc),
-        .pc_out(pc_out)
-    );
+    // Latch the program counter for use by the Instruction Fetch stage
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            pc_out <= 12'b0;
+        end else if (enable_in) begin
+            pc_out <= pc_in;
+        end
+    end
 endmodule

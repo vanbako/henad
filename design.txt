@@ -129,9 +129,7 @@ henad
 	controlunit
 		forwardunit
 		hazardunit
-		control1ia
-			stage1ia
-			latch1iaif
+                control1ia
 		control1if
 			stage1if
 			latch1ifid
