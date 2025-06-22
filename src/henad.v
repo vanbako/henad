@@ -77,6 +77,19 @@ module henad(
     wire [5:0] ex_imm_val;
     wire [5:0] ex_off;
     wire       ex_sgn_en;
+    wire [11:0] ex_result;
+    wire [3:0]  ex_flags;
+    wire [11:0] ma_result;
+    wire [3:0]  ma_flags;
+    wire [11:0] mo_result;
+    wire [3:0]  mo_flags;
+    wire [11:0] ra_result;
+    wire [3:0]  ra_flags;
+    wire [11:0] ro_result;
+    wire [3:0]  ro_flags;
+    wire [3:0]  reg_waddr;
+    wire        reg_we;
+    wire        flag_we;
 
     // Update ia_pc and enable signals
     always @(posedge clk or posedge rst) begin
@@ -135,6 +148,29 @@ module henad(
         .data(instr_mem_data)
     );
 
+    // General purpose register file and flag register
+    wire [11:0] reg_src_data;
+    wire [11:0] reg_tgt_data;
+    reggp u_reggp(
+        .clk(clk),
+        .rst(rst),
+        .raddr1(id_src_gp),
+        .raddr2(id_tgt_gp),
+        .waddr(reg_waddr),
+        .wdata(ro_result),
+        .we(reg_we),
+        .rdata1(reg_src_data),
+        .rdata2(reg_tgt_data)
+    );
+
+    regflag u_regflag(
+        .clk(clk),
+        .rst(rst),
+        .flag_in(ro_flags),
+        .we(flag_we),
+        .flag_out()
+    );
+
     // Initial instruction set for the pipeline
     assign ifid_set = `ISET_R;
 
@@ -181,6 +217,8 @@ module henad(
         .imm_val_in(id_imm_val),
         .off_in(id_off),
         .sgn_en_in(id_sgn_en),
+        .src_data_in(reg_src_data),
+        .tgt_data_in(reg_tgt_data),
         .pc_out(exma_pc),
         .instr_out(exma_instr),
         .instr_set_out(exma_set),
@@ -193,7 +231,9 @@ module henad(
         .imm_hilo_out(ex_imm_hilo),
         .imm_val_out(ex_imm_val),
         .off_out(ex_off),
-        .sgn_en_out(ex_sgn_en)
+        .sgn_en_out(ex_sgn_en),
+        .result_out(ex_result),
+        .flags_out(ex_flags)
     );
 
     // Memory address stage
@@ -205,9 +245,13 @@ module henad(
         .pc_in(exma_pc),
         .instr_in(exma_instr),
         .instr_set_in(exma_set),
+        .result_in(ex_result),
+        .flags_in(ex_flags),
         .pc_out(mamo_pc),
         .instr_out(mamo_instr),
-        .instr_set_out(mamo_set)
+        .instr_set_out(mamo_set),
+        .result_out(ma_result),
+        .flags_out(ma_flags)
     );
 
     // Memory operation stage
@@ -219,9 +263,13 @@ module henad(
         .pc_in(mamo_pc),
         .instr_in(mamo_instr),
         .instr_set_in(mamo_set),
+        .result_in(ma_result),
+        .flags_in(ma_flags),
         .pc_out(mora_pc),
         .instr_out(mora_instr),
-        .instr_set_out(mora_set)
+        .instr_set_out(mora_set),
+        .result_out(mo_result),
+        .flags_out(mo_flags)
     );
 
     // Register address stage
@@ -233,9 +281,13 @@ module henad(
         .pc_in(mora_pc),
         .instr_in(mora_instr),
         .instr_set_in(mora_set),
+        .result_in(mo_result),
+        .flags_in(mo_flags),
         .pc_out(raro_pc),
         .instr_out(raro_instr),
-        .instr_set_out(raro_set)
+        .instr_set_out(raro_set),
+        .result_out(ra_result),
+        .flags_out(ra_flags)
     );
 
     // Register operation stage
@@ -246,8 +298,15 @@ module henad(
         .pc_in(raro_pc),
         .instr_in(raro_instr),
         .instr_set_in(raro_set),
+        .result_in(ra_result),
+        .flags_in(ra_flags),
         .pc_out(final_pc),
         .instr_out(final_instr),
-        .instr_set_out(final_set)
+        .instr_set_out(final_set),
+        .reg_waddr(reg_waddr),
+        .reg_wdata(ro_result),
+        .reg_we(reg_we),
+        .flag_wdata(ro_flags),
+        .flag_we(flag_we)
     );
 endmodule
