@@ -135,11 +135,9 @@ henad
         control3ex (includes EX stage and EX/MA latch)
         control4ma (includes MA stage and MA/MO latch)
         control4mo (includes MO stage and MO/RA latch)
-        control5ra
-                stage5ra
-                latch5raro
-	control5ro
-		stage5ro
+        control5ra (includes RA stage and RA/RO latch)
+        control5ro
+                stage5ro
 
 - Read After Write Hazards
 - Control Hazards
