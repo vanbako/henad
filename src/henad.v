@@ -66,6 +66,18 @@ module henad(
     wire [5:0] id_off;
     wire       id_sgn_en;
 
+    // Decoded instruction fields after the EX stage
+    wire [3:0] ex_bcc;
+    wire [3:0] ex_tgt_gp;
+    wire [3:0] ex_tgt_sr;
+    wire [3:0] ex_src_gp;
+    wire [3:0] ex_src_sr;
+    wire       ex_imm_en;
+    wire       ex_imm_hilo;
+    wire [5:0] ex_imm_val;
+    wire [5:0] ex_off;
+    wire       ex_sgn_en;
+
     // Update ia_pc and enable signals
     always @(posedge clk or posedge rst) begin
         if (stage1ia_en) begin
@@ -159,9 +171,29 @@ module henad(
         .pc_in(idex_pc),
         .instr_in(idex_instr),
         .instr_set_in(idex_set),
+        .bcc_in(id_bcc),
+        .tgt_gp_in(id_tgt_gp),
+        .tgt_sr_in(id_tgt_sr),
+        .src_gp_in(id_src_gp),
+        .src_sr_in(id_src_sr),
+        .imm_en_in(id_imm_en),
+        .imm_hilo_in(id_imm_hilo),
+        .imm_val_in(id_imm_val),
+        .off_in(id_off),
+        .sgn_en_in(id_sgn_en),
         .pc_out(exma_pc),
         .instr_out(exma_instr),
-        .instr_set_out(exma_set)
+        .instr_set_out(exma_set),
+        .bcc_out(ex_bcc),
+        .tgt_gp_out(ex_tgt_gp),
+        .tgt_sr_out(ex_tgt_sr),
+        .src_gp_out(ex_src_gp),
+        .src_sr_out(ex_src_sr),
+        .imm_en_out(ex_imm_en),
+        .imm_hilo_out(ex_imm_hilo),
+        .imm_val_out(ex_imm_val),
+        .off_out(ex_off),
+        .sgn_en_out(ex_sgn_en)
     );
 
     // Memory address stage
