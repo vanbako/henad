@@ -10,17 +10,9 @@ module control5ro(
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out
 );
-    // Final Register Operation stage
-    stage5ro u_stage5ro(
-        .clk(clk),
-        .rst(rst),
-        .enable(enable_in),
-        .pc_in(pc_in),
-        .pc_out(pc_out),
-        .enable_out()
-    );
-
-    // No further stage, so pass instruction through
-    assign instr_out = instr_in;
+    // Final Register Operation stage currently performs no logic.
+    // Propagate the program counter and instruction information.
+    assign pc_out        = pc_in;
+    assign instr_out     = instr_in;
     assign instr_set_out = instr_set_in;
 endmodule
