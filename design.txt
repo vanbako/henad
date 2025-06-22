@@ -133,9 +133,7 @@ henad
     control1if
     control2id
         control3ex (includes EX stage and EX/MA latch)
-        control4ma
-                stage4ma
-                latch4mamo
+        control4ma (includes MA stage and MA/MO latch)
 	control4mo
 		stage4mo
 		latch4mora
