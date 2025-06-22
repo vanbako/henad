@@ -23,9 +23,9 @@ Asynchronous Resets using the Artix-7 flip-flops to bring it in the clock domain
 [11-8] OPC opcode
 [7-4]  BCC branch condition code (0 = RA, 1 = EQ, 2 = NE, 3 = LT, 4 = GT, 5 = LE, 6 = GE)
 [7-4]  TGT target general purpose register (16x GP)
-[7-4]  TGT target special register (0 = PC, 1 = LR, 2 = SSP)
+[7-4]  TGT target special register (0 = PC, 1 = LR, 2 = IR, 3 = SSP)
 [3-0]  SRC source general purpose register (16x GP)
-[3-0]  SRC source special register (0 = PC, 1 = LR, 2 = SSP)
+[3-0]  SRC source special register (0 = PC, 1 = LR, 2 = IR, 3 = SSP)
 [7]    higher or lower bits immediate value (0 = low, 1 = high)
 [5-0]  IMM immediate value (6 bit)
 [5-0]  OFF signed 8-bit offset
