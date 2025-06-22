@@ -83,15 +83,15 @@ module henad(
 
     // Stage and control instantiations
 
-    // IA stage control
-    control1ia u_control1ia(
+    // IA stage
+    stage1ia u_stage1ia(
         .clk(clk),
         .rst(rst),
         .enable_in(stage1ia_en),
         .enable_out(stage1if_en_w),
-        .mem_addr(instr_mem_addr),
         .pc_in(ia_pc),
-        .pc_out(iaif_pc)
+        .pc_out(iaif_pc),
+        .mem_addr(instr_mem_addr)
     );
 
     // IF stage control

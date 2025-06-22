@@ -126,32 +126,32 @@ henad
 	reglr
 	meminstr
 	memdata
-	controlunit
-		forwardunit
-		hazardunit
-		control1ia
-			stage1ia
-			latch1iaif
-		control1if
-			stage1if
-			latch1ifid
-		control2id
-			stage2id
-			latch2idex
-		control3ex
-			stage3ex
-			latch3exma
-		control4ma
-			stage4ma
-			latch4mamo
-		control4mo
-			stage4mo
-			latch4mora
-		control5ra
-			stage5ra
-			latch5raro
-		control5ro
-			stage5ro
+	forwardunit
+	hazardunit
+	stage1ia
+	control1if
+	  stage1if
+	  latch1ifid
+	control2id
+	  stage2id
+	  latch2idex
+	control3ex
+	  stage3ex
+	  latch3exma
+	control4ma
+	  stage4ma
+	  latch4mamo
+	control4mo
+	  stage4mo
+	  latch4mora
+	control5ra
+	  stage5ra
+	  latch5raro
+	control5ro
+	  stage5ro
 
 - Read After Write Hazards
+- Control Hazards
+- Read After Write Hazards
+- Control Hazards
 - Control Hazards
