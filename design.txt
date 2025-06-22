@@ -43,43 +43,43 @@ s after the instruction means signed operation
 
 NOP (no operation)
 HLT (halt)
-Li #imm (load immediate)
-Lis #imm (load immediate sign-extend)
+Li [high|low]#imm (load immediate)
+Lis #imm (load immediate sign-extend, only low)
 MOV Rs, Rt (move)
-MOVi #imm, Rt (move immediate)
-MOVis #imm, Rt (move immediate sign-extend)
+MOVi Rt (move immediate)
+MOVis Rt (move immediate sign-extend)
 ADD Rs, Rt (add)
-ADDi #imm, Rt (add immediate)
+ADDi Rt (add immediate)
 ADDs Rs, Rt	(add signed)
-ADDis #imm, Rt (add signed immediate)
+ADDis Rt (add signed immediate)
 SUB Rs, Rt (subtract)
-SUBi #imm, Rt (subtract immediate)
+SUBi Rt (subtract immediate)
 SUBs Rs, Rt	(subtract signed)
-SUBis #imm, Rt (subtract signed immediate)
+SUBis Rt (subtract signed immediate)
 NOT Rt (bitwise not)
 AND Rs, Rt (bitwise and)
-ANDi #imm, Rt (bitwise and immediate)
+ANDi Rt (bitwise and immediate)
 OR Rs, Rt (bitwise or)
-ORi #imm, Rt (bitwise or immediate)
+ORi Rt (bitwise or immediate)
 XOR Rs, Rt (bitwise xor)
-XORi #imm, Rt (bitwise xor immediate)
+XORi Rt (bitwise xor immediate)
 SL Rs, Rt (shift left)
-SLi #imm, Rt (shift left immediate)
+SLi Rt (shift left immediate)
 SR Rs, Rt (shift right)
-SRi #imm, Rt (shift right immediate)
+SRi Rt (shift right immediate)
 SRs Rs, Rt (shift right signed)
-SRis #imm, Rt (shift right signed immediate)
+SRis Rt (shift right signed immediate)
 CMP Rs, Rt (compare)
-CMPi #imm, Rt (compare immediate)
+CMPi Rt (compare immediate)
 CMPs Rs, Rt (compare signed)
-CMPis #imm, Rt (compare signed immediate)
+CMPis Rt (compare signed immediate)
 BCC Rs (branch condition code) (branch if condition is met)
-BCCi #imm (branch condition code immediate) (branch if condition is met)
-BCCis #imm (branch condition code immediate signed) (branch if condition is met)
+BCCi (branch condition code immediate) (branch if condition is met)
+BCCis (branch condition code immediate signed) (branch if condition is met)
 LD (Rs), Rt (load from data memory)
-LDi (imm), Rt (load from data memory, immediate address)
+LDi Rt (load from data memory, immediate address)
 ST Rs, (Rt) (store to data memory)
-STi #imm, (Rt) (store immediate to data memory)
+STi (Rt) (store immediate to data memory)
 SRMOV PC, LR (store pc in link register)
 SRBCC LR+offset (branch condition code to link register with offset) (branch if condition is met)
 
@@ -98,6 +98,7 @@ That's too many instructions for 4 bits opcode, so there will be a need for a sp
 - special registers
 PC  : program counter
 LR  : link register
+IR  : immediate register
 SSP : shadow stack pointer (not used yet)
 
 FL: flag register
@@ -126,26 +127,25 @@ henad
 	reglr
 	meminstr
 	memdata
-	controlunit
-		forwardunit
-		hazardunit
-                control1ia
-                control1if (fetch & latch)
-                control2id (decode & latch)
-		control3ex
-			stage3ex
-			latch3exma
-		control4ma
-			stage4ma
-			latch4mamo
-		control4mo
-			stage4mo
-			latch4mora
-		control5ra
-			stage5ra
-			latch5raro
-		control5ro
-			stage5ro
+	forwardunit
+	hazardunit
+    control1ia
+    control1if
+    control2id
+	control3ex
+		stage3ex
+		latch3exma
+	control4ma
+		stage4ma
+		latch4mamo
+	control4mo
+		stage4mo
+		latch4mora
+	control5ra
+		stage5ra
+		latch5raro
+	control5ro
+		stage5ro
 
 - Read After Write Hazards
 - Control Hazards
