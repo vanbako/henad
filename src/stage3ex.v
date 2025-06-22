@@ -1,5 +1,7 @@
 // stage3ex.v
 `include "src/iset.vh"
+`include "src/opcodes.vh"
+`include "src/flags.vh"
 module stage3ex(
     input  wire        clk,
     input  wire        rst,
@@ -18,6 +20,8 @@ module stage3ex(
     input  wire [5:0]  imm_val_in,
     input  wire [5:0]  off_in,
     input  wire        sgn_en_in,
+    input  wire [11:0] src_data_in,
+    input  wire [11:0] tgt_data_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -30,7 +34,9 @@ module stage3ex(
     output wire        imm_hilo_out,
     output wire [5:0]  imm_val_out,
     output wire [5:0]  off_out,
-    output wire        sgn_en_out
+    output wire        sgn_en_out,
+    output wire [11:0] result_out,
+    output wire [3:0]  flags_out
 );
     // The execute stage currently performs no operations.  The program
     // counter is simply forwarded to the next pipeline stage while the
@@ -51,6 +57,25 @@ module stage3ex(
     wire [5:0]  stage_off      = off_in;
     wire        stage_sgn_en   = sgn_en_in;
 
+    // Immediate value expansion
+    wire [11:0] imm_ext_tmp  = stage_sgn_en ? {{6{stage_imm_val[5]}}, stage_imm_val}
+                                            : {6'b0, stage_imm_val};
+    wire [11:0] imm_ext      = stage_imm_hilo ? (imm_ext_tmp << 6) : imm_ext_tmp;
+
+    // ALU instantiation
+    wire [11:0] alu_result;
+    wire [3:0]  alu_flags;
+    alu u_alu(
+        .opcode(instr_in[11:8]),
+        .src(src_data_in),
+        .tgt(tgt_data_in),
+        .imm(imm_ext),
+        .imm_en(stage_imm_en),
+        .sgn_en(stage_sgn_en),
+        .result(alu_result),
+        .flags(alu_flags)
+    );
+
     // Latch registers between EX and MA stages
     reg [11:0] pc_latch;
     reg [11:0] instr_latch;
@@ -65,6 +90,8 @@ module stage3ex(
     reg [5:0]  imm_val_latch;
     reg [5:0]  off_latch;
     reg        sgn_en_latch;
+    reg [11:0] result_latch;
+    reg [3:0]  flags_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -81,6 +108,8 @@ module stage3ex(
             imm_val_latch  <= 6'b0;
             off_latch      <= 6'b0;
             sgn_en_latch   <= 1'b0;
+            result_latch   <= 12'b0;
+            flags_latch    <= 4'b0;
         end else if (enable_in) begin
             pc_latch       <= stage_pc;
             instr_latch    <= instr_in;
@@ -95,6 +124,8 @@ module stage3ex(
             imm_val_latch  <= stage_imm_val;
             off_latch      <= stage_off;
             sgn_en_latch   <= stage_sgn_en;
+            result_latch   <= alu_result;
+            flags_latch    <= alu_flags;
         end
     end
 
@@ -111,4 +142,6 @@ module stage3ex(
     assign imm_val_out   = imm_val_latch;
     assign off_out       = off_latch;
     assign sgn_en_out    = sgn_en_latch;
+    assign result_out    = result_latch;
+    assign flags_out     = flags_latch;
 endmodule

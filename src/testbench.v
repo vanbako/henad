@@ -64,6 +64,15 @@ module testbench;
                  uut.mora_set,
                  uut.raro_set,
                  uut.final_set);
+        $display("tick %0d : EX_res=%h MA_res=%h MO_res=%h RA_res=%h RO_res=%h WE=%b WADDR=%h",
+                 tick,
+                 uut.ex_result,
+                 uut.ma_result,
+                 uut.mo_result,
+                 uut.ra_result,
+                 uut.ro_result,
+                 uut.reg_we,
+                 uut.reg_waddr);
         tick = tick + 1;
     end
 endmodule
