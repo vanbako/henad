@@ -54,6 +54,18 @@ module henad(
     wire [3:0] raro_set;
     wire [3:0] final_set;
 
+    // Decoded instruction fields from ID stage
+    wire [3:0] id_bcc;
+    wire [3:0] id_tgt_gp;
+    wire [3:0] id_tgt_sr;
+    wire [3:0] id_src_gp;
+    wire [3:0] id_src_sr;
+    wire       id_imm_en;
+    wire       id_imm_hilo;
+    wire [5:0] id_imm_val;
+    wire [5:0] id_off;
+    wire       id_sgn_en;
+
     // Update ia_pc and enable signals
     always @(posedge clk or posedge rst) begin
         if (stage1ia_en) begin
@@ -125,7 +137,17 @@ module henad(
         .instr_set_in(ifid_set),
         .pc_out(idex_pc),
         .instr_out(idex_instr),
-        .instr_set_out(idex_set)
+        .instr_set_out(idex_set),
+        .bcc_out(id_bcc),
+        .tgt_gp_out(id_tgt_gp),
+        .tgt_sr_out(id_tgt_sr),
+        .src_gp_out(id_src_gp),
+        .src_sr_out(id_src_sr),
+        .imm_en_out(id_imm_en),
+        .imm_hilo_out(id_imm_hilo),
+        .imm_val_out(id_imm_val),
+        .off_out(id_off),
+        .sgn_en_out(id_sgn_en)
     );
 
     // EX stage
