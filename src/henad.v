@@ -70,6 +70,12 @@ module henad(
 
     reg branch_stall;
 
+    // Stall signal for read-after-write hazards
+    wire hazard_stall;
+
+    // Combined stall control used by the decode stage and PC logic
+    wire stall_signal = branch_stall || hazard_stall;
+
     // Hold the stall for a single cycle after a branch reaches the
     // execute stage.
     always @(posedge clk or posedge rst) begin
@@ -135,9 +141,9 @@ module henad(
             stage5ra_en <= 1'b0;
             stage5ro_en <= 1'b0;
         end else begin
-            stage1ia_en <= branch_stall ? 1'b0 : 1'b1;
-            stage1if_en <= branch_stall ? 1'b0 : stage1if_en_w;
-            stage2id_en <= branch_stall ? 1'b1 : stage2id_en_w;
+            stage1ia_en <= stall_signal ? 1'b0 : 1'b1;
+            stage1if_en <= stall_signal ? 1'b0 : stage1if_en_w;
+            stage2id_en <= stall_signal ? 1'b1 : stage2id_en_w;
             stage3ex_en <= stage3ex_en_w;
             stage4ma_en <= stage4ma_en_w;
             stage4mo_en <= stage4mo_en_w;
@@ -231,7 +237,7 @@ module henad(
         .imm_val_out(id_imm_val),
         .off_out(id_off),
         .sgn_en_out(id_sgn_en),
-        .stall_in(branch_stall)
+        .stall_in(stall_signal)
     );
 
     // EX stage
@@ -354,5 +360,18 @@ module henad(
         .reg_we(reg_we),
         .flag_wdata(ro_flags),
         .flag_we(flag_we)
+    );
+
+    // Hazard detection unit
+    hazardunit u_hazardunit(
+        .id_src_gp(id_src_gp),
+        .id_tgt_gp(id_tgt_gp),
+        .idex_instr(idex_instr),
+        .idex_set(idex_set),
+        .exma_instr(exma_instr),
+        .exma_set(exma_set),
+        .mamo_instr(mamo_instr),
+        .mamo_set(mamo_set),
+        .stall(hazard_stall)
     );
 endmodule
