@@ -28,10 +28,10 @@ module stage4mo(
 
     // Decode opcode for load/store behaviour
     wire [3:0] opcode = instr_in[11:8];
-    wire       load_instr  = (opcode == `OPC_R_LD)  ||
-                             (opcode == `OPC_I_LDi);
-    wire       store_instr = (opcode == `OPC_R_ST)  ||
-                             (opcode == `OPC_I_STi);
+    wire       load_instr  = ({instr_set_in, opcode} == {`ISET_R, `OPC_R_LD})  ||
+                             ({instr_set_in, opcode} == {`ISET_I, `OPC_I_LDi});
+    wire       store_instr = ({instr_set_in, opcode} == {`ISET_R, `OPC_R_ST})  ||
+                             ({instr_set_in, opcode} == {`ISET_I, `OPC_I_STi});
 
     // For load instructions use the memory data as the result.  All
     // other instructions simply forward the execute stage result.

@@ -30,10 +30,10 @@ module stage4ma(
     // address. Otherwise the original PC is forwarded.  Keeping this in a
     // separate wire allows for future memory address calculations.
     wire [3:0] opcode = instr_in[11:8];
-    wire branch_instr = (opcode == `OPC_R_BCC)  ||
-                        (opcode == `OPC_I_BCCi) ||
-                        (opcode == `OPC_IS_BCCis) ||
-                        (opcode == `OPC_S_SRBCC);
+    wire branch_instr = ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_BCC})  ||
+                        ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_BCCi}) ||
+                        ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_BCCis}) ||
+                        ({instr_set_in, opcode} == {`ISET_S,  `OPC_S_SRBCC});
     wire [11:0] stage_pc = branch_instr ? result_in : pc_in;
     wire [11:0] stage_result = result_in;
     wire [3:0]  stage_flags  = flags_in;
@@ -42,8 +42,10 @@ module stage4ma(
     // Determine if this is a memory access instruction and set the
     // data memory address accordingly.  The execute stage provides the
     // address to access in result_in for load/store instructions.
-    wire mem_instr = (opcode == `OPC_R_LD)  || (opcode == `OPC_I_LDi) ||
-                     (opcode == `OPC_R_ST) || (opcode == `OPC_I_STi);
+    wire mem_instr = ({instr_set_in, opcode} == {`ISET_R, `OPC_R_LD})  ||
+                     ({instr_set_in, opcode} == {`ISET_I, `OPC_I_LDi}) ||
+                     ({instr_set_in, opcode} == {`ISET_R, `OPC_R_ST}) ||
+                     ({instr_set_in, opcode} == {`ISET_I, `OPC_I_STi});
     assign mem_addr = mem_instr ? result_in : 12'b0;
 
     // Latch registers between MA and MO stages
