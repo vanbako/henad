@@ -28,7 +28,7 @@ Asynchronous Resets using the Artix-7 flip-flops to bring it in the clock domain
 [3-0]  SRC source special register (0 = PC, 1 = LR, 2 = IR, 3 = SSP)
 [7]    higher or lower bits immediate value (0 = low, 1 = high)
 [5-0]  IMM immediate value (6 bit)
-[5-0]  OFF signed 8-bit offset
+[5-0]  OFF signed 4-bit offset
 [2-0]  Instruction set
 unused for the instruction:
 [x-y]    RSV reserved, must be all 0 (for the moment not checked, a check must be implemented when implementing interrupts where it should generate an illegal instruction interrupt if RSV bits are not 0)
