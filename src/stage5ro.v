@@ -10,6 +10,8 @@ module stage5ro(
     input  wire [3:0]  instr_set_in,
     input  wire [11:0] result_in,
     input  wire [3:0]  flags_in,
+    // Register address prepared by the RA stage
+    input  wire [3:0]  reg_waddr_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -36,7 +38,8 @@ module stage5ro(
                       opcode == `OPC_IS_ADDis|| opcode == `OPC_IS_SUBis||
                       opcode == `OPC_IS_SRis || opcode == `OPC_IS_Lis);
 
-    assign reg_waddr  = instr_in[7:4];
+    // Pass through the address computed in the RA stage
+    assign reg_waddr  = reg_waddr_in;
     assign reg_wdata  = result_in;
     assign reg_we     = enable_in && reg_write;
 

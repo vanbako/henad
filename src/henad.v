@@ -91,6 +91,7 @@ module henad(
     wire [3:0]  mo_flags;
     wire [11:0] ra_result;
     wire [3:0]  ra_flags;
+    wire [3:0]  ra_reg_waddr;
     wire [11:0] ro_result;
     wire [3:0]  ro_flags;
     wire [3:0]  reg_waddr;
@@ -308,7 +309,8 @@ module henad(
         .instr_out(raro_instr),
         .instr_set_out(raro_set),
         .result_out(ra_result),
-        .flags_out(ra_flags)
+        .flags_out(ra_flags),
+        .reg_waddr_out(ra_reg_waddr)
     );
 
     // Register operation stage
@@ -321,6 +323,7 @@ module henad(
         .instr_set_in(raro_set),
         .result_in(ra_result),
         .flags_in(ra_flags),
+        .reg_waddr_in(ra_reg_waddr),
         .pc_out(final_pc),
         .instr_out(final_instr),
         .instr_set_out(final_set),
