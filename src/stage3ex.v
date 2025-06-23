@@ -79,82 +79,106 @@ module stage3ex(
         carry     = 1'b0;
         overflow  = 1'b0;
 
-        case (instr_in[11:8])
-            `OPC_R_MOV, `OPC_I_MOVi, `OPC_IS_MOVis: begin
+        // Combine instruction set and opcode so that opcodes that share the same
+        // value across different sets can be uniquely identified.
+        // This avoids executing a special set instruction as a register set
+        // instruction when the opcode values overlap.
+        case ({instr_set_in, instr_in[11:8]})
+            {`ISET_R,  `OPC_R_MOV},
+            {`ISET_I,  `OPC_I_MOVi},
+            {`ISET_IS, `OPC_IS_MOVis}: begin
                 alu_result = operand;
             end
-            `OPC_R_ADD, `OPC_I_ADDi, `OPC_RS_ADDs, `OPC_IS_ADDis: begin
+            {`ISET_R,  `OPC_R_ADD},
+            {`ISET_I,  `OPC_I_ADDi},
+            {`ISET_RS, `OPC_RS_ADDs},
+            {`ISET_IS, `OPC_IS_ADDis}: begin
                 calc       = tgt_op + operand;
                 alu_result = calc[11:0];
                 carry      = calc[12];
                 overflow   = (~(tgt_op[11] ^ operand[11]) & (alu_result[11] ^ tgt_op[11]));
             end
-            `OPC_R_SUB, `OPC_I_SUBi, `OPC_RS_SUBs, `OPC_IS_SUBis,
-            `OPC_R_CMP, `OPC_I_CMPi, `OPC_RS_CMPs, `OPC_IS_CMPis: begin
+            {`ISET_R,  `OPC_R_SUB},
+            {`ISET_I,  `OPC_I_SUBi},
+            {`ISET_RS, `OPC_RS_SUBs},
+            {`ISET_IS, `OPC_IS_SUBis},
+            {`ISET_R,  `OPC_R_CMP},
+            {`ISET_I,  `OPC_I_CMPi},
+            {`ISET_RS, `OPC_RS_CMPs},
+            {`ISET_IS, `OPC_IS_CMPis}: begin
                 calc       = tgt_op + (~operand + 12'd1);
                 alu_result = calc[11:0];
                 carry      = calc[12];
                 overflow   = ((tgt_op[11] ^ operand[11]) & (alu_result[11] ^ tgt_op[11]));
             end
-            `OPC_R_NOT: begin
+            {`ISET_R, `OPC_R_NOT}: begin
                 alu_result = ~tgt_op;
             end
-            `OPC_R_AND, `OPC_I_ANDi: begin
+            {`ISET_R, `OPC_R_AND},
+            {`ISET_I, `OPC_I_ANDi}: begin
                 alu_result = tgt_op & operand;
             end
-            `OPC_R_OR, `OPC_I_ORi: begin
+            {`ISET_R, `OPC_R_OR},
+            {`ISET_I, `OPC_I_ORi}: begin
                 alu_result = tgt_op | operand;
             end
-            `OPC_R_XOR, `OPC_I_XORi: begin
+            {`ISET_R, `OPC_R_XOR},
+            {`ISET_I, `OPC_I_XORi}: begin
                 alu_result = tgt_op ^ operand;
             end
-            `OPC_R_SL, `OPC_I_SLi: begin
+            {`ISET_R, `OPC_R_SL},
+            {`ISET_I, `OPC_I_SLi}: begin
                 alu_result = tgt_op << operand[3:0];
             end
-            `OPC_R_SR, `OPC_I_SRi, `OPC_RS_SRs, `OPC_IS_SRis: begin
+            {`ISET_R,  `OPC_R_SR},
+            {`ISET_I,  `OPC_I_SRi},
+            {`ISET_RS, `OPC_RS_SRs},
+            {`ISET_IS, `OPC_IS_SRis}: begin
                 if (stage_sgn_en)
                     alu_result = $signed(tgt_op) >>> operand[3:0];
                 else
                     alu_result = tgt_op >> operand[3:0];
             end
-            `OPC_R_BCC, `OPC_IS_BCCis: begin
+            {`ISET_R,  `OPC_R_BCC},
+            {`ISET_IS, `OPC_IS_BCCis}: begin
                 if (stage_bcc == `BCC_RA)
                     alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
                 else
                     alu_result = pc_in;
             end
-            `OPC_I_BCCi: begin
+            {`ISET_I, `OPC_I_BCCi}: begin
                 if (stage_bcc == `BCC_RA)
                     alu_result = pc_in + {6'b0, stage_off};
                 else
                     alu_result = pc_in;
             end
-            `OPC_R_LD: begin
+            {`ISET_R, `OPC_R_LD}: begin
                 alu_result = src_data_in; // Placeholder load behaviour
             end
-            `OPC_I_LDi: begin
+            {`ISET_I, `OPC_I_LDi}: begin
                 alu_result = src_data_in; // Placeholder immediate load behaviour
             end
-            `OPC_R_ST: begin
+            {`ISET_R, `OPC_R_ST}: begin
                 alu_result = tgt_op; // Placeholder store behaviour
             end
-            `OPC_I_STi: begin
+            {`ISET_I, `OPC_I_STi}: begin
                 alu_result = tgt_op; // Placeholder immediate store behaviour
             end
-            `OPC_I_Li, `OPC_IS_Lis: begin
+            {`ISET_I,  `OPC_I_Li},
+            {`ISET_IS, `OPC_IS_Lis}: begin
                 alu_result = imm_ext; // Load immediate value
             end
-            `OPC_S_SRMOV: begin
+            {`ISET_S, `OPC_S_SRMOV}: begin
                 // Move program counter to a special register (e.g. LR)
                 alu_result = pc_in;
             end
-            `OPC_S_SRBCC: begin
+            {`ISET_S, `OPC_S_SRBCC}: begin
                 if (stage_bcc == `BCC_RA)
                     alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
                 else
                     alu_result = pc_in;
             end
-            `OPC_S_HLT: begin
+            {`ISET_S, `OPC_S_HLT}: begin
                 alu_result = 12'b0;
             end
             default: begin
