@@ -117,7 +117,7 @@ module stage3ex(
                 else
                     alu_result = tgt_op >> operand[3:0];
             end
-            `OPC_R_BCC: begin
+            `OPC_R_BCC, `OPC_IS_BCCis: begin
                 if (stage_bcc == `BCC_RA)
                     alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
                 else
@@ -141,7 +141,7 @@ module stage3ex(
             `OPC_I_STi: begin
                 alu_result = tgt_op; // Placeholder immediate store behaviour
             end
-            `OPC_I_Li: begin
+            `OPC_I_Li, `OPC_IS_Lis: begin
                 alu_result = imm_ext; // Load immediate value
             end
             default: begin
