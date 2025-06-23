@@ -140,16 +140,19 @@ module stage3ex(
                 else
                     alu_result = tgt_op >> operand[3:0];
             end
-            {`ISET_R,  `OPC_R_BCC},
-            {`ISET_IS, `OPC_IS_BCCis}: begin
+            {`ISET_R,  `OPC_R_BCC}: begin
+                // Branch to absolute address in the target register
                 if (stage_bcc == `BCC_RA)
-                    alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
+                    alu_result = tgt_op;
                 else
                     alu_result = pc_in;
             end
-            {`ISET_I, `OPC_I_BCCi}: begin
+            {`ISET_I,  `OPC_I_BCCi},
+            {`ISET_IS, `OPC_IS_BCCis}: begin
+                // Branch relative to PC using the signed lower 6 bits of
+                // the immediate register
                 if (stage_bcc == `BCC_RA)
-                    alu_result = pc_in + {6'b0, stage_off};
+                    alu_result = pc_in + {{6{ir_in[5]}}, ir_in[5:0]};
                 else
                     alu_result = pc_in;
             end
