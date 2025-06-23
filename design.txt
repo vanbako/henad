@@ -41,6 +41,8 @@ Branch condition codes use some of the same bits as TGT, as TGT is not used in b
 i after the instruction means immediate value
 s after the instruction means signed operation
 
+In the assembly language, first operand is source, second operand is target.
+
 NOP (no operation)
 HLT (halt)
 Li [high|low]#imm (load immediate)
