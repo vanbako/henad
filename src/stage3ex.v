@@ -62,19 +62,70 @@ module stage3ex(
                                             : {6'b0, stage_imm_val};
     wire [11:0] imm_ext      = stage_imm_hilo ? (imm_ext_tmp << 6) : imm_ext_tmp;
 
-    // ALU instantiation
-    wire [11:0] alu_result;
-    wire [3:0]  alu_flags;
-    alu u_alu(
-        .opcode(instr_in[11:8]),
-        .src(src_data_in),
-        .tgt(tgt_data_in),
-        .imm(imm_ext),
-        .imm_en(stage_imm_en),
-        .sgn_en(stage_sgn_en),
-        .result(alu_result),
-        .flags(alu_flags)
-    );
+    // Execution logic (formerly in a separate ALU module)
+    reg [11:0] alu_result;
+    reg [3:0]  alu_flags;
+    reg [12:0] calc;
+    reg        carry;
+    reg        overflow;
+    reg [11:0] operand;
+    reg [11:0] tgt_op;
+
+    always @* begin
+        operand   = stage_imm_en ? imm_ext : src_data_in;
+        tgt_op    = tgt_data_in;
+        alu_result = 12'b0;
+        carry     = 1'b0;
+        overflow  = 1'b0;
+
+        case (instr_in[11:8])
+            `OPC_R_MOV, `OPC_I_MOVi, `OPC_IS_MOVis: begin
+                alu_result = operand;
+            end
+            `OPC_R_ADD, `OPC_I_ADDi, `OPC_RS_ADDs, `OPC_IS_ADDis: begin
+                calc       = tgt_op + operand;
+                alu_result = calc[11:0];
+                carry      = calc[12];
+                overflow   = (~(tgt_op[11] ^ operand[11]) & (alu_result[11] ^ tgt_op[11]));
+            end
+            `OPC_R_SUB, `OPC_I_SUBi, `OPC_RS_SUBs, `OPC_IS_SUBis,
+            `OPC_R_CMP, `OPC_I_CMPi, `OPC_RS_CMPs, `OPC_IS_CMPis: begin
+                calc       = tgt_op + (~operand + 12'd1);
+                alu_result = calc[11:0];
+                carry      = calc[12];
+                overflow   = ((tgt_op[11] ^ operand[11]) & (alu_result[11] ^ tgt_op[11]));
+            end
+            `OPC_R_NOT: begin
+                alu_result = ~tgt_op;
+            end
+            `OPC_R_AND, `OPC_I_ANDi: begin
+                alu_result = tgt_op & operand;
+            end
+            `OPC_R_OR, `OPC_I_ORi: begin
+                alu_result = tgt_op | operand;
+            end
+            `OPC_R_XOR, `OPC_I_XORi: begin
+                alu_result = tgt_op ^ operand;
+            end
+            `OPC_R_SL, `OPC_I_SLi: begin
+                alu_result = tgt_op << operand[3:0];
+            end
+            `OPC_R_SR, `OPC_I_SRi, `OPC_RS_SRs, `OPC_IS_SRis: begin
+                if (stage_sgn_en)
+                    alu_result = $signed(tgt_op) >>> operand[3:0];
+                else
+                    alu_result = tgt_op >> operand[3:0];
+            end
+            default: begin
+                alu_result = 12'b0;
+            end
+        endcase
+
+        alu_flags[`FLAG_Z] = (alu_result == 12'b0);
+        alu_flags[`FLAG_C] = carry;
+        alu_flags[`FLAG_N] = alu_result[11];
+        alu_flags[`FLAG_V] = overflow;
+    end
 
     // Latch registers between EX and MA stages
     reg [11:0] pc_latch;
