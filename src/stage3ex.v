@@ -39,10 +39,10 @@ module stage3ex(
     output wire [11:0] result_out,
     output wire [3:0]  flags_out
 );
-    // The execute stage currently performs no operations.  The program
-    // counter is simply forwarded to the next pipeline stage while the
-    // enable signal propagates unchanged.
-    assign enable_out = enable_in;
+    // Propagate the enable signal to the next stage.  For the special
+    // halt instruction the pipeline is stalled by clearing the enable
+    // line.
+    assign enable_out = (instr_in[11:8] == `OPC_S_HLT) ? 1'b0 : enable_in;
 
     // Stage output prior to latching.  This is kept as a separate wire so
     // that future execute logic can easily be inserted here.
@@ -143,6 +143,19 @@ module stage3ex(
             end
             `OPC_I_Li, `OPC_IS_Lis: begin
                 alu_result = imm_ext; // Load immediate value
+            end
+            `OPC_S_SRMOV: begin
+                // Move program counter to a special register (e.g. LR)
+                alu_result = pc_in;
+            end
+            `OPC_S_SRBCC: begin
+                if (stage_bcc == `BCC_RA)
+                    alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
+                else
+                    alu_result = pc_in;
+            end
+            `OPC_S_HLT: begin
+                alu_result = 12'b0;
             end
             default: begin
                 alu_result = 12'b0;
