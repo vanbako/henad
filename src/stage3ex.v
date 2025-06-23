@@ -2,6 +2,7 @@
 `include "src/iset.vh"
 `include "src/opcodes.vh"
 `include "src/flags.vh"
+`include "src/bcc.vh"
 module stage3ex(
     input  wire        clk,
     input  wire        rst,
@@ -115,6 +116,18 @@ module stage3ex(
                     alu_result = $signed(tgt_op) >>> operand[3:0];
                 else
                     alu_result = tgt_op >> operand[3:0];
+            end
+            `OPC_R_BCC: begin
+                if (stage_bcc == `BCC_RA)
+                    alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
+                else
+                    alu_result = pc_in;
+            end
+            `OPC_R_LD: begin
+                alu_result = src_data_in; // Placeholder load behaviour
+            end
+            `OPC_R_ST: begin
+                alu_result = tgt_op; // Placeholder store behaviour
             end
             default: begin
                 alu_result = 12'b0;
