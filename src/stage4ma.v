@@ -15,7 +15,9 @@ module stage4ma(
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
     output wire [11:0] result_out,
-    output wire [3:0]  flags_out
+    output wire [3:0]  flags_out,
+    // Address line for the data memory
+    output wire [11:0] mem_addr
 );
     // Propagate the enable signal to the next stage.  Any PC update is
     // determined below based on the instruction type.
@@ -33,6 +35,13 @@ module stage4ma(
     wire [11:0] stage_pc = branch_instr ? result_in : pc_in;
     wire [11:0] stage_result = result_in;
     wire [3:0]  stage_flags  = flags_in;
+
+    // Determine if this is a memory access instruction and set the
+    // data memory address accordingly.  The execute stage provides the
+    // address to access in result_in for load/store instructions.
+    wire mem_instr = (opcode == `OPC_R_LD)  || (opcode == `OPC_I_LDi) ||
+                     (opcode == `OPC_R_ST) || (opcode == `OPC_I_STi);
+    assign mem_addr = mem_instr ? result_in : 12'b0;
 
     // Latch registers between MA and MO stages
     reg [11:0] pc_latch;
