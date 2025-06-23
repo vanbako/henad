@@ -27,6 +27,8 @@ module henad(
 
     wire [11:0] instr_mem_data;
     wire [11:0] instr_mem_addr;
+    wire [11:0] data_mem_data;
+    wire [11:0] data_mem_addr;
 
     wire [11:0] iaif_pc;
     wire [11:0] ifid_pc;
@@ -147,6 +149,13 @@ module henad(
         .addr(instr_mem_addr),
         .data(instr_mem_data)
     );
+    memdata u_memdata(
+        .clk(clk),
+        .we(1'b0),
+        .addr(data_mem_addr),
+        .wdata(12'b0),
+        .rdata(data_mem_data)
+    );
 
     // General purpose register file and flag register
     wire [11:0] reg_src_data;
@@ -247,6 +256,7 @@ module henad(
         .instr_set_in(exma_set),
         .result_in(ex_result),
         .flags_in(ex_flags),
+        .mem_addr(data_mem_addr),
         .pc_out(mamo_pc),
         .instr_out(mamo_instr),
         .instr_set_out(mamo_set),
