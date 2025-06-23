@@ -275,6 +275,7 @@ module henad(
         .instr_set_in(mamo_set),
         .result_in(ma_result),
         .flags_in(ma_flags),
+        .mem_rdata(data_mem_data),
         .pc_out(mora_pc),
         .instr_out(mora_instr),
         .instr_set_out(mora_set),

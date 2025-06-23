@@ -1,5 +1,6 @@
 // stage4mo.v
 `include "src/iset.vh"
+`include "src/opcodes.vh"
 module stage4mo(
     input  wire        clk,
     input  wire        rst,
@@ -10,6 +11,8 @@ module stage4mo(
     input  wire [3:0]  instr_set_in,
     input  wire [11:0] result_in,
     input  wire [3:0]  flags_in,
+    // Data returned from the data memory
+    input  wire [11:0] mem_rdata,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -19,10 +22,16 @@ module stage4mo(
     // Propagate enable directly to the next stage
     assign enable_out = enable_in;
 
-    // The Memory Operation stage currently performs no logic and simply
-    // forwards the program counter.
-    wire [11:0] stage_pc = pc_in;
-    wire [11:0] stage_result = result_in;
+    // Decode opcode to determine if this is a load instruction.  Store
+    // operations are not yet implemented, so writes are ignored.
+    wire [3:0] opcode = instr_in[11:8];
+    wire       load_instr  = (opcode == `OPC_R_LD)  ||
+                             (opcode == `OPC_I_LDi);
+
+    // For load instructions use the memory data as the result.  All
+    // other instructions simply forward the execute stage result.
+    wire [11:0] stage_pc     = pc_in;
+    wire [11:0] stage_result = load_instr ? mem_rdata : result_in;
     wire [3:0]  stage_flags  = flags_in;
 
     // Latch registers between the MO stage and the Register Address stage
