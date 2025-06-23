@@ -24,45 +24,10 @@ module hazardunit(
     // Asserted when a hazard is detected
     output wire        stall
 );
-    // -------------------------------------------------------------
-    // Helper function used to decide if an instruction writes to the
-    // general purpose register file.  The logic mirrors the write-back
-    // decision used in stage5ro so that this unit remains consistent
-    // with the final pipeline stage.
-    function automatic reg_write_fn;
-        input [3:0] set;
-        input [3:0] opc;
-        begin
-            reg_write_fn = ({set, opc} == {`ISET_R,  `OPC_R_MOV})  ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_MOVi}) ||
-                          ({set, opc} == {`ISET_IS, `OPC_IS_MOVis}) ||
-                          ({set, opc} == {`ISET_R,  `OPC_R_ADD})  ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_ADDi}) ||
-                          ({set, opc} == {`ISET_RS, `OPC_RS_ADDs}) ||
-                          ({set, opc} == {`ISET_IS, `OPC_IS_ADDis})||
-                          ({set, opc} == {`ISET_R,  `OPC_R_SUB})  ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_SUBi}) ||
-                          ({set, opc} == {`ISET_RS, `OPC_RS_SUBs}) ||
-                          ({set, opc} == {`ISET_IS, `OPC_IS_SUBis})||
-                          ({set, opc} == {`ISET_R,  `OPC_R_NOT})  ||
-                          ({set, opc} == {`ISET_R,  `OPC_R_AND})  ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_ANDi}) ||
-                          ({set, opc} == {`ISET_R,  `OPC_R_OR})   ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_ORi})  ||
-                          ({set, opc} == {`ISET_R,  `OPC_R_XOR})  ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_XORi}) ||
-                          ({set, opc} == {`ISET_R,  `OPC_R_SL})   ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_SLi})  ||
-                          ({set, opc} == {`ISET_R,  `OPC_R_SR})   ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_SRi})  ||
-                          ({set, opc} == {`ISET_RS, `OPC_RS_SRs}) ||
-                          ({set, opc} == {`ISET_IS, `OPC_IS_SRis})||
-                          ({set, opc} == {`ISET_R,  `OPC_R_LD})   ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_LDi})  ||
-                          ({set, opc} == {`ISET_I,  `OPC_I_Li})   ||
-                          ({set, opc} == {`ISET_IS, `OPC_IS_Lis});
-        end
-    endfunction
+    // Bring in the shared reg_write_fn helper
+    `define DEFINE_REG_WRITE_FN
+    `include "src/iset.vh"
+    `undef DEFINE_REG_WRITE_FN
 
     // Destination register numbers in the stages ahead of decode
     wire [3:0] ex_waddr = idex_instr[7:4];

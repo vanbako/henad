@@ -1,6 +1,7 @@
 // stage5ro.v
 `include "src/opcodes.vh"
 `include "src/flags.vh"
+`include "src/iset.vh"
 module stage5ro(
     input  wire        clk,
     input  wire        rst,
@@ -21,37 +22,14 @@ module stage5ro(
     output wire [3:0]  flag_wdata,
     output wire        flag_we
 );
+    // Bring in the shared reg_write_fn helper
+    `define DEFINE_REG_WRITE_FN
+    `include "src/iset.vh"
+    `undef DEFINE_REG_WRITE_FN
     // Decode opcode for write-back decisions
     wire [3:0] opcode = instr_in[11:8];
 
-    wire reg_write = ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_MOV})  ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_MOVi}) ||
-                     ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_MOVis}) ||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_ADD})  ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_ADDi}) ||
-                     ({instr_set_in, opcode} == {`ISET_RS, `OPC_RS_ADDs}) ||
-                     ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_ADDis})||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_SUB})  ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_SUBi}) ||
-                     ({instr_set_in, opcode} == {`ISET_RS, `OPC_RS_SUBs}) ||
-                     ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_SUBis})||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_NOT})  ||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_AND})  ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_ANDi}) ||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_OR})   ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_ORi})  ||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_XOR})  ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_XORi}) ||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_SL})   ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_SLi})  ||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_SR})   ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_SRi})  ||
-                     ({instr_set_in, opcode} == {`ISET_RS, `OPC_RS_SRs}) ||
-                     ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_SRis})||
-                     ({instr_set_in, opcode} == {`ISET_R,  `OPC_R_LD})   ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_LDi})  ||
-                     ({instr_set_in, opcode} == {`ISET_I,  `OPC_I_Li})   ||
-                     ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_Lis});
+    wire reg_write = reg_write_fn(instr_set_in, opcode);
 
     // Pass through the address computed in the RA stage
     assign reg_waddr  = reg_waddr_in;
