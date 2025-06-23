@@ -37,7 +37,9 @@ module stage3ex(
     output wire [5:0]  off_out,
     output wire        sgn_en_out,
     output wire [11:0] result_out,
-    output wire [3:0]  flags_out
+    output wire [3:0]  flags_out,
+    // Data value for store instructions
+    output wire [11:0] store_data_out
 );
     // Propagate the enable signal to the next stage.  For the special
     // halt instruction the pipeline is stalled by clearing the enable
@@ -71,13 +73,15 @@ module stage3ex(
     reg        overflow;
     reg [11:0] operand;
     reg [11:0] tgt_op;
+    reg [11:0] store_data;
 
     always @* begin
-        operand   = stage_imm_en ? imm_ext : src_data_in;
-        tgt_op    = tgt_data_in;
-        alu_result = 12'b0;
-        carry     = 1'b0;
-        overflow  = 1'b0;
+        operand     = stage_imm_en ? imm_ext : src_data_in;
+        tgt_op      = tgt_data_in;
+        alu_result  = 12'b0;
+        carry       = 1'b0;
+        overflow    = 1'b0;
+        store_data  = 12'b0;
 
         // Combine instruction set and opcode so that opcodes that share the same
         // value across different sets can be uniquely identified.
@@ -159,10 +163,12 @@ module stage3ex(
                 alu_result = src_data_in; // Placeholder immediate load behaviour
             end
             {`ISET_R, `OPC_R_ST}: begin
-                alu_result = tgt_op; // Placeholder store behaviour
+                alu_result = tgt_op; // Address held in target register
+                store_data = src_data_in; // Data to store
             end
             {`ISET_I, `OPC_I_STi}: begin
-                alu_result = tgt_op; // Placeholder immediate store behaviour
+                alu_result = tgt_op; // Address held in target register
+                store_data = imm_ext; // Immediate data
             end
             {`ISET_I,  `OPC_I_Li},
             {`ISET_IS, `OPC_IS_Lis}: begin
@@ -208,6 +214,7 @@ module stage3ex(
     reg        sgn_en_latch;
     reg [11:0] result_latch;
     reg [3:0]  flags_latch;
+    reg [11:0] store_data_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -226,6 +233,7 @@ module stage3ex(
             sgn_en_latch   <= 1'b0;
             result_latch   <= 12'b0;
             flags_latch    <= 4'b0;
+            store_data_latch <= 12'b0;
         end else if (enable_in) begin
             pc_latch       <= stage_pc;
             instr_latch    <= instr_in;
@@ -242,6 +250,7 @@ module stage3ex(
             sgn_en_latch   <= stage_sgn_en;
             result_latch   <= alu_result;
             flags_latch    <= alu_flags;
+            store_data_latch <= store_data;
         end
     end
 
@@ -260,4 +269,5 @@ module stage3ex(
     assign sgn_en_out    = sgn_en_latch;
     assign result_out    = result_latch;
     assign flags_out     = flags_latch;
+    assign store_data_out = store_data_latch;
 endmodule
