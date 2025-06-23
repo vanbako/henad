@@ -29,6 +29,8 @@ module henad(
     wire [11:0] instr_mem_addr;
     wire [11:0] data_mem_data;
     wire [11:0] data_mem_addr;
+    wire [11:0] data_mem_wdata;
+    wire        data_mem_we;
 
     wire [11:0] iaif_pc;
     wire [11:0] ifid_pc;
@@ -80,8 +82,10 @@ module henad(
     wire [5:0] ex_off;
     wire       ex_sgn_en;
     wire [11:0] ex_result;
+    wire [11:0] ex_store_data;
     wire [3:0]  ex_flags;
     wire [11:0] ma_result;
+    wire [11:0] ma_store_data;
     wire [3:0]  ma_flags;
     wire [11:0] mo_result;
     wire [3:0]  mo_flags;
@@ -151,9 +155,9 @@ module henad(
     );
     memdata u_memdata(
         .clk(clk),
-        .we(1'b0),
+        .we(data_mem_we),
         .addr(data_mem_addr),
-        .wdata(12'b0),
+        .wdata(data_mem_wdata),
         .rdata(data_mem_data)
     );
 
@@ -242,7 +246,8 @@ module henad(
         .off_out(ex_off),
         .sgn_en_out(ex_sgn_en),
         .result_out(ex_result),
-        .flags_out(ex_flags)
+        .flags_out(ex_flags),
+        .store_data_out(ex_store_data)
     );
 
     // Memory address stage
@@ -255,13 +260,15 @@ module henad(
         .instr_in(exma_instr),
         .instr_set_in(exma_set),
         .result_in(ex_result),
+        .store_data_in(ex_store_data),
         .flags_in(ex_flags),
         .mem_addr(data_mem_addr),
         .pc_out(mamo_pc),
         .instr_out(mamo_instr),
         .instr_set_out(mamo_set),
         .result_out(ma_result),
-        .flags_out(ma_flags)
+        .flags_out(ma_flags),
+        .store_data_out(ma_store_data)
     );
 
     // Memory operation stage
@@ -274,8 +281,11 @@ module henad(
         .instr_in(mamo_instr),
         .instr_set_in(mamo_set),
         .result_in(ma_result),
+        .store_data_in(ma_store_data),
         .flags_in(ma_flags),
         .mem_rdata(data_mem_data),
+        .mem_wdata(data_mem_wdata),
+        .mem_we(data_mem_we),
         .pc_out(mora_pc),
         .instr_out(mora_instr),
         .instr_set_out(mora_set),
