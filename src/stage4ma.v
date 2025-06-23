@@ -1,5 +1,6 @@
 // stage4ma.v
 `include "src/iset.vh"
+`include "src/opcodes.vh"
 module stage4ma(
     input  wire        clk,
     input  wire        rst,
@@ -16,14 +17,20 @@ module stage4ma(
     output wire [11:0] result_out,
     output wire [3:0]  flags_out
 );
-    // The Memory Address stage currently performs no modifications to the
-    // program counter.  The value is simply forwarded to the next stage while
-    // preserving the enable signal.
+    // Propagate the enable signal to the next stage.  Any PC update is
+    // determined below based on the instruction type.
     assign enable_out = enable_in;
 
-    // Stage output prior to latching.  Kept as a separate wire so that future
-    // memory address logic can easily be inserted here.
-    wire [11:0] stage_pc = pc_in;
+    // Stage output prior to latching.  If the instruction is a branch, the
+    // program counter from the execute stage (result_in) contains the next
+    // address. Otherwise the original PC is forwarded.  Keeping this in a
+    // separate wire allows for future memory address calculations.
+    wire [3:0] opcode = instr_in[11:8];
+    wire branch_instr = (opcode == `OPC_R_BCC)  ||
+                        (opcode == `OPC_I_BCCi) ||
+                        (opcode == `OPC_IS_BCCis) ||
+                        (opcode == `OPC_S_SRBCC);
+    wire [11:0] stage_pc = branch_instr ? result_in : pc_in;
     wire [11:0] stage_result = result_in;
     wire [3:0]  stage_flags  = flags_in;
 
