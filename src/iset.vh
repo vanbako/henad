@@ -50,9 +50,7 @@ function automatic reg_write_fn;
                        ({set, opc} == {`ISET_RS, `OPC_RS_SRs}) ||
                        ({set, opc} == {`ISET_IS, `OPC_IS_SRis})||
                        ({set, opc} == {`ISET_R,  `OPC_R_LD})   ||
-                       ({set, opc} == {`ISET_I,  `OPC_I_LDi})  ||
-                       ({set, opc} == {`ISET_I,  `OPC_I_Li})   ||
-                       ({set, opc} == {`ISET_IS, `OPC_IS_Lis});
+                       ({set, opc} == {`ISET_I,  `OPC_I_LDi});
     end
 endfunction
 `endif // DEFINE_REG_WRITE_FN
