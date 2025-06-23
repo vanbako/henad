@@ -34,7 +34,7 @@ module stage5ro(
                       opcode == `OPC_RS_ADDs || opcode == `OPC_RS_SUBs ||
                       opcode == `OPC_RS_SRs  || opcode == `OPC_IS_MOVis ||
                       opcode == `OPC_IS_ADDis|| opcode == `OPC_IS_SUBis||
-                      opcode == `OPC_IS_SRis);
+                      opcode == `OPC_IS_SRis || opcode == `OPC_IS_Lis);
 
     assign reg_waddr  = instr_in[7:4];
     assign reg_wdata  = result_in;
