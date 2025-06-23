@@ -21,7 +21,10 @@ module stage2id(
     output wire        imm_hilo_out,
     output wire [5:0]  imm_val_out,
     output wire [5:0]  off_out,
-    output wire        sgn_en_out
+    output wire        sgn_en_out,
+    // Stall signal from the hazard unit. When asserted, a NOP is
+    // inserted instead of the decoded instruction.
+    input  wire        stall_in
 );
     // Propagate enable to the next stage
     assign enable_out = enable_in;
@@ -79,19 +82,36 @@ module stage2id(
             off_latch       <= 6'b0;
             sgn_en_latch    <= 1'b0;
         end else if (enable_in) begin
-            pc_latch   <= pc_in;
-            instr_latch <= forwarded_instr;
-            set_latch  <= stage_set;
-            bcc_latch       <= bcc_w;
-            tgt_gp_latch    <= tgt_gp_w;
-            tgt_sr_latch    <= tgt_sr_w;
-            src_gp_latch    <= src_gp_w;
-            src_sr_latch    <= src_sr_w;
-            imm_en_latch    <= imm_en_w;
-            imm_hilo_latch  <= imm_hilo_w;
-            imm_val_latch   <= imm_val_w;
-            off_latch       <= off_w;
-            sgn_en_latch    <= sgn_en_w;
+            if (stall_in) begin
+                // Insert a bubble when stalling
+                pc_latch       <= pc_in;
+                instr_latch    <= 12'b0;
+                set_latch      <= stage_set;
+                bcc_latch      <= 4'b0;
+                tgt_gp_latch   <= 4'b0;
+                tgt_sr_latch   <= 4'b0;
+                src_gp_latch   <= 4'b0;
+                src_sr_latch   <= 4'b0;
+                imm_en_latch   <= 1'b0;
+                imm_hilo_latch <= 1'b0;
+                imm_val_latch  <= 6'b0;
+                off_latch      <= 6'b0;
+                sgn_en_latch   <= 1'b0;
+            end else begin
+                pc_latch   <= pc_in;
+                instr_latch <= forwarded_instr;
+                set_latch  <= stage_set;
+                bcc_latch       <= bcc_w;
+                tgt_gp_latch    <= tgt_gp_w;
+                tgt_sr_latch    <= tgt_sr_w;
+                src_gp_latch    <= src_gp_w;
+                src_sr_latch    <= src_sr_w;
+                imm_en_latch    <= imm_en_w;
+                imm_hilo_latch  <= imm_hilo_w;
+                imm_val_latch   <= imm_val_w;
+                off_latch       <= off_w;
+                sgn_en_latch    <= sgn_en_w;
+            end
         end
     end
 

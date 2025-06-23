@@ -1,6 +1,7 @@
 // henad.v
 // Top-level Henad 5-stage RISC core
 `include "src/iset.vh"
+`include "src/opcodes.vh"
 module henad(
     input wire clk,
     input wire rst
@@ -58,6 +59,26 @@ module henad(
     wire [3:0] raro_set;
     wire [3:0] final_set;
 
+    // Simple control hazard handling
+    // Detect branch instructions in the EX stage so that the
+    // following instruction can be replaced with a NOP.  This avoids
+    // the need for branch prediction.
+    wire ex_is_branch = ({idex_set, idex_instr[11:8]} == {`ISET_R,  `OPC_R_BCC})  ||
+                         ({idex_set, idex_instr[11:8]} == {`ISET_I,  `OPC_I_BCCi}) ||
+                         ({idex_set, idex_instr[11:8]} == {`ISET_IS, `OPC_IS_BCCis}) ||
+                         ({idex_set, idex_instr[11:8]} == {`ISET_S,  `OPC_S_SRBCC});
+
+    reg branch_stall;
+
+    // Hold the stall for a single cycle after a branch reaches the
+    // execute stage.
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            branch_stall <= 1'b0;
+        else
+            branch_stall <= ex_is_branch;
+    end
+
     // Decoded instruction fields from ID stage
     wire [3:0] id_bcc;
     wire [3:0] id_tgt_gp;
@@ -114,9 +135,9 @@ module henad(
             stage5ra_en <= 1'b0;
             stage5ro_en <= 1'b0;
         end else begin
-            stage1ia_en <= 1'b1;
-            stage1if_en <= stage1if_en_w;
-            stage2id_en <= stage2id_en_w;
+            stage1ia_en <= branch_stall ? 1'b0 : 1'b1;
+            stage1if_en <= branch_stall ? 1'b0 : stage1if_en_w;
+            stage2id_en <= branch_stall ? 1'b1 : stage2id_en_w;
             stage3ex_en <= stage3ex_en_w;
             stage4ma_en <= stage4ma_en_w;
             stage4mo_en <= stage4mo_en_w;
@@ -209,7 +230,8 @@ module henad(
         .imm_hilo_out(id_imm_hilo),
         .imm_val_out(id_imm_val),
         .off_out(id_off),
-        .sgn_en_out(id_sgn_en)
+        .sgn_en_out(id_sgn_en),
+        .stall_in(branch_stall)
     );
 
     // EX stage
