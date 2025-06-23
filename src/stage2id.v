@@ -9,6 +9,7 @@ module stage2id(
     input  wire [11:0] pc_in,
     input  wire [11:0] instr_in,
     input  wire [3:0]  instr_set_in,
+    input  wire [11:0] ir_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -22,6 +23,7 @@ module stage2id(
     output wire [5:0]  imm_val_out,
     output wire [5:0]  off_out,
     output wire        sgn_en_out,
+    output wire [11:0] ir_out,
     // Stall signal from the hazard unit. When asserted, a NOP is
     // inserted instead of the decoded instruction.
     input  wire        stall_in
@@ -48,8 +50,12 @@ module stage2id(
     wire [5:0] imm_val_w   = forwarded_instr[5:0];
     wire [5:0] off_w       = forwarded_instr[5:0];
 
+    wire [3:0] fwd_opcode = forwarded_instr[11:8];
+    wire       instr_li  = ({stage_set, fwd_opcode} == {`ISET_I,  `OPC_I_Li});
+    wire       instr_lis = ({stage_set, fwd_opcode} == {`ISET_IS, `OPC_IS_Lis});
     wire       sgn_en_w  = (stage_set == `ISET_RS) || (stage_set == `ISET_IS);
-    wire       imm_en_w  = (stage_set == `ISET_I)  || (stage_set == `ISET_IS);
+    wire       imm_en_w  = ((stage_set == `ISET_I) || (stage_set == `ISET_IS)) &&
+                           !(instr_li || instr_lis);
 
     // Latch outputs for the next pipeline stage
     reg [11:0]  pc_latch;
@@ -65,6 +71,7 @@ module stage2id(
     reg [5:0]   imm_val_latch;
     reg [5:0]   off_latch;
     reg         sgn_en_latch;
+    reg [11:0]  ir_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -81,6 +88,7 @@ module stage2id(
             imm_val_latch   <= 6'b0;
             off_latch       <= 6'b0;
             sgn_en_latch    <= 1'b0;
+            ir_latch        <= 12'b0;
         end else if (enable_in) begin
             if (stall_in) begin
                 // Insert a bubble when stalling
@@ -97,6 +105,7 @@ module stage2id(
                 imm_val_latch  <= 6'b0;
                 off_latch      <= 6'b0;
                 sgn_en_latch   <= 1'b0;
+                ir_latch       <= ir_in;
             end else begin
                 pc_latch   <= pc_in;
                 instr_latch <= forwarded_instr;
@@ -111,6 +120,14 @@ module stage2id(
                 imm_val_latch   <= imm_val_w;
                 off_latch       <= off_w;
                 sgn_en_latch    <= sgn_en_w;
+                if (instr_li) begin
+                    ir_latch <= imm_hilo_w ? {imm_val_w, ir_in[5:0]} :
+                                             {ir_in[11:6], imm_val_w};
+                end else if (instr_lis) begin
+                    ir_latch <= {{6{imm_val_w[5]}}, imm_val_w};
+                end else begin
+                    ir_latch <= ir_in;
+                end
             end
         end
     end
@@ -128,4 +145,5 @@ module stage2id(
     assign imm_val_out   = imm_val_latch;
     assign off_out       = off_latch;
     assign sgn_en_out    = sgn_en_latch;
+    assign ir_out        = ir_latch;
 endmodule

@@ -7,6 +7,7 @@ module henad(
     input wire rst
 );
     reg [11:0] ia_pc; // instruction address stage PC
+    reg [11:0] ir_pipe; // pipeline immediate register value
 
     // Enable registers for each pipeline (sub)stage
     reg stage1ia_en;
@@ -49,6 +50,16 @@ module henad(
     wire [11:0] mora_instr;
     wire [11:0] raro_instr;
     wire [11:0] final_instr;
+
+    // Immediate register pipeline values
+    wire [11:0] id_ir;
+    wire [11:0] ex_ir;
+    wire [11:0] ma_ir;
+    wire [11:0] mo_ir;
+    wire [11:0] ra_ir;
+    wire [11:0] ro_ir;
+    wire        ir_we;
+    wire [11:0] ir_reg;
 
     wire [3:0] ifid_set;
     // Instruction set value at each pipeline stage
@@ -156,6 +167,14 @@ module henad(
         end
     end
 
+    // Track immediate register through the pipeline
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            ir_pipe <= 12'b0;
+        else if (stage2id_en)
+            ir_pipe <= id_ir;
+    end
+
     // Stage and control instantiations
 
     // IA stage
@@ -216,6 +235,14 @@ module henad(
         .flag_out()
     );
 
+    regir u_regir(
+        .clk(clk),
+        .rst(rst),
+        .ir_in(ro_ir),
+        .we(ir_we),
+        .ir_out(ir_reg)
+    );
+
     // Initial instruction set for the pipeline
     assign ifid_set = `ISET_R;
 
@@ -228,6 +255,7 @@ module henad(
         .pc_in(ifid_pc),
         .instr_in(ifid_instr),
         .instr_set_in(ifid_set),
+        .ir_in(ir_pipe),
         .pc_out(idex_pc),
         .instr_out(idex_instr),
         .instr_set_out(idex_set),
@@ -241,6 +269,7 @@ module henad(
         .imm_val_out(id_imm_val),
         .off_out(id_off),
         .sgn_en_out(id_sgn_en),
+        .ir_out(id_ir),
         .stall_in(stall_signal)
     );
 
@@ -265,6 +294,7 @@ module henad(
         .sgn_en_in(id_sgn_en),
         .src_data_in(reg_src_data),
         .tgt_data_in(reg_tgt_data),
+        .ir_in(id_ir),
         .pc_out(exma_pc),
         .instr_out(exma_instr),
         .instr_set_out(exma_set),
@@ -280,7 +310,8 @@ module henad(
         .sgn_en_out(ex_sgn_en),
         .result_out(ex_result),
         .flags_out(ex_flags),
-        .store_data_out(ex_store_data)
+        .store_data_out(ex_store_data),
+        .ir_out(ex_ir)
     );
 
     // Memory address stage
@@ -295,13 +326,15 @@ module henad(
         .result_in(ex_result),
         .store_data_in(ex_store_data),
         .flags_in(ex_flags),
+        .ir_in(ex_ir),
         .mem_addr(data_mem_addr),
         .pc_out(mamo_pc),
         .instr_out(mamo_instr),
         .instr_set_out(mamo_set),
         .result_out(ma_result),
         .flags_out(ma_flags),
-        .store_data_out(ma_store_data)
+        .store_data_out(ma_store_data),
+        .ir_out(ma_ir)
     );
 
     // Memory operation stage
@@ -316,6 +349,7 @@ module henad(
         .result_in(ma_result),
         .store_data_in(ma_store_data),
         .flags_in(ma_flags),
+        .ir_in(ma_ir),
         .mem_rdata(data_mem_data),
         .mem_wdata(data_mem_wdata),
         .mem_we(data_mem_we),
@@ -323,7 +357,8 @@ module henad(
         .instr_out(mora_instr),
         .instr_set_out(mora_set),
         .result_out(mo_result),
-        .flags_out(mo_flags)
+        .flags_out(mo_flags),
+        .ir_out(mo_ir)
     );
 
     // Register address stage
@@ -337,12 +372,14 @@ module henad(
         .instr_set_in(mora_set),
         .result_in(mo_result),
         .flags_in(mo_flags),
+        .ir_in(mo_ir),
         .pc_out(raro_pc),
         .instr_out(raro_instr),
         .instr_set_out(raro_set),
         .result_out(ra_result),
         .flags_out(ra_flags),
-        .reg_waddr_out(ra_reg_waddr)
+        .reg_waddr_out(ra_reg_waddr),
+        .ir_out(ra_ir)
     );
 
     // Register operation stage
@@ -355,6 +392,7 @@ module henad(
         .instr_set_in(raro_set),
         .result_in(ra_result),
         .flags_in(ra_flags),
+        .ir_in(ra_ir),
         .reg_waddr_in(ra_reg_waddr),
         .pc_out(final_pc),
         .instr_out(final_instr),
@@ -363,7 +401,9 @@ module henad(
         .reg_wdata(ro_result),
         .reg_we(reg_we),
         .flag_wdata(ro_flags),
-        .flag_we(flag_we)
+        .flag_we(flag_we),
+        .ir_out(ro_ir),
+        .ir_we(ir_we)
     );
 
     // Hazard detection unit

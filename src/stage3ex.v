@@ -23,6 +23,7 @@ module stage3ex(
     input  wire        sgn_en_in,
     input  wire [11:0] src_data_in,
     input  wire [11:0] tgt_data_in,
+    input  wire [11:0] ir_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -39,7 +40,8 @@ module stage3ex(
     output wire [11:0] result_out,
     output wire [3:0]  flags_out,
     // Data value for store instructions
-    output wire [11:0] store_data_out
+    output wire [11:0] store_data_out,
+    output wire [11:0] ir_out
 );
     // Propagate the enable signal to the next stage.  For the special
     // halt instruction the pipeline is stalled by clearing the enable
@@ -60,11 +62,6 @@ module stage3ex(
     wire [5:0]  stage_off      = off_in;
     wire        stage_sgn_en   = sgn_en_in;
 
-    // Immediate value expansion
-    wire [11:0] imm_ext_tmp  = stage_sgn_en ? {{6{stage_imm_val[5]}}, stage_imm_val}
-                                            : {6'b0, stage_imm_val};
-    wire [11:0] imm_ext      = stage_imm_hilo ? (imm_ext_tmp << 6) : imm_ext_tmp;
-
     // Execution logic (formerly in a separate ALU module)
     reg [11:0] alu_result;
     reg [3:0]  alu_flags;
@@ -76,7 +73,7 @@ module stage3ex(
     reg [11:0] store_data;
 
     always @* begin
-        operand     = stage_imm_en ? imm_ext : src_data_in;
+        operand     = stage_imm_en ? ir_in : src_data_in;
         tgt_op      = tgt_data_in;
         alu_result  = 12'b0;
         carry       = 1'b0;
@@ -168,11 +165,11 @@ module stage3ex(
             end
             {`ISET_I, `OPC_I_STi}: begin
                 alu_result = tgt_op; // Address held in target register
-                store_data = imm_ext; // Immediate data
+                store_data = ir_in; // Immediate data
             end
             {`ISET_I,  `OPC_I_Li},
             {`ISET_IS, `OPC_IS_Lis}: begin
-                alu_result = imm_ext; // Load immediate value
+                alu_result = ir_in; // Load immediate value
             end
             {`ISET_S, `OPC_S_SRMOV}: begin
                 // Move program counter to a special register (e.g. LR)
@@ -215,6 +212,7 @@ module stage3ex(
     reg [11:0] result_latch;
     reg [3:0]  flags_latch;
     reg [11:0] store_data_latch;
+    reg [11:0] ir_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -234,6 +232,7 @@ module stage3ex(
             result_latch   <= 12'b0;
             flags_latch    <= 4'b0;
             store_data_latch <= 12'b0;
+            ir_latch        <= 12'b0;
         end else if (enable_in) begin
             pc_latch       <= stage_pc;
             instr_latch    <= instr_in;
@@ -251,6 +250,7 @@ module stage3ex(
             result_latch   <= alu_result;
             flags_latch    <= alu_flags;
             store_data_latch <= store_data;
+            ir_latch        <= ir_in;
         end
     end
 
@@ -270,4 +270,5 @@ module stage3ex(
     assign result_out    = result_latch;
     assign flags_out     = flags_latch;
     assign store_data_out = store_data_latch;
+    assign ir_out        = ir_latch;
 endmodule
