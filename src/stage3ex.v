@@ -123,11 +123,26 @@ module stage3ex(
                 else
                     alu_result = pc_in;
             end
+            `OPC_I_BCCi: begin
+                if (stage_bcc == `BCC_RA)
+                    alu_result = pc_in + {6'b0, stage_off};
+                else
+                    alu_result = pc_in;
+            end
             `OPC_R_LD: begin
                 alu_result = src_data_in; // Placeholder load behaviour
             end
+            `OPC_I_LDi: begin
+                alu_result = src_data_in; // Placeholder immediate load behaviour
+            end
             `OPC_R_ST: begin
                 alu_result = tgt_op; // Placeholder store behaviour
+            end
+            `OPC_I_STi: begin
+                alu_result = tgt_op; // Placeholder immediate store behaviour
+            end
+            `OPC_I_Li: begin
+                alu_result = imm_ext; // Load immediate value
             end
             default: begin
                 alu_result = 12'b0;
