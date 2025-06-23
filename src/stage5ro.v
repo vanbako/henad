@@ -28,11 +28,12 @@ module stage5ro(
                       opcode == `OPC_R_SUB || opcode == `OPC_R_NOT ||
                       opcode == `OPC_R_AND || opcode == `OPC_R_OR  ||
                       opcode == `OPC_R_XOR || opcode == `OPC_R_SL  ||
-                      opcode == `OPC_R_SR  || opcode == `OPC_I_MOVi ||
-                      opcode == `OPC_I_ADDi|| opcode == `OPC_I_SUBi||
-                      opcode == `OPC_I_ANDi|| opcode == `OPC_I_ORi ||
-                      opcode == `OPC_I_XORi|| opcode == `OPC_I_SLi ||
-                      opcode == `OPC_I_SRi || opcode == `OPC_I_Li  ||
+                      opcode == `OPC_R_SR  || opcode == `OPC_R_LD  ||
+                      opcode == `OPC_I_MOVi || opcode == `OPC_I_ADDi||
+                      opcode == `OPC_I_SUBi|| opcode == `OPC_I_ANDi||
+                      opcode == `OPC_I_ORi || opcode == `OPC_I_XORi||
+                      opcode == `OPC_I_SLi || opcode == `OPC_I_SRi ||
+                      opcode == `OPC_I_LDi || opcode == `OPC_I_Li  ||
                       opcode == `OPC_RS_ADDs || opcode == `OPC_RS_SUBs ||
                       opcode == `OPC_RS_SRs  || opcode == `OPC_IS_MOVis ||
                       opcode == `OPC_IS_ADDis|| opcode == `OPC_IS_SUBis||
