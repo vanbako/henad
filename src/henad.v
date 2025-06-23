@@ -127,7 +127,11 @@ module henad(
 
     // Update ia_pc and enable signals
     always @(posedge clk or posedge rst) begin
-        if (stage1ia_en) begin
+        if (branch_stall) begin
+            // Use the resolved branch address when stalling
+            ia_pc <= mamo_pc;
+        end else if (stage1ia_en) begin
+            // Default sequential increment
             ia_pc <= ia_pc + 12'd1;
         end
         if (rst) begin
