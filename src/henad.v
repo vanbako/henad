@@ -65,13 +65,19 @@ module henad(
     // Detect branch instructions in the EX stage so that the
     // following instruction can be replaced with a NOP.  This avoids
     // the need for branch prediction.
-    wire ex_is_branch = (({idex_set, idex_instr[11:8]} == {`ISET_R,  `OPC_R_BCC})  ||
-                         ({idex_set, idex_instr[11:8]} == {`ISET_I,  `OPC_I_BCCi}) ||
-                         ({idex_set, idex_instr[11:8]} == {`ISET_IS, `OPC_IS_BCCis}) ||
-                         ({idex_set, idex_instr[11:8]} == {`ISET_S,  `OPC_S_SRBCC})) &&
+    // Branch resolution occurs in the EX stage, but the result is latched and
+    // visible at the MA stage.  Use the MA stage instruction information to
+    // determine whether the previous instruction was a taken branch.
+    wire ex_is_branch = (({exma_set, exma_instr[11:8]} == {`ISET_R,  `OPC_R_BCC})  ||
+                         ({exma_set, exma_instr[11:8]} == {`ISET_I,  `OPC_I_BCCi}) ||
+                         ({exma_set, exma_instr[11:8]} == {`ISET_IS, `OPC_IS_BCCis}) ||
+                         ({exma_set, exma_instr[11:8]} == {`ISET_S,  `OPC_S_SRBCC})) &&
                         ex_branch_taken;
 
     reg branch_stall;
+    // Latch the resolved branch target so the PC can be updated on the
+    // following cycle when a branch is taken.
+    reg [11:0] branch_pc;
 
     // Stall signal for read-after-write hazards
     wire hazard_stall;
@@ -82,10 +88,14 @@ module henad(
     // Hold the stall for a single cycle after a branch reaches the
     // execute stage.
     always @(posedge clk or posedge rst) begin
-        if (rst)
+        if (rst) begin
             branch_stall <= 1'b0;
-        else
+            branch_pc    <= 12'b0;
+        end else begin
             branch_stall <= ex_is_branch;
+            if (ex_is_branch)
+                branch_pc <= ex_result;
+        end
     end
 
     // Decoded instruction fields from ID stage
@@ -133,7 +143,7 @@ module henad(
     always @(posedge clk or posedge rst) begin
         if (branch_stall) begin
             // Use the resolved branch address when stalling
-            ia_pc <= mamo_pc;
+            ia_pc <= branch_pc;
         end else if (stage1ia_en) begin
             // Default sequential increment
             ia_pc <= ia_pc + 12'd1;
