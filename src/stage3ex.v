@@ -23,7 +23,6 @@ module stage3ex(
     input  wire        sgn_en_in,
     input  wire [11:0] src_data_in,
     input  wire [11:0] tgt_data_in,
-    input  wire [11:0] ir_in,
     // Current flag register value for conditional branches
     input  wire [3:0]  flags_in,
     output wire [11:0] pc_out,
@@ -43,7 +42,6 @@ module stage3ex(
     output wire [3:0]  flags_out,
     // Data value for store instructions
     output wire [11:0] store_data_out,
-    output wire [11:0] ir_out,
     // Asserted when a branch condition is met
     output wire        branch_taken_out
 );
@@ -76,9 +74,20 @@ module stage3ex(
     reg [11:0] tgt_op;
     reg [11:0] store_data;
     reg        branch_taken;
+    // Immediate register used by immediate instructions
+    reg [11:0] ir_reg;
+
+    wire is_li  = ({instr_set_in, instr_in[11:8]} == {`ISET_I,  `OPC_I_Li});
+    wire is_lis = ({instr_set_in, instr_in[11:8]} == {`ISET_IS, `OPC_IS_Lis});
+    wire [11:0] li_value  = stage_imm_hilo ? {stage_imm_val, ir_reg[5:0]} :
+                                      {ir_reg[11:6], stage_imm_val};
+    wire [11:0] lis_value = {{6{stage_imm_val[5]}}, stage_imm_val};
+    wire [11:0] ir_effective = is_li  ? li_value :
+                               is_lis ? lis_value :
+                               ir_reg;
 
     always @* begin
-        operand       = stage_imm_en ? ir_in : src_data_in;
+        operand       = stage_imm_en ? ir_effective : src_data_in;
         tgt_op        = tgt_data_in;
         alu_result    = 12'b0;
         carry         = 1'b0;
@@ -179,7 +188,7 @@ module stage3ex(
                     default: branch_taken = 1'b0;
                 endcase
                 if (branch_taken)
-                    alu_result = pc_in + {{6{ir_in[5]}}, ir_in[5:0]};
+                    alu_result = pc_in + {{6{ir_effective[5]}}, ir_effective[5:0]};
                 else
                     alu_result = pc_in;
             end
@@ -195,11 +204,11 @@ module stage3ex(
             end
             {`ISET_I, `OPC_I_STi}: begin
                 alu_result = tgt_op; // Address held in target register
-                store_data = ir_in; // Immediate data
+                store_data = ir_effective; // Immediate data
             end
             {`ISET_I,  `OPC_I_Li},
             {`ISET_IS, `OPC_IS_Lis}: begin
-                alu_result = ir_in; // Load immediate value
+                alu_result = ir_effective; // Load immediate value
             end
             {`ISET_S, `OPC_S_SRMOV}: begin
                 // Move program counter to a special register (e.g. LR)
@@ -254,7 +263,6 @@ module stage3ex(
     reg [11:0] result_latch;
     reg [3:0]  flags_latch;
     reg [11:0] store_data_latch;
-    reg [11:0] ir_latch;
     reg        branch_taken_latch;
 
     always @(posedge clk or posedge rst) begin
@@ -275,8 +283,8 @@ module stage3ex(
             result_latch   <= 12'b0;
             flags_latch    <= 4'b0;
             store_data_latch <= 12'b0;
-            ir_latch        <= 12'b0;
             branch_taken_latch <= 1'b0;
+            ir_reg         <= 12'b0;
         end else if (enable_in) begin
             pc_latch       <= stage_pc;
             instr_latch    <= instr_in;
@@ -294,8 +302,11 @@ module stage3ex(
             result_latch   <= alu_result;
             flags_latch    <= alu_flags;
             store_data_latch <= store_data;
-            ir_latch        <= ir_in;
             branch_taken_latch <= branch_taken;
+            if (is_li)
+                ir_reg <= li_value;
+            else if (is_lis)
+                ir_reg <= lis_value;
         end
     end
 
@@ -315,6 +326,5 @@ module stage3ex(
     assign result_out    = result_latch;
     assign flags_out     = flags_latch;
     assign store_data_out = store_data_latch;
-    assign ir_out        = ir_latch;
     assign branch_taken_out = branch_taken_latch;
 endmodule

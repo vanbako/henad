@@ -10,15 +10,13 @@ module stage5ra(
     input  wire [3:0]  instr_set_in,
     input  wire [11:0] result_in,
     input  wire [3:0]  flags_in,
-    input  wire [11:0] ir_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
     output wire [11:0] result_out,
     output wire [3:0]  flags_out,
     // Decoded register address for the writeback stage
-    output wire [3:0]  reg_waddr_out,
-    output wire [11:0] ir_out
+    output wire [3:0]  reg_waddr_out
 );
     // Propagate enable directly to the next stage
     assign enable_out = enable_in;
@@ -28,7 +26,6 @@ module stage5ra(
     wire [11:0] stage_pc     = pc_in;
     wire [11:0] stage_result = result_in;
     wire [3:0]  stage_flags  = flags_in;
-    wire [11:0] stage_ir     = ir_in;
     // Target register address extracted from the instruction
     wire [3:0]  stage_waddr  = instr_in[7:4];
 
@@ -39,7 +36,6 @@ module stage5ra(
     reg [11:0] result_latch;
     reg [3:0]  flags_latch;
     reg [3:0]  waddr_latch;
-    reg [11:0] ir_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -49,7 +45,6 @@ module stage5ra(
             result_latch<= 12'b0;
             flags_latch <= 4'b0;
             waddr_latch <= 4'b0;
-            ir_latch    <= 12'b0;
         end else if (enable_in) begin
             pc_latch     <= stage_pc;
             instr_latch  <= instr_in;
@@ -57,7 +52,6 @@ module stage5ra(
             result_latch <= stage_result;
             flags_latch  <= stage_flags;
             waddr_latch  <= stage_waddr;
-            ir_latch     <= stage_ir;
         end
     end
 
@@ -67,5 +61,4 @@ module stage5ra(
     assign result_out    = result_latch;
     assign flags_out     = flags_latch;
     assign reg_waddr_out = waddr_latch;
-    assign ir_out        = ir_latch;
 endmodule
