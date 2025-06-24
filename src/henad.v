@@ -74,10 +74,11 @@ module henad(
     // Detect branch instructions in the EX stage so that the
     // following instruction can be replaced with a NOP.  This avoids
     // the need for branch prediction.
-    wire ex_is_branch = ({idex_set, idex_instr[11:8]} == {`ISET_R,  `OPC_R_BCC})  ||
+    wire ex_is_branch = (({idex_set, idex_instr[11:8]} == {`ISET_R,  `OPC_R_BCC})  ||
                          ({idex_set, idex_instr[11:8]} == {`ISET_I,  `OPC_I_BCCi}) ||
                          ({idex_set, idex_instr[11:8]} == {`ISET_IS, `OPC_IS_BCCis}) ||
-                         ({idex_set, idex_instr[11:8]} == {`ISET_S,  `OPC_S_SRBCC});
+                         ({idex_set, idex_instr[11:8]} == {`ISET_S,  `OPC_S_SRBCC})) &&
+                        ex_branch_taken;
 
     reg branch_stall;
 
@@ -122,6 +123,7 @@ module henad(
     wire [11:0] ex_result;
     wire [11:0] ex_store_data;
     wire [3:0]  ex_flags;
+    wire        ex_branch_taken;
     wire [11:0] ma_result;
     wire [11:0] ma_store_data;
     wire [3:0]  ma_flags;
@@ -227,12 +229,13 @@ module henad(
         .rdata2(reg_tgt_data)
     );
 
+    wire [3:0] current_flags;
     regflag u_regflag(
         .clk(clk),
         .rst(rst),
         .flag_in(ro_flags),
         .we(flag_we),
-        .flag_out()
+        .flag_out(current_flags)
     );
 
     regir u_regir(
@@ -295,6 +298,7 @@ module henad(
         .src_data_in(reg_src_data),
         .tgt_data_in(reg_tgt_data),
         .ir_in(id_ir),
+        .flags_in(current_flags),
         .pc_out(exma_pc),
         .instr_out(exma_instr),
         .instr_set_out(exma_set),
@@ -311,7 +315,8 @@ module henad(
         .result_out(ex_result),
         .flags_out(ex_flags),
         .store_data_out(ex_store_data),
-        .ir_out(ex_ir)
+        .ir_out(ex_ir),
+        .branch_taken_out(ex_branch_taken)
     );
 
     // Memory address stage
