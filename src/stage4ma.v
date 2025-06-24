@@ -12,7 +12,6 @@ module stage4ma(
     input  wire [11:0] result_in,
     input  wire [11:0] store_data_in,
     input  wire [3:0]  flags_in,
-    input  wire [11:0] ir_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -20,8 +19,7 @@ module stage4ma(
     output wire [3:0]  flags_out,
     output wire [11:0] store_data_out,
     // Address line for the data memory
-    output wire [11:0] mem_addr,
-    output wire [11:0] ir_out
+    output wire [11:0] mem_addr
 );
     // Propagate the enable signal to the next stage.  Any PC update is
     // determined below based on the instruction type.
@@ -40,7 +38,6 @@ module stage4ma(
     wire [11:0] stage_result = result_in;
     wire [3:0]  stage_flags  = flags_in;
     wire [11:0] stage_store_data = store_data_in;
-    wire [11:0] stage_ir   = ir_in;
 
     // Determine if this is a memory access instruction and set the
     // data memory address accordingly.  The execute stage provides the
@@ -58,7 +55,6 @@ module stage4ma(
     reg [11:0] result_latch;
     reg [3:0]  flags_latch;
     reg [11:0] store_data_latch;
-    reg [11:0] ir_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -68,7 +64,6 @@ module stage4ma(
             result_latch<= 12'b0;
             flags_latch <= 4'b0;
             store_data_latch <= 12'b0;
-            ir_latch       <= 12'b0;
         end else if (enable_in) begin
             pc_latch    <= stage_pc;
             instr_latch <= instr_in;
@@ -76,7 +71,6 @@ module stage4ma(
             result_latch<= stage_result;
             flags_latch <= stage_flags;
             store_data_latch <= stage_store_data;
-            ir_latch       <= stage_ir;
         end
     end
 
@@ -86,5 +80,4 @@ module stage4ma(
     assign result_out    = result_latch;
     assign flags_out     = flags_latch;
     assign store_data_out = store_data_latch;
-    assign ir_out        = ir_latch;
 endmodule

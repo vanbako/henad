@@ -11,7 +11,6 @@ module stage5ro(
     input  wire [3:0]  instr_set_in,
     input  wire [11:0] result_in,
     input  wire [3:0]  flags_in,
-    input  wire [11:0] ir_in,
     // Register address prepared by the RA stage
     input  wire [3:0]  reg_waddr_in,
     output wire [11:0] pc_out,
@@ -21,9 +20,7 @@ module stage5ro(
     output wire [11:0] reg_wdata,
     output wire        reg_we,
     output wire [3:0]  flag_wdata,
-    output wire        flag_we,
-    output wire [11:0] ir_out,
-    output wire        ir_we
+    output wire        flag_we
 );
     // Bring in the shared reg_write_fn helper
     `define DEFINE_REG_WRITE_FN
@@ -41,10 +38,6 @@ module stage5ro(
 
     assign flag_wdata = flags_in;
     assign flag_we    = enable_in;
-
-    assign ir_out = ir_in;
-    assign ir_we  = enable_in && (({instr_set_in, opcode} == {`ISET_I, `OPC_I_Li}) ||
-                                  ({instr_set_in, opcode} == {`ISET_IS, `OPC_IS_Lis}));
 
     // Propagate program counter and instruction info
     assign pc_out        = pc_in;
