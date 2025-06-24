@@ -75,16 +75,8 @@ module stage3ex(
     reg [11:0] store_data;
     reg        branch_taken;
     // Immediate register used by immediate instructions
+    reg [11:0] ir_comb;
     reg [11:0] ir_reg;
-
-    // wire is_li  = ({instr_set_in, instr_in[11:8]} == {`ISET_I,  `OPC_I_Li});
-    // wire is_lis = ({instr_set_in, instr_in[11:8]} == {`ISET_IS, `OPC_IS_Lis});
-    // wire [11:0] li_value  = stage_imm_hilo ? {stage_imm_val, ir_reg[5:0]} :
-    //                                   {ir_reg[11:6], stage_imm_val};
-    // wire [11:0] lis_value = {{6{stage_imm_val[5]}}, stage_imm_val};
-    // wire [11:0] ir_effective = is_li  ? li_value :
-    //                            is_lis ? lis_value :
-    //                            ir_reg;
 
     always @* begin
         operand       = stage_imm_en ? ir_reg : src_data_in;
@@ -207,10 +199,10 @@ module stage3ex(
                 store_data = ir_reg; // Immediate data
             end
             {`ISET_I,  `OPC_I_Li}: begin
-                ir_reg = stage_imm_hilo ? {stage_imm_val, ir_reg[5:0]} : {ir_reg[11:6], stage_imm_val};
+                ir_comb = stage_imm_hilo ? {stage_imm_val, ir_reg[5:0]} : {ir_reg[11:6], stage_imm_val};
             end
             {`ISET_IS, `OPC_IS_Lis}: begin
-                ir_reg = {{6{stage_imm_val[5]}}, stage_imm_val};
+                ir_comb = {{6{stage_imm_val[5]}}, stage_imm_val};
             end
             {`ISET_S, `OPC_S_SRMOV}: begin
                 // Move program counter to a special register (e.g. LR)
@@ -286,7 +278,8 @@ module stage3ex(
             flags_latch    <= 4'b0;
             store_data_latch <= 12'b0;
             branch_taken_latch <= 1'b0;
-            ir_reg         <= 12'b0;
+            ir_reg <= 12'b0;
+            ir_comb <= 12'b0;
         end else if (enable_in) begin
             pc_latch       <= stage_pc;
             instr_latch    <= instr_in;
@@ -305,10 +298,7 @@ module stage3ex(
             flags_latch    <= alu_flags;
             store_data_latch <= store_data;
             branch_taken_latch <= branch_taken;
-            // if (is_li)
-            //     ir_reg <= li_value;
-            // else if (is_lis)
-            //     ir_reg <= lis_value;
+            ir_reg <= ir_comb;
         end
     end
 
