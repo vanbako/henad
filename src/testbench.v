@@ -82,8 +82,8 @@ module testbench;
                  uut.reg_waddr);
 `endif
 `ifdef DEBUGIR
-        $display("%t: IR=%h",
-                 $time,
+        $display("tick %0d : IR=%h",
+                 tick,
                  uut.u_stage3ex.ir_reg);
 `endif
         tick = tick + 1;
