@@ -129,7 +129,6 @@ henad
 	reglr
 	meminstr
 	memdata
-	forwardunit
 	hazardunit
     stage1ia
     stage1if
@@ -140,5 +139,7 @@ henad
     stage5ra
     stage5ro
 
+Hazards
 - Read After Write Hazards
 - Control Hazards
+- No forwarding, only stalling
