@@ -81,6 +81,17 @@ module testbench;
                  uut.reg_we,
                  uut.reg_waddr);
 `endif
+`ifdef DEBUGIR
+        $display("%t: ID IR=%h, EX IR=%h, MA IR=%h, MO IR=%h, RA IR=%h, RO IR=%h",
+                 $time,
+                 uut.u_stage2id.ir_out,
+                 uut.u_stage3ex.ir_out,
+                 uut.u_stage4ma.ir_out,
+                 uut.u_stage4mo.ir_out,
+                 uut.u_stage5ra.ir_out,
+                 uut.u_stage5ro.ir_out);
+`endif
         tick = tick + 1;
     end
+
 endmodule
