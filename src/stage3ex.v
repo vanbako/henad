@@ -24,6 +24,8 @@ module stage3ex(
     input  wire [11:0] src_data_in,
     input  wire [11:0] tgt_data_in,
     input  wire [11:0] ir_in,
+    // Current flag register value for conditional branches
+    input  wire [3:0]  flags_in,
     output wire [11:0] pc_out,
     output wire [11:0] instr_out,
     output wire [3:0]  instr_set_out,
@@ -41,7 +43,9 @@ module stage3ex(
     output wire [3:0]  flags_out,
     // Data value for store instructions
     output wire [11:0] store_data_out,
-    output wire [11:0] ir_out
+    output wire [11:0] ir_out,
+    // Asserted when a branch condition is met
+    output wire        branch_taken_out
 );
     // Propagate the enable signal to the next stage.  For the special
     // halt instruction the pipeline is stalled by clearing the enable
@@ -71,14 +75,16 @@ module stage3ex(
     reg [11:0] operand;
     reg [11:0] tgt_op;
     reg [11:0] store_data;
+    reg        branch_taken;
 
     always @* begin
-        operand     = stage_imm_en ? ir_in : src_data_in;
-        tgt_op      = tgt_data_in;
-        alu_result  = 12'b0;
-        carry       = 1'b0;
-        overflow    = 1'b0;
-        store_data  = 12'b0;
+        operand       = stage_imm_en ? ir_in : src_data_in;
+        tgt_op        = tgt_data_in;
+        alu_result    = 12'b0;
+        carry         = 1'b0;
+        overflow      = 1'b0;
+        store_data    = 12'b0;
+        branch_taken  = 1'b0;
 
         // Combine instruction set and opcode so that opcodes that share the same
         // value across different sets can be uniquely identified.
@@ -142,16 +148,37 @@ module stage3ex(
             end
             {`ISET_R,  `OPC_R_BCC}: begin
                 // Branch to absolute address in the target register
-                if (stage_bcc == `BCC_RA)
-                    alu_result = tgt_op;
-                else
-                    alu_result = pc_in;
+                case (stage_bcc)
+                    `BCC_RA: branch_taken = 1'b1;
+                    `BCC_EQ: branch_taken =  flags_in[`FLAG_Z];
+                    `BCC_NE: branch_taken = ~flags_in[`FLAG_Z];
+                    `BCC_LT: branch_taken =  flags_in[`FLAG_N] ^ flags_in[`FLAG_V];
+                    `BCC_GT: branch_taken = (~flags_in[`FLAG_Z]) &&
+                                     ~(flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    `BCC_LE: branch_taken =  flags_in[`FLAG_Z] ||
+                                     (flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    `BCC_GE: branch_taken = ~(flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    default: branch_taken = 1'b0;
+                endcase
+                alu_result = branch_taken ? tgt_op : pc_in;
             end
             {`ISET_I,  `OPC_I_BCCi},
             {`ISET_IS, `OPC_IS_BCCis}: begin
                 // Branch relative to PC using the signed lower 6 bits of
                 // the immediate register
-                if (stage_bcc == `BCC_RA)
+                case (stage_bcc)
+                    `BCC_RA: branch_taken = 1'b1;
+                    `BCC_EQ: branch_taken =  flags_in[`FLAG_Z];
+                    `BCC_NE: branch_taken = ~flags_in[`FLAG_Z];
+                    `BCC_LT: branch_taken =  flags_in[`FLAG_N] ^ flags_in[`FLAG_V];
+                    `BCC_GT: branch_taken = (~flags_in[`FLAG_Z]) &&
+                                     ~(flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    `BCC_LE: branch_taken =  flags_in[`FLAG_Z] ||
+                                     (flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    `BCC_GE: branch_taken = ~(flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    default: branch_taken = 1'b0;
+                endcase
+                if (branch_taken)
                     alu_result = pc_in + {{6{ir_in[5]}}, ir_in[5:0]};
                 else
                     alu_result = pc_in;
@@ -179,7 +206,19 @@ module stage3ex(
                 alu_result = pc_in;
             end
             {`ISET_S, `OPC_S_SRBCC}: begin
-                if (stage_bcc == `BCC_RA)
+                case (stage_bcc)
+                    `BCC_RA: branch_taken = 1'b1;
+                    `BCC_EQ: branch_taken =  flags_in[`FLAG_Z];
+                    `BCC_NE: branch_taken = ~flags_in[`FLAG_Z];
+                    `BCC_LT: branch_taken =  flags_in[`FLAG_N] ^ flags_in[`FLAG_V];
+                    `BCC_GT: branch_taken = (~flags_in[`FLAG_Z]) &&
+                                     ~(flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    `BCC_LE: branch_taken =  flags_in[`FLAG_Z] ||
+                                     (flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    `BCC_GE: branch_taken = ~(flags_in[`FLAG_N] ^ flags_in[`FLAG_V]);
+                    default: branch_taken = 1'b0;
+                endcase
+                if (branch_taken)
                     alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
                 else
                     alu_result = pc_in;
@@ -216,6 +255,7 @@ module stage3ex(
     reg [3:0]  flags_latch;
     reg [11:0] store_data_latch;
     reg [11:0] ir_latch;
+    reg        branch_taken_latch;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -236,6 +276,7 @@ module stage3ex(
             flags_latch    <= 4'b0;
             store_data_latch <= 12'b0;
             ir_latch        <= 12'b0;
+            branch_taken_latch <= 1'b0;
         end else if (enable_in) begin
             pc_latch       <= stage_pc;
             instr_latch    <= instr_in;
@@ -254,6 +295,7 @@ module stage3ex(
             flags_latch    <= alu_flags;
             store_data_latch <= store_data;
             ir_latch        <= ir_in;
+            branch_taken_latch <= branch_taken;
         end
     end
 
@@ -274,4 +316,5 @@ module stage3ex(
     assign flags_out     = flags_latch;
     assign store_data_out = store_data_latch;
     assign ir_out        = ir_latch;
+    assign branch_taken_out = branch_taken_latch;
 endmodule
