@@ -1,6 +1,10 @@
 // stage2id.v
 `include "src/opcodes.vh"
+`define DEFINE_REG_SRC_READ_FN
+`define DEFINE_REG_TGT_READ_FN
 `include "src/iset.vh"
+`undef DEFINE_REG_TGT_READ_FN
+`undef DEFINE_REG_SRC_READ_FN
 module stage2id(
     input  wire        clk,
     input  wire        rst,
@@ -40,15 +44,16 @@ module stage2id(
 
     // Decode immediate, register and branch fields
     wire [3:0] bcc_w       = forwarded_instr[7:4];
-    wire [3:0] tgt_gp_w    = (stage_set == `ISET_S) ? 4'b0 : forwarded_instr[7:4];
+    wire [3:0] fwd_opcode  = forwarded_instr[11:8];
+    wire       use_src     = reg_src_read_fn(stage_set, fwd_opcode);
+    wire       use_tgt     = reg_tgt_read_fn(stage_set, fwd_opcode);
+    wire [3:0] tgt_gp_w    = (stage_set == `ISET_S || !use_tgt) ? 4'b0 : forwarded_instr[7:4];
     wire [3:0] tgt_sr_w    = (stage_set == `ISET_S) ? forwarded_instr[7:4] : 4'b0;
-    wire [3:0] src_gp_w    = (stage_set == `ISET_S) ? 4'b0 : forwarded_instr[3:0];
+    wire [3:0] src_gp_w    = (stage_set == `ISET_S || !use_src) ? 4'b0 : forwarded_instr[3:0];
     wire [3:0] src_sr_w    = (stage_set == `ISET_S) ? forwarded_instr[3:0] : 4'b0;
     wire       imm_hilo_w  = forwarded_instr[7];
     wire [5:0] imm_val_w   = forwarded_instr[5:0];
     wire [5:0] off_w       = forwarded_instr[5:0];
-
-    wire [3:0] fwd_opcode = forwarded_instr[11:8];
     wire       instr_li  = ({stage_set, fwd_opcode} == {`ISET_I,  `OPC_I_Li});
     wire       instr_lis = ({stage_set, fwd_opcode} == {`ISET_IS, `OPC_IS_Lis});
     wire       sgn_en_w  = (stage_set == `ISET_RS) || (stage_set == `ISET_IS);
