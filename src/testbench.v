@@ -28,7 +28,7 @@ module testbench;
         rst = 1'b0;
 
         // Let the simulation run for some cycles
-        repeat (40) @(posedge clk);
+        repeat (80) @(posedge clk);
         $finish;
     end
 
@@ -85,6 +85,13 @@ module testbench;
         $display("tick %0d : IR=%h",
                  tick,
                  uut.u_stage3ex.ir_reg);
+`endif
+`ifdef DEBUGLR
+        $display("tick %0d : LR=%h WE=%b WDATA=%h",
+                 tick,
+                 uut.lr_out,
+                 uut.lr_we,
+                 uut.lr_wdata);
 `endif
         tick = tick + 1;
     end
