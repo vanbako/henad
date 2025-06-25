@@ -28,7 +28,7 @@ module testbench;
         rst = 1'b0;
 
         // Let the simulation run for some cycles
-        repeat (20) @(posedge clk);
+        repeat (40) @(posedge clk);
         $finish;
     end
 
