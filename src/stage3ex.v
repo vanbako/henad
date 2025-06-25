@@ -23,6 +23,8 @@ module stage3ex(
     input  wire        sgn_en_in,
     input  wire [11:0] src_data_in,
     input  wire [11:0] tgt_data_in,
+    // Current value of the link register
+    input  wire [11:0] lr_in,
     // Current flag register value for conditional branches
     input  wire [3:0]  flags_in,
     output wire [11:0] pc_out,
@@ -222,7 +224,7 @@ module stage3ex(
                     default: branch_taken = 1'b0;
                 endcase
                 if (branch_taken)
-                    alu_result = pc_in + {{6{stage_off[5]}}, stage_off};
+                    alu_result = lr_in + {{6{stage_off[5]}}, stage_off};
                 else
                     alu_result = pc_in;
             end

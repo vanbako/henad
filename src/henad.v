@@ -138,6 +138,9 @@ module henad(
     wire [3:0]  reg_waddr;
     wire        reg_we;
     wire        flag_we;
+    wire [11:0] lr_out;
+    wire [11:0] lr_wdata;
+    wire        lr_we;
 
     // Update ia_pc and enable signals
     always @(posedge clk or posedge rst) begin
@@ -232,6 +235,15 @@ module henad(
         .flag_out(current_flags)
     );
 
+    // Link register
+    reglr u_reglr(
+        .clk(clk),
+        .rst(rst),
+        .lr_in(lr_wdata),
+        .we(lr_we),
+        .lr_out(lr_out)
+    );
+
 
     // Instruction set tracking register.  The decode stage outputs the set
     // for the current instruction and this register feeds the next
@@ -296,6 +308,7 @@ module henad(
         .sgn_en_in(id_sgn_en),
         .src_data_in(reg_src_data),
         .tgt_data_in(reg_tgt_data),
+        .lr_in(lr_out),
         .flags_in(current_flags),
         .pc_out(exma_pc),
         .instr_out(exma_instr),
@@ -395,6 +408,8 @@ module henad(
         .reg_waddr(reg_waddr),
         .reg_wdata(ro_result),
         .reg_we(reg_we),
+        .lr_wdata(lr_wdata),
+        .lr_we(lr_we),
         .flag_wdata(ro_flags),
         .flag_we(flag_we)
     );
