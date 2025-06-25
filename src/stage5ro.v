@@ -19,6 +19,9 @@ module stage5ro(
     output wire [3:0]  reg_waddr,
     output wire [11:0] reg_wdata,
     output wire        reg_we,
+    // Write interface for the link register
+    output wire [11:0] lr_wdata,
+    output wire        lr_we,
     output wire [3:0]  flag_wdata,
     output wire        flag_we
 );
@@ -35,6 +38,11 @@ module stage5ro(
     assign reg_waddr  = reg_waddr_in;
     assign reg_wdata  = result_in;
     assign reg_we     = enable_in && reg_write;
+
+    // Write to the link register for the SRMOV instruction
+    wire lr_write = ({instr_set_in, opcode} == {`ISET_S, `OPC_S_SRMOV});
+    assign lr_wdata = result_in;
+    assign lr_we    = enable_in && lr_write;
 
     assign flag_wdata = flags_in;
     assign flag_we    = enable_in;
