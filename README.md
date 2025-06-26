@@ -1,6 +1,6 @@
 # Henad RISC Core
 
-Henad is an experimental 12‑bit RISC microarchitecture. The design implements a simple five‑stage pipeline with separate modules for each control and latch stage. At this point the project mainly provides a skeleton implementation that passes the program counter through each stage.
+Henad is an experimental 12-bit RISC microarchitecture. It features a simple five-stage pipeline that now includes full instruction decode, execution and memory access. Earlier revisions merely passed the program counter through each stage; the current design adds a register file, branch handling and basic hazard detection so a small program can run end-to-end.
 
 The overall architecture and instruction format are documented in `design.txt`.
 
@@ -32,7 +32,8 @@ iverilog -g2012 -o test.vvp src/*.v
 vvp test.vvp
 ```
 
-The repository currently provides only stub modules, so simulation will simply step the pipeline without executing real instructions.
+The repository includes a small test program in `instr_mem_init.hex`.
+Simulation shows the pipeline executing this code, and debug output can be enabled by defining `DEBUGPC`, `DEBUGINSTR` or related macros when running Icarus Verilog.
 
 ## License
 
