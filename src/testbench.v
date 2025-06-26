@@ -93,6 +93,14 @@ module testbench;
                  uut.lr_we,
                  uut.lr_wdata);
 `endif
+`ifdef DEBUGREG
+        $display("tick %0d : R0=%h R1=%h R2=%h R3=%h",
+                 tick,
+                 uut.u_reggp.regs[0],
+                 uut.u_reggp.regs[1],
+                 uut.u_reggp.regs[2],
+                 uut.u_reggp.regs[3]);
+`endif
         tick = tick + 1;
     end
 
