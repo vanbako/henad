@@ -1,25 +1,25 @@
 # Lygo Connector Pin Layout
 
-The Lygo connector provides high-speed serial connectivity and is available in three physical lengths supporting 4, 8, or 12 lanes.
+The Lygo slot connector provides high-speed serial connectivity and is available in two physical lengths supporting 1 or 2 ports of each 6 lanes.
 
-## Base Key – 48 Pins
+## Base Key – 24 Pins
 These pins are present on every connector, regardless of lane count.
 
 | Pin Range | Function   | Notes                                     |
 |-----------|------------|-------------------------------------------|
 |  1– 8     | 24 V Power |                                           |
-|  9–12     | Reserved   |                                           |
-| 13–20     | JTAG       | gnd, vref, tck, tms, tdi, tdo, reset, gnd |
-| 21–24     | Reserved   |                                           |
-| 25–32     | 3 V Power  |                                           |
-| 33–36     | Reserved   |                                           |
-| 37–40     | Clock      | gnd, clk+, clk−, gnd                      |
-| 41–48     | Reserved   |                                           |
+|  9–16     | JTAG       | gnd, vref, tck, tms, tdi, tdo, reset, gnd |
+| 17–24     | 3 V Power  |                                           |
 
-## Lane Sets
-After the 48-pin key, the connector carries one to three lane sets. Each lane set contains four physical lanes and occupies 32 pins. Connectors therefore come in 4-, 8-, or 12-lane versions.
+## Lane Ports
+After the 24-pin key, the connector carries one or two lane ports. Each lane port contains six physical lanes and occupies 52 pins. Connectors are either single-port 6-lane or dual-port 6-lane.
 
-### Pin Map per Lane
+### Pin map per port
+| Pin Range | Function   | Notes                |
+|-----------|------------|--------------------- |
+|  1– 4     | Clock      | gnd, clk+, clk−, gnd |
+
+### Pin Map per Lane (x6 per port)
 Each lane uses the following eight-pin pattern:
 
 | Pin Offset | Signal |
@@ -34,10 +34,11 @@ Each lane uses the following eight-pin pattern:
 | 8          | GND    |
 
 ### Connector Sizes
-| Lanes | Lane Sets | Total Pins |
-|-------|-----------|------------|
-|  4    | 1         |  80        |
-|  8    | 2         | 112        |
-| 12    | 3         | 144        |
+| Ports | Total Pins |
+|-------|------------|
+|  1    |  76        |
+|  2    | 128        |
 
-Physical expansion is done in groups of four lanes, while logically the system operates on pairs of lanes.
+Physical expansion is done in ports of six lanes, while logically the system operates on pairs of lanes (so 2, 4 or 6).
+
+In prototype-1 only 2 lanes are used per port

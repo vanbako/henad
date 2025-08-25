@@ -17,6 +17,7 @@ This repository contains documentation split by **processors, units, modules, bo
 - [unit-kairos](units/kairos/kairos.md)
 
 ### 🖥️ board
+- [board-pontifex](boards/archon/pontifex.md)
 - [board-archon](boards/archon/archon.md)
 
 ### ⚙️ Diad processors
