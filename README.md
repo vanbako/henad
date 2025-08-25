@@ -16,15 +16,15 @@ This repository contains documentation split by **processors, units, modules, bo
 ### 🔧 Units
 - [unit-kairos](units/kairos/kairos.md)
 
-### 🖥️ board
-- [board-pontifex](boards/archon/pontifex.md)
+### 🖥️ boards
+- [board-pontifex](boards/pontifex/pontifex.md)
 - [board-archon](boards/archon/archon.md)
 
 ### ⚙️ Diad processors
 - [diad-atomos](processors/atomos/atomos.md) – control/firmware core
 - [diad-cosmos](processors/cosmos/cosmos.md) – main CPU
 - [diad-optiko](processors/optiko/optiko.md) – graphics/display processor
-- [diad-Echos](processors/echos/echos.md) – sound processor
+- [diad-echos](processors/echos/echos.md) – sound processor
 - [diad-hapto](processors/hapto/hapto.md) – input processor
 - [diad-dikto](processors/dikto/dikto.md) – network processor
 - [diad-mneme](processors/mneme/mneme.md) – mass storage processor
