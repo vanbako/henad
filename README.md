@@ -22,7 +22,7 @@ This repository contains documentation split by **processors, units, modules, bo
 ### ⚙️ Diad processors
 - [diad-atomos](processors/atomos/atomos.md) – control/firmware core
 - [diad-cosmos](processors/cosmos/cosmos.md) – main CPU
-- [diad-optik](processors/optik/optik.md) – graphics/display processor
+- [diad-optiko](processors/optik/optiko.md) – graphics/display processor
 - [diad-Echos](processors/echos/echos.md) – sound processor
 - [diad-hapto](processors/hapto/hapto.md) – input processor
 - [diad-dikto](processors/dikto/dikto.md) – network processor
@@ -54,6 +54,7 @@ Each module is built around a **unit-kairos** and one specialized processor:
 
 ## 🛠️ Prototype 1 Notes
 - Platform: **ULX3S FPGA boards**
+- One ULX3S board per module and for the board-archon
 - The kairos unit is in the same fpga
 - Target frequencies:
   - lygos: **25 MHz**

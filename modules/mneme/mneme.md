@@ -17,7 +17,7 @@
 - SATA/NVMe-like interface
 
 ## Prototype 1 Parameters
-- FPGA: ULX3S
+- FPGA: ULX3S (dedicated board)
 - Clock: 25–50 MHz (TBD)
 
 ## Roadmap

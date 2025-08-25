@@ -1,21 +1,25 @@
-# Diad-Hapto Processor
+# Module-Hapto
 
 ## Overview
-- **Role**: Input controller (USB-like interface)
-- **Word size**: 24-bit (diad)
-- **Design goal**: Manage controllers, VR/AR input
+- **Role**: Input controller module
+- **Core Processor**: diad-hapto
+- **Base Unit**: unit-kairos
+- **Interconnect**: lygo
+
+## Features
+- Manages multiple input devices
+- synod (USB2-like) physical interface
+- Supports VR/AR controllers
 
 ## Architecture
-- Manages multiple input devices
-- USB-like protocol
-
-## Memory
-- SDRAM (unit-kairos)
-
-## Interfaces
-- lygo via unit-kairos
-- synod (USB2-like)
+- diad-hapto processor
+- SDRAM via unit-kairos
+- synod PHY
 
 ## Prototype 1 Parameters
-- Frequency: TBD
-- FPGA: ULX3S
+- FPGA: ULX3S (dedicated board)
+- Clock: 25 MHz (TBD)
+
+## Roadmap
+- Higher-speed synod support
+- Expanded device compatibility

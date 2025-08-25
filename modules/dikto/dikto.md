@@ -2,7 +2,7 @@
 
 ## Overview
 - **Role**: Network processor module
-- **Core Processor**: fiad-fikto
+- **Core Processor**: diad-dikto
 - **Base Unit**: unit-kairos
 - **Interconnect**: lygo
 
@@ -15,8 +15,8 @@
 - diad-dikto processor
 - SDRAM (via unit-kairos)
 
-## Prototype Parameters
-- FPGA: ULX3S
+## Prototype 1 Parameters
+- FPGA: ULX3S (dedicated board)
 - Clock: 25 MHz (TBD)
 
 ## Roadmap

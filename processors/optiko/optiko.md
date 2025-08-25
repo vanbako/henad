@@ -1,4 +1,4 @@
-# Diad-Optik Processor
+# Diad-Optiko Processor
 
 ## Overview
 - **Role**: Display processor (graphics/video)
@@ -13,7 +13,7 @@
 - Works directly with 24-bit RGB pixels
 
 ## Memory
-- VRAM (module-optik)
+- VRAM (module-optiko)
 - SD card
 
 ## Interfaces

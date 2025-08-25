@@ -20,6 +20,7 @@
 
 ## Prototype 1 Parameters
 - Platform: ULX3S FPGA
+- Dedicated ULX3S board for hub and routing logic
 - Switch: FPGA-based lygo router
 
 ## Roadmap
