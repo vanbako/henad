@@ -22,7 +22,7 @@ This repository contains documentation split by **processors, units, modules, bo
 ### ⚙️ Diad processors
 - [diad-atomos](processors/atomos/atomos.md) – control/firmware core
 - [diad-cosmos](processors/cosmos/cosmos.md) – main CPU
-- [diad-optiko](processors/optik/optiko.md) – graphics/display processor
+- [diad-optiko](processors/optiko/optiko.md) – graphics/display processor
 - [diad-Echos](processors/echos/echos.md) – sound processor
 - [diad-hapto](processors/hapto/hapto.md) – input processor
 - [diad-dikto](processors/dikto/dikto.md) – network processor
@@ -31,15 +31,13 @@ This repository contains documentation split by **processors, units, modules, bo
 
 ### 🎛️ Modules
 Each module is built around a **unit-kairos** and one specialized processor:
-- **module-cosmos** → diad-cosmos (CPU)
-- **module-optiko** → diad-optiko (Graphics/GPU)
-- **module-echos** → diad-echos (Audio)
-- **module-hapto** → diad-hapto (Input)
-- **module-dikto** → diad-dikto (Network)
-- **module-mneme** → diad-mneme (Storage)
-- **module-noos** → diad-noos (Neural)
-
-*(Module `.md` files can be added as they expand in detail.)*
+- [module-cosmos](modules/cosmos/cosmos.md) → [diad-cosmos](processors/cosmos/cosmos.md) (CPU)
+- [module-optiko](modules/optiko/optiko.md) → [diad-optiko](processors/optiko/optiko.md) (Graphics/GPU)
+- [module-echos](modules/echos/echos.md) → [diad-echos](processors/echos/echos.md) (Audio)
+- [module-hapto](modules/hapto/hapto.md) → [diad-hapto](processors/hapto/hapto.md) (Input)
+- [module-dikto](modules/dikto/dikto.md) → [diad-dikto](processors/dikto/dikto.md) (Network)
+- [module-mneme](modules/mneme/mneme.md) → [diad-mneme](processors/mneme/mneme.md) (Storage)
+- [module-noos](modules/noos/noos.md) → [diad-noos](processors/noos/noos.md) (Neural)
 
 ---
 

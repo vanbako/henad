@@ -2,9 +2,9 @@
 
 ## Overview
 - **Role**: Input controller module
-- **Core Processor**: diad-hapto
-- **Base Unit**: unit-kairos
-- **Interconnect**: lygo
+- **Core Processor**: [diad-hapto](../../processors/hapto/hapto.md)
+- **Base Unit**: [unit-kairos](../../units/kairos/kairos.md)
+- **Interconnect**: [lygo](../../interfaces/lygo/lygo.md)
 
 ## Features
 - Manages multiple input devices
@@ -12,8 +12,8 @@
 - Supports VR/AR controllers
 
 ## Architecture
-- diad-hapto processor
-- SDRAM via unit-kairos
+- [diad-hapto processor](../../processors/hapto/hapto.md)
+- SDRAM
 - synod PHY
 
 ## Prototype 1 Parameters

@@ -2,9 +2,9 @@
 
 ## Overview
 - **Role**: Neural network processor module (AI acceleration)
-- **Core Processor**: diad-noos
-- **Base Unit**: unit-kairos
-- **Interconnect**: lygo
+- **Core Processor**: [diad-noos](../../processors/noos/noos.md)
+- **Base Unit**: [unit-kairos](../../units/kairos/kairos.md)
+- **Interconnect**: [lygo](../../interfaces/lygo/lygo.md)
 
 ## Features
 - Matrix/vector math acceleration
@@ -12,7 +12,7 @@
 - SIMD-style execution
 
 ## Architecture
-- diad-noos processor
+- [diad-noos processor](../../processors/noos/noos.md)
 - SDRAM
 - SD card
 

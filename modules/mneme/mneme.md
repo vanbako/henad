@@ -2,9 +2,9 @@
 
 ## Overview
 - **Role**: Mass storage module
-- **Core Processor**: diad-mneme
-- **Base Unit**: unit-kairos
-- **Interconnect**: lygo
+- **Core Processor**: [diad-mneme](../../processors/mneme/mneme.md)
+- **Base Unit**: [unit-kairos](../../units/kairos/kairos.md)
+- **Interconnect**: [lygo](../../interfaces/lygo/lygo.md)
 
 ## Features
 - Fast access to large storage
@@ -12,7 +12,7 @@
 - DMA transfer support
 
 ## Architecture
-- diad-mneme processor
+- [diad-mneme processor](../../processors/mneme/mneme.md)
 - SDRAM
 - SATA/NVMe-like interface
 

@@ -2,9 +2,9 @@
 
 ## Overview
 - **Role**: Central CPU module of henad
-- **Core Processor**: diad-cosmos
-- **Base Unit**: unit-kairos
-- **Interconnect**: lygo
+- **Core Processor**: [diad-cosmos](../../processors/cosmos/cosmos.md)
+- **Base Unit**: [unit-kairos](../../units/kairos/kairos.md)
+- **Interconnect**: [lygo](../../interfaces/lygo/lygo.md)
 
 ## Features
 - Main general-purpose CPU
@@ -12,7 +12,7 @@
 - 48-bit addressing
 
 ## Architecture
-- diad-cosmos processor
+- [diad-cosmos processor](../../processors/cosmos/cosmos.md)
 - SDRAM for program/data memory
 - SD card storage
 

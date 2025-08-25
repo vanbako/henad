@@ -2,9 +2,9 @@
 
 ## Overview
 - **Role**: Graphics and display module
-- **Core Processor**: diad-optik
-- **Base Unit**: unit-kairos
-- **Interconnect**: lygo
+- **Core Processor**: [diad-optiko](../../processors/optiko/optiko.md)
+- **Base Unit**: [unit-kairos](../../units/kairos/kairos.md)
+- **Interconnect**: [lygo](../../interfaces/lygo/lygo.md)
 
 ## Features
 - 2D/3D rendering and blitter operations
@@ -12,7 +12,7 @@
 - HDMI output for video
 
 ## Architecture
-- diad-optik processor
+- [diad-optiko processor](../../processors/optiko/optiko.md)
 - SDRAM acting as VRAM
 - HDMI transmitter
 

@@ -2,9 +2,9 @@
 
 ## Overview
 - **Role**: Network processor module
-- **Core Processor**: diad-dikto
-- **Base Unit**: unit-kairos
-- **Interconnect**: lygo
+- **Core Processor**: [diad-dikto](../../processors/dikto/dikto.md)
+- **Base Unit**: [unit-kairos](../../units/kairos/kairos.md)
+- **Interconnect**: [lygo](../../interfaces/lygo/lygo.md)
 
 ## Features
 - Packet handling for online multiplayer
@@ -12,8 +12,8 @@
 - RJ45-like physical interface
 
 ## Architecture
-- diad-dikto processor
-- SDRAM (via unit-kairos)
+- [diad-dikto processor](../../processors/dikto/dikto.md)
+- SDRAM
 
 ## Prototype 1 Parameters
 - FPGA: ULX3S (dedicated board)
