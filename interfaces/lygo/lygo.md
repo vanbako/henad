@@ -8,6 +8,7 @@
 ## Physical
 - Signaling: `rx- rx+ / tx- tx+` per lane
 - Connectors: 8 ports on board-archon
+- Aux lines: spare single-ended pins can carry module JTAG (TCK, TMS, TDI, TDO, TRST)
 
 ## Performance
 - Prototype 1 frequency: 25 MHz
