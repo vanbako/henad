@@ -15,10 +15,13 @@
 - [diad-cosmos processor](../../processors/cosmos/cosmos.md)
 - SDRAM for program/data memory
 - SD card storage
-```
-CPU -  DMA  - SDRAM
-        |
-      LYGOS
+
+```mermaid
+graph LR
+   CPU[CPU] <--> FABRIC[Fabric]
+   SDRAM[SDRAM] <--> FABRIC
+   FABRIC <--> DMA[DMA]
+   DMA <--> LYGO[Lygo]
 ```
 
 ## Prototype 1 Parameters
