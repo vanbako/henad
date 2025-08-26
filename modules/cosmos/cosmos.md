@@ -15,6 +15,11 @@
 - [diad-cosmos processor](../../processors/cosmos/cosmos.md)
 - SDRAM for program/data memory
 - SD card storage
+```
+CPU -  DMA  - SDRAM
+        |
+      LYGOS
+```
 
 ## Prototype 1 Parameters
 - FPGA: ULX3S
