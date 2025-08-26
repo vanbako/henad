@@ -28,3 +28,8 @@
 ## Future Extensions
 - Possible merge with unit-lygo
 - Improved debugging support
+
+## Further Documentation
+For more detailed information, refer to:
+- [Design Documentation](./design/design.md) – Detailed hardware design and pipeline overview.
+- [Opcode Definitions](./design/opcode.md) – Complete opcode and micro‑op specifications.
