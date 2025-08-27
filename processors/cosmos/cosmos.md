@@ -1,6 +1,7 @@
 # Diad-Cosmos Processor
 
 ## Overview
+
 - **Role**: Main CPU of Henad
 - **Cores**: 1-core configuration
 - **Word size**: 24-bit (diad)
@@ -8,6 +9,7 @@
 - **Design goal**: Efficient general-purpose processing for games
 
 ## Architecture
+
 - RISC-like design
 - 24-bit instruction/data width
 - Supports 24-bit integer, fixed point, floating point
@@ -16,18 +18,22 @@
 - interrupts, i-cache, d-cache, mmu, isa/µ-ops, kernel/user
 
 ## Memory
+
 - SDRAM (module-cosmos)
-- SD storage 
+- SD storage
 
 ## Interfaces
+
 - lygo via unit-kairos
 - Local memory
 
 ## Prototype 1 Parameters
+
 - Frequency: 50 MHz
 - FPGA: ULX3S
 
 ## Roadmap
+
 - Multicore 2 and 4 cores
 - Higher frequencies
 - SSD support

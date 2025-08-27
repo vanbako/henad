@@ -1,10 +1,12 @@
-# About
+# Atomos design
+
+## About
 
 The diad-atomos 8-stage microarchitecture core.
 The main goal is to keep the pipeline as simple as possible and to avoid stalls where possible.  
 Toolchain is currently iverilog.
 
-# Details
+## Details
 
 - **Board:** ULX3S or similar
 - **Instruction, Memories, and GP Registers:** diad (24 bit) in size
@@ -24,7 +26,7 @@ Toolchain is currently iverilog.
 - **Memory Initialization:** Bootloader at runtime (currently initialized with a memory file for testing)
 - **Branching:** JCC/BCC/BAL resolve in XT; IF/ID are squashed on taken.
 
-# Instruction Format
+## Instruction Format
 
 - 24 bit (diad) total; only necessary bits for the instruction are coded, the rest are RESERVED (should be all zeros, not checked yet)
 - **Condition Code (CC):**
@@ -33,7 +35,7 @@ Toolchain is currently iverilog.
   - 12 bit when used together with the uimm
   - Other immediates vary in size to maximize relative jumps and others
 
-# Condition Code Table
+## Condition Code Table
 
 - **AL:** Always – no flags consulted.
 - **EQ:** Equal – true when Zero flag (Z) is set.
@@ -48,10 +50,11 @@ Toolchain is currently iverilog.
 - **AE:** Above or Equal (unsigned) – true when C is clear.
 
 _**Flags Consulted:**_  
+
 - Signed comparisons: Negative (N), Overflow (V), and Zero (Z) flags  
 - Unsigned comparisons: Carry (C) flag (with Z for strict comparisons)
 
-# Instruction Suffixes
+## Instruction Suffixes
 
 - **ur:** unsigned register operation
 - **ui:** unsigned immediate value (upper from uimm and lower from immxx)
@@ -59,18 +62,18 @@ _**Flags Consulted:**_
 - **si:** signed immediate operation (sign extended immxx)
 - **so:** signed immediate operation (sign extended immxx offset)
 
-*Note:* In assembly, the last operand is the target; if there are two operands, the previous is source.
+_*Note:*_ In assembly, the last operand is the target; if there are two operands, the previous is source.
 
 - Move instructions set/clear the Z flag (except for address instructions).
 - Address instructions (including LD/ST) do not modify flags, except for MOVD, compare, and test.
 - All 48-bit memory operations are little endian (2 x 24 bit).
 
-# TODOS
+## TODOS
 
 - µop mov A <-> SR → ISA SETSSP, ...
 - BTP (branch target pad) for control flow integrity
 
-# Order of Future Implementation
+## Order of Future Implementation
 
 1. Control flow integrity (BTP, check LR, SSP RAM)
 2. CSR
@@ -78,7 +81,7 @@ _**Flags Consulted:**_
 4. i-cache & d-cache
 5. Atomic operations
 
-# Pipeline Stages
+## Pipeline Stages
 
 1. IA: Instruction Address
 2. IF: Instruction Fetch
@@ -89,7 +92,7 @@ _**Flags Consulted:**_
 7. MO: Memory Operation
 8. WB: Register Write Back
 
-# Registers
+## Registers
 
 - **Data Registers:** 0-7 Dx : data (24 bit)
 - **Address Registers:** 0-3 Ax : address (48 bit)
@@ -105,13 +108,13 @@ _**Flags Consulted:**_
     - 2: C (carry)
     - 3: V (overflow)
 
-# Memory
+## Memory
 
 - **Data Memory:**  
   - 36-bit address space
   - Read-write (BRAM)
 
-# Modules
+## Modules
 
 - testbench
 - atomos

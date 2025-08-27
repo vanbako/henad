@@ -11,16 +11,20 @@ This repository contains documentation split by **processors, units, modules, bo
 ## 📚 Documentation Index
 
 ### 🔗 Interfaces
+
 - [interface-lygo](interfaces/lygo/lygo.md)
 
 ### 🔧 Units
+
 - [unit-kairos](units/kairos/kairos.md)
 
 ### 🖥️ boards
+
 - [board-pontifex](boards/pontifex/pontifex.md)
 - [board-archon](boards/archon/archon.md)
 
 ### ⚙️ Diad processors
+
 - [diad-atomos](processors/atomos/atomos.md) – control/firmware core
 - [diad-cosmos](processors/cosmos/cosmos.md) – main CPU
 - [diad-optiko](processors/optiko/optiko.md) – graphics/display processor
@@ -31,7 +35,9 @@ This repository contains documentation split by **processors, units, modules, bo
 - [diad-noos](processors/noos/noos.md) – neural network processor
 
 ### 🎛️ Modules
+
 Each module is built around a **unit-kairos** and one specialized processor:
+
 - [module-cosmos](modules/cosmos/cosmos.md) → [diad-cosmos](processors/cosmos/cosmos.md) (CPU)
 - [module-optiko](modules/optiko/optiko.md) → [diad-optiko](processors/optiko/optiko.md) (Graphics/GPU)
 - [module-echos](modules/echos/echos.md) → [diad-echos](processors/echos/echos.md) (Audio)
@@ -43,6 +49,7 @@ Each module is built around a **unit-kairos** and one specialized processor:
 ---
 
 ## 📖 Glossary
+
 - **diad** = 24-bit word (data, math, characters, pixels)
 - **tetrad** = 48-bit (used for addresses)
 - **lygos** = full-duplex LVDS interconnect
@@ -52,6 +59,7 @@ Each module is built around a **unit-kairos** and one specialized processor:
 ---
 
 ## 🛠️ Prototype 1 Notes
+
 - Platform: **ULX3S FPGA boards**
 - One ULX3S board per module and for the board-archon
 - The kairos unit is in the same fpga
