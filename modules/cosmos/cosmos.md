@@ -21,22 +21,38 @@
 
 ```mermaid
 graph LR
-   subgraph COSMOS["Cosmos domain"]
-     COSMOS-CORE[cosmos-core]
-     COSMOS-MMU[cosmos-mmu]
-     COSMOS-FABRIC[cosmos-fabric]
-     DMA[dma]
+   COSMOS-CORE[cosmos-core]
+   COSMOS-MMU[cosmos-mmu]
+   COSMOS-FABRIC[cosmos-fabric]
+   COSMOS-SDRAM[cosmos-sdram]
+   COSMOS-SDRAM-CTRL[cosmos-sdram-ctrl]
+   DMA[dma]
+   ATOMOS-CORE[atomos-core]
+   ATOMOS-FABRIC[atomos-fabric]
+   ATOMOS-SRAM[atomos-sram]
+   LYGO-EP[lygo-ep]
+   LYGO-LINK[lygo-link]
+   LYGO-PHY[lygo-phy]
+   subgraph cosmos
+      direction TB
+      COSMOS-CORE <-->|"Load/store bus<br/>virtual addr"| COSMOS-MMU
+      COSMOS-MMU <-->|"Memory bus<br/>physical addr"| COSMOS-FABRIC
+      COSMOS-SDRAM <-->|"DRAM signals"| COSMOS-SDRAM-CTRL
+      COSMOS-SDRAM-CTRL <-->|"Fabric<br/>slave port"| COSMOS-FABRIC
+      COSMOS-FABRIC <-->|"Fabric<br/>master port"| DMA
    end
-   COSMOS-CORE[cosmos-core] <-->|"Load/store bus<br/>virtual addr"| COSMOS-MMU[cosmos-mmu]
-   COSMOS-MMU <-->|"Memory bus<br/>physical addr"| COSMOS-FABRIC[cosmos-fabric]
-   SDRAM[SDRAM] <-->|"DRAM signals"| SDRAM-CONTROLLER[sdram-controller]
-   SDRAM-CONTROLLER <-->|"Fabric<br/>slave port"| COSMOS-FABRIC
-   COSMOS-FABRIC <-->|"Fabric<br/>master port"| DMA[dma]
-   COSMOS-FABRIC <-->|"Fabric<br/>master port"| ATOMOS-MUX[atomos-mux]
-   ATOMOS-MUX <-->|"Control-plane<br/>access"| LYGO-EP[lygo-ep]
-   ATOMOS-MUX <-->|"Load/store bus<br/>phys addr"| ATOMOS-CORE[atomos-core]
-   LYGO-EP <-->|"Transaction ↔ Link<br/>packet interface"| LYGO-LINK[lygo-link]
-   LYGO-LINK <-->|"Framed link protocol<br/>(flits + credits)"| LYGO-PHY[lygo-phy]
+   COSMOS-FABRIC <-->|"Fabric<br/>master port"| ATOMOS-FABRIC
+   subgraph atomos
+      direction TB
+      ATOMOS-SRAM <--> ATOMOS-FABRIC
+      ATOMOS-FABRIC <-->|"Load/store bus<br/>phys addr"| ATOMOS-CORE
+   end
+   subgraph lygo
+      direction TB
+      ATOMOS-FABRIC <-->|"Control-plane<br/>access"| LYGO-EP
+      LYGO-EP <-->|"Transaction ↔<br/>Link packet interface"| LYGO-LINK
+      LYGO-LINK <-->|"Framed link protocol<br/>(flits + credits)"| LYGO-PHY
+   end
 ```
 
 ## Prototype 1 Parameters
