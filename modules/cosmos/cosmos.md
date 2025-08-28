@@ -20,39 +20,52 @@
 - SD card storage
 
 ```mermaid
-graph LR
-   COSMOS-CORE[cosmos-core]
-   COSMOS-MMU[cosmos-mmu]
-   COSMOS-FABRIC[cosmos-fabric]
-   COSMOS-SDRAM[cosmos-sdram]
-   COSMOS-SDRAM-CTRL[cosmos-sdram-ctrl]
-   DMA[dma]
-   ATOMOS-CORE[atomos-core]
-   ATOMOS-FABRIC[atomos-fabric]
-   ATOMOS-SRAM[atomos-sram]
-   LYGO-EP[lygo-ep]
-   LYGO-LINK[lygo-link]
-   LYGO-PHY[lygo-phy]
+graph TB
    subgraph cosmos
-      direction TB
-      COSMOS-CORE <-->|"Load/store bus<br/>virtual addr"| COSMOS-MMU
-      COSMOS-MMU <-->|"Memory bus<br/>physical addr"| COSMOS-FABRIC
-      COSMOS-SDRAM <-->|"DRAM signals"| COSMOS-SDRAM-CTRL
-      COSMOS-SDRAM-CTRL <-->|"Fabric<br/>slave port"| COSMOS-FABRIC
-      COSMOS-FABRIC <-->|"Fabric<br/>master port"| DMA
+      COSMOS-CORE@{ shape: rect, label: "cosmos-core" }
+      COSMOS-MMU@{ shape: rect, label: "cosmos-mmu" }
+      COSMOS-FABRIC@{ shape: rect, label: "cosmos-fabric" }
+      COSMOS-SDRAM@{ shape: bow-rect, label: "cosmos-sdram" }
+      COSMOS-SDRAM-CTRL@{ shape: rect, label: "cosmos-sdram-ctrl" }
+      DMA@{ shape: rect, label: "dma" }
+      COSMOS-CORE <-->|"load/store bus<br/>virt addr"| COSMOS-MMU
+      COSMOS-MMU <-->|"memory bus<br/>phys addr"| COSMOS-FABRIC
+      COSMOS-SDRAM <-->|"sdram signals"| COSMOS-SDRAM-CTRL
+      COSMOS-SDRAM-CTRL <-->|"fabric<br/>slave port"| COSMOS-FABRIC
+      COSMOS-FABRIC <-->|"fabric<br/>master port"| DMA
    end
-   COSMOS-FABRIC <-->|"Fabric<br/>master port"| ATOMOS-FABRIC
+   subgraph lygo-seg0[lygo-0]
+      LYGO0-EP@{ shape: rect, label: "lygo-ep" }
+      LYGO0-LINK@{ shape: rect, label: "lygo-link" }
+      LYGO0-PHY@{ shape: rect, label: "lygo-phy" }
+      LYGO0-EP <-->|"transaction ↔<br/>link packet interface"| LYGO0-LINK
+      LYGO0-LINK <-->|"framed link protocol<br/>(flits + credits)"| LYGO0-PHY
+   end
    subgraph atomos
-      direction TB
-      ATOMOS-SRAM <--> ATOMOS-FABRIC
-      ATOMOS-FABRIC <-->|"Load/store bus<br/>phys addr"| ATOMOS-CORE
+      ATOMOS-CORE@{ shape: rect, label: "atomos-core" }
+      ATOMOS-FABRIC@{ shape: rect, label: "atomos-fabric" }
+      ATOMOS-SRAM@{ shape: bow-rect, label: "atomos-sram" }
+      ATOMOS-SRAM <-->|"memory bus<br/>phys addr"| ATOMOS-FABRIC
+      ATOMOS-CORE <-->|"load/store bus<br/>phys addr"| ATOMOS-FABRIC
    end
-   subgraph lygo
-      direction TB
-      ATOMOS-FABRIC <-->|"Control-plane<br/>access"| LYGO-EP
-      LYGO-EP <-->|"Transaction ↔<br/>Link packet interface"| LYGO-LINK
-      LYGO-LINK <-->|"Framed link protocol<br/>(flits + credits)"| LYGO-PHY
+   subgraph lygo-seg1[lygo-1]
+      LYGO1-EP@{ shape: rect, label: "lygo-ep" }
+      LYGO1-LINK@{ shape: rect, label: "lygo-link" }
+      LYGO1-PHY@{ shape: rect, label: "lygo-phy" }
+      LYGO1-EP <-->|"transaction ↔<br/>link packet interface"| LYGO1-LINK
+      LYGO1-LINK <-->|"framed link protocol<br/>(flits + credits)"| LYGO1-PHY
    end
+   subgraph lygo-seg2[lygo-2]
+      LYGO2-EP@{ shape: rect, label: "lygo-ep" }
+      LYGO2-LINK@{ shape: rect, label: "lygo-link" }
+      LYGO2-PHY@{ shape: rect, label: "lygo-phy" }
+      LYGO2-EP <-->|"transaction ↔<br/>link packet interface"| LYGO2-LINK
+      LYGO2-LINK <-->|"framed link protocol<br/>(flits + credits)"| LYGO2-PHY
+   end
+   COSMOS-FABRIC <-->|"control-plane<br/>access"| LYGO0-EP
+   ATOMOS-FABRIC <-->|"control-plane<br/>access"| LYGO0-EP
+   COSMOS-FABRIC <-->|"control-plane<br/>access"| LYGO1-EP
+   COSMOS-FABRIC <-->|"control-plane<br/>access"| LYGO2-EP
 ```
 
 ## Prototype 1 Parameters
