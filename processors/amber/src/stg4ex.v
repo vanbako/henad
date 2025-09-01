@@ -112,6 +112,36 @@ module stg_ex(
                 r_result = iw_src_gp_val;
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
             end
+            `OPC_ROLur: begin
+                // Rotate left by variable amount (mod 24)
+                reg [4:0] amt;
+                reg [4:0] amt_mod;
+                amt = iw_src_gp_val[4:0];
+                amt_mod = amt % `SIZE_DATA;
+                if (amt_mod == 5'd0) begin
+                    r_result = iw_tgt_gp_val;
+                    r_fl[`FLAG_C] = 1'b0;
+                end else begin
+                    r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod)) & 1'b1;
+                end
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+            end
+            `OPC_RORur: begin
+                // Rotate right by variable amount (mod 24)
+                reg [4:0] amt;
+                reg [4:0] amt_mod;
+                amt = iw_src_gp_val[4:0];
+                amt_mod = amt % `SIZE_DATA;
+                if (amt_mod == 5'd0) begin
+                    r_result = iw_tgt_gp_val;
+                    r_fl[`FLAG_C] = 1'b0;
+                end else begin
+                    r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (amt_mod-1)) & 1'b1;
+                end
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+            end
             `OPC_MOVDur: begin
                 // H|L bit = instr[9]; H=1 means use [47:24], L=0 means use [23:0]
                 if (iw_instr[9])
@@ -155,28 +185,40 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
             end
             `OPC_SHLur: begin
-                if (iw_src_gp_val >= `SIZE_DATA) begin
+                reg [4:0] n;
+                reg [4:0] n_eff;
+                n = iw_src_gp_val[4:0];
+                if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_V] = 1'b1;
+                    r_fl[`FLAG_C] = 1'b0;
                 end else begin
-                    r_result = iw_tgt_gp_val << iw_src_gp_val[4:0];
-                    r_fl[`FLAG_V] = 1'b0;
+                    n_eff = n;
+                    r_result = iw_tgt_gp_val << n_eff;
+                    r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (`SIZE_DATA - n_eff)) & 1'b1);
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
             end
             `OPC_SHRur: begin
-                if (iw_src_gp_val >= `SIZE_DATA) begin
+                reg [4:0] n;
+                reg [4:0] n_eff;
+                n = iw_src_gp_val[4:0];
+                if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_V] = 1'b1;
+                    r_fl[`FLAG_C] = 1'b0;
                 end else begin
-                    r_result = iw_tgt_gp_val >> iw_src_gp_val[4:0];
-                    r_fl[`FLAG_V] = 1'b0;
+                    n_eff = n;
+                    r_result = iw_tgt_gp_val >> n_eff;
+                    r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
             end
             `OPC_CMPur: begin
                 r_fl[`FLAG_Z] = (iw_src_gp_val == iw_tgt_gp_val) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_C] = (iw_src_gp_val < iw_tgt_gp_val) ? 1'b1 : 1'b0;
+            end
+            `OPC_TSTur: begin
+                // Unsigned test: Z if zero
+                r_fl[`FLAG_Z] = (iw_tgt_gp_val == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
             end
             `OPC_LDur: begin
                 r_addr = iw_src_ar_val;
@@ -234,6 +276,14 @@ module stg_ex(
                 r_tgt_ar_we = 1'b1;
                 r_ar_result = $signed(iw_pc) + $signed({{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val});
             end
+            `OPC_CMPAur: begin
+                // Unsigned compare ARs vs ARt
+                r_fl[`FLAG_Z] = (iw_src_ar_val == iw_tgt_ar_val);
+                r_fl[`FLAG_C] = (iw_src_ar_val < iw_tgt_ar_val);
+            end
+            `OPC_TSTAur: begin
+                r_fl[`FLAG_Z] = (iw_tgt_ar_val == {`SIZE_ADDR{1'b0}});
+            end
             `OPC_ADDsr: begin
                 r_result = $signed(iw_src_gp_val) + $signed(iw_tgt_gp_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -249,6 +299,14 @@ module stg_ex(
                 r_fl[`FLAG_V] =
                     ((iw_src_gp_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1]) &&
                     (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+            end
+            `OPC_NEGsr: begin
+                // Signed negate: r = -dt
+                r_result = $signed(24'd0) - $signed(iw_tgt_gp_val);
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_fl[`FLAG_N] = ($signed(r_result) < 0);
+                // Overflow if operand is most negative value
+                r_fl[`FLAG_V] = (iw_tgt_gp_val == 24'h800000);
             end
             `OPC_SHRsr: begin
                 if (iw_src_gp_val >= `SIZE_DATA) begin
@@ -269,6 +327,31 @@ module stg_ex(
                 r_fl[`FLAG_V] =
                     ((iw_src_gp_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA]) &
                     (iw_src_gp_val[`HBIT_DATA] ^ s_diff[`HBIT_DATA]));
+            end
+            `OPC_MCCur: begin
+                // Conditional move reg->reg based on CC
+                reg take;
+                take = 1'b0;
+                case (iw_cc)
+                    `CC_RA: take = 1'b1;
+                    `CC_EQ: take =  r_fl[`FLAG_Z];
+                    `CC_NE: take = ~r_fl[`FLAG_Z];
+                    `CC_LT: take =  r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
+                    `CC_GT: take = ~r_fl[`FLAG_Z] & (~r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
+                    `CC_GE: take = ~r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
+                    `CC_LE: take =  r_fl[`FLAG_Z] | ( r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
+                    `CC_BT: take =  r_fl[`FLAG_C];
+                    `CC_AT: take = ~r_fl[`FLAG_Z] &  ~r_fl[`FLAG_C];
+                    `CC_BE: take =  r_fl[`FLAG_C] |   r_fl[`FLAG_Z];
+                    `CC_AE: take = ~r_fl[`FLAG_C];
+                endcase
+                if (take) begin
+                    r_result = iw_src_gp_val;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                end else begin
+                    // Write back original value (no-op)
+                    r_result = iw_tgt_gp_val;
+                end
             end
             `OPC_BCCsr: begin
                 if (r_branch_taken)
@@ -301,24 +384,58 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
             end
             `OPC_SHLui: begin
-                if (r_ir >= `SIZE_DATA) begin
+                reg [4:0] n;
+                n = r_ir[4:0];
+                if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_V] = 1'b1;
+                    r_fl[`FLAG_C] = 1'b0;
                 end else begin
-                    r_result = iw_tgt_gp_val << r_ir[4:0];
-                    r_fl[`FLAG_V] = 1'b0;
+                    r_result = iw_tgt_gp_val << n;
+                    r_fl[`FLAG_C] = (n == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (`SIZE_DATA - n)) & 1'b1);
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+            end
+            `OPC_ROLui: begin
+                // Rotate left by immediate (use low 5 bits of r_ir)
+                reg [4:0] amt;
+                reg [4:0] amt_mod;
+                amt = r_ir[4:0];
+                amt_mod = amt % `SIZE_DATA;
+                if (amt_mod == 5'd0) begin
+                    r_result = iw_tgt_gp_val;
+                    r_fl[`FLAG_C] = 1'b0;
+                end else begin
+                    r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod)) & 1'b1;
+                end
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+            end
+            `OPC_RORui: begin
+                // Rotate right by immediate (use low 5 bits of r_ir)
+                reg [4:0] amt;
+                reg [4:0] amt_mod;
+                amt = r_ir[4:0];
+                amt_mod = amt % `SIZE_DATA;
+                if (amt_mod == 5'd0) begin
+                    r_result = iw_tgt_gp_val;
+                    r_fl[`FLAG_C] = 1'b0;
+                end else begin
+                    r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (amt_mod-1)) & 1'b1;
+                end
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
             end
             `OPC_SHRui: begin
-                if (r_ir >= `SIZE_DATA) begin
+                reg [4:0] n;
+                n = r_ir[4:0];
+                if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_V] = 1'b1;
+                    r_fl[`FLAG_C] = 1'b0;
                 end else begin
-                    r_result = iw_tgt_gp_val >> r_ir[4:0];
-                    r_fl[`FLAG_V] = 1'b0;
+                    r_result = iw_tgt_gp_val >> n;
+                    r_fl[`FLAG_C] = (n == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (n-1)) & 1'b1);
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
             end
             `OPC_CMPui: begin
                 r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_ir) ? 1'b1 : 1'b0;
@@ -339,6 +456,32 @@ module stg_ex(
             `OPC_MOVsi: begin
                 r_result = r_se_imm12_val;
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+            end
+            `OPC_MCCsi: begin
+                // Conditional move imm8 (sign-extended) -> DRt
+                reg [23:0] seimm8;
+                reg take;
+                seimm8 = {{16{iw_instr[7]}}, iw_instr[7:0]};
+                take = 1'b0;
+                case (iw_cc)
+                    `CC_RA: take = 1'b1;
+                    `CC_EQ: take =  r_fl[`FLAG_Z];
+                    `CC_NE: take = ~r_fl[`FLAG_Z];
+                    `CC_LT: take =  r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
+                    `CC_GT: take = ~r_fl[`FLAG_Z] & (~r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
+                    `CC_GE: take = ~r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
+                    `CC_LE: take =  r_fl[`FLAG_Z] | ( r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
+                    `CC_BT: take =  r_fl[`FLAG_C];
+                    `CC_AT: take = ~r_fl[`FLAG_Z] &  ~r_fl[`FLAG_C];
+                    `CC_BE: take =  r_fl[`FLAG_C] |   r_fl[`FLAG_Z];
+                    `CC_AE: take = ~r_fl[`FLAG_C];
+                endcase
+                if (take) begin
+                    r_result = seimm8;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                end else begin
+                    r_result = iw_tgt_gp_val;
+                end
             end
             `OPC_ADDsi: begin
                 r_result = $signed(iw_tgt_gp_val) + $signed(r_se_imm12_val);
@@ -375,6 +518,11 @@ module stg_ex(
                 r_fl[`FLAG_V] = ((iw_tgt_gp_val[`HBIT_DATA] ^ r_se_imm12_val[`HBIT_DATA]) &
                                  (iw_tgt_gp_val[`HBIT_DATA] ^ s_diff[`HBIT_DATA]));
             end
+            `OPC_TSTsr: begin
+                // Signed test: set Z and N from dt
+                r_fl[`FLAG_Z] = (iw_tgt_gp_val == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_N] = (iw_tgt_gp_val[`HBIT_DATA-1] == 1'b1) ? 1'b1 : 1'b0;
+            end
             `OPC_BCCso: begin
                 if (r_branch_taken)
                     r_branch_pc = iw_pc + $signed(r_se_imm12_val);
@@ -409,6 +557,16 @@ module stg_ex(
                 r_addr   = $signed(iw_tgt_sr_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
                 r_result = iw_src_sr_val[23:0]; 
                 // $display("SRSTu: addr=%h result=%h", r_addr, r_result);
+            end
+            `OPC_SRMOVAur: begin
+                // Move ARs (48-bit) into SRt
+                r_sr_result = iw_src_ar_val;
+                r_result    = r_sr_result[23:0];
+            end
+            `OPC_SRHLT: begin
+                // Halt: keep PC where it is
+                r_branch_taken = 1'b1;
+                r_branch_pc    = iw_pc;
             end
             `OPC_BALso: begin
                 r_branch_taken = 1'b1;

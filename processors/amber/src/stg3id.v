@@ -52,7 +52,8 @@ module stg_id(
         (w_opc == `OPC_ADRAso)    || (w_opc == `OPC_STui)      || (w_opc == `OPC_STsi)      ||
         (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
-        (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso);
+        (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso)    ||
+        (w_opc == `OPC_ROLui)     || (w_opc == `OPC_RORui);
 
     // Branch classification
     wire w_is_branch =
@@ -64,24 +65,28 @@ module stg_id(
         (w_opc == `OPC_MOVur)     || (w_opc == `OPC_ADDur)     || (w_opc == `OPC_SUBur)   ||
         (w_opc == `OPC_NOTur)     || (w_opc == `OPC_ANDur)     || (w_opc == `OPC_ORur)    ||
         (w_opc == `OPC_XORur)     || (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)   ||
+        (w_opc == `OPC_ROLur)     || (w_opc == `OPC_RORur)     ||
         (w_opc == `OPC_LDur)      ||
-        (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   ||
+        (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_NEGsr) ||
         (w_opc == `OPC_MOVui)     || (w_opc == `OPC_ADDui)     || (w_opc == `OPC_SUBui)   ||
         (w_opc == `OPC_ANDui)     || (w_opc == `OPC_ORui)      || (w_opc == `OPC_XORui)   ||
-        (w_opc == `OPC_SHLui)     || (w_opc == `OPC_SHRui)     ||
+        (w_opc == `OPC_SHLui)     || (w_opc == `OPC_SHRui)     || (w_opc == `OPC_ROLui)   || (w_opc == `OPC_RORui) ||
         (w_opc == `OPC_MOVsi)     || (w_opc == `OPC_ADDsi)     || (w_opc == `OPC_SUBsi)   ||
-        (w_opc == `OPC_SHRsi);
+        (w_opc == `OPC_SHRsi)     || (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi)   ||
+        // AR->DR move writes DRt
+        (w_opc == `OPC_MOVDur);
 
     // Has GP target field present (even if not writing, e.g. CMP, ST)
     wire w_has_tgt_gp =
         w_tgt_gp_we                || (w_opc == `OPC_CMPur)     || (w_opc == `OPC_STur)     ||
         (w_opc == `OPC_CMPsr)     || (w_opc == `OPC_CMPui)     || (w_opc == `OPC_STui)     ||
-        (w_opc == `OPC_STsi);
+        (w_opc == `OPC_STsi)      || (w_opc == `OPC_TSTur)     || (w_opc == `OPC_TSTsr)    ||
+        (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi);
 
     // SR target write enable
     wire w_tgt_sr_we =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRADDsi)   ||
-        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso);
+        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur);
 
     wire w_has_tgt_sr =
         w_tgt_sr_we               || (w_opc == `OPC_SRSTso);
@@ -90,10 +95,10 @@ module stg_id(
     wire w_has_src_gp =
         (w_opc == `OPC_MOVur)     || (w_opc == `OPC_ADDur)     || (w_opc == `OPC_SUBur)   ||
         (w_opc == `OPC_ANDur)     || (w_opc == `OPC_ORur)      || (w_opc == `OPC_XORur)   ||
-        (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)     || (w_opc == `OPC_CMPur)   ||
+        (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)     || (w_opc == `OPC_ROLur)   || (w_opc == `OPC_RORur) || (w_opc == `OPC_CMPur)   ||
         (w_opc == `OPC_LDur)      || (w_opc == `OPC_STur)      ||
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_CMPsr) ||
-        (w_opc == `OPC_BCCsr);
+        (w_opc == `OPC_BCCsr)     || (w_opc == `OPC_MCCur);
 
     // Has SR source
     wire w_has_src_sr =
@@ -150,6 +155,8 @@ module stg_id(
             `OPC_BCCsr: r_cc = iw_instr[11:8];
             `OPC_BCCso: r_cc = iw_instr[15:12];
             `OPC_SRJCCso: r_cc = iw_instr[13:10];
+            `OPC_MCCur:   r_cc = iw_instr[7:4];
+            `OPC_MCCsi:   r_cc = iw_instr[11:8];
             default: r_cc = {(`HBIT_CC+1){1'b0}};
         endcase
     end
@@ -181,8 +188,12 @@ module stg_id(
             `OPC_MOVAur, `OPC_ADDAur, `OPC_SUBAur, `OPC_ADDAsr, `OPC_SUBAsr, `OPC_ADDAsi, `OPC_SUBAsi,
             `OPC_LEAso, `OPC_ADRAso: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             `OPC_MOVDur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
+            `OPC_CMPAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            `OPC_TSTAur: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             // OPCLASS_7 control flow
             `OPC_JCCur: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            // OPCLASS_F SR/AR µops
+            `OPC_SRMOVAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; end
         endcase
     end
 
