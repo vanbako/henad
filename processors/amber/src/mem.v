@@ -14,8 +14,10 @@ module mem #(
         integer i;
         for (i = 0; i < 4096; i = i + 1)
             r_mem[i] = 24'b0;
+`ifdef MEM_HEX_FILE
         if (READ_MEM)
             $readmemh(`MEM_HEX_FILE, r_mem);
+`endif
     end
     always @(posedge iw_clk) begin
 `ifdef DEBUG_MEM_TB

@@ -59,6 +59,8 @@ module stg_id(
     wire w_is_branch =
         (w_opc == `OPC_JCCur)     || (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCsr)     ||
         (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     || (w_opc == `OPC_SRJCCso);
+    // Consumers of FLAGS (use SR[FL] as implicit source)
+    wire w_uses_flags = w_is_branch || (w_opc == `OPC_MCCur) || (w_opc == `OPC_MCCsi);
 
     // GP target write enable
     wire w_tgt_gp_we =
@@ -103,7 +105,8 @@ module stg_id(
     // Has SR source
     wire w_has_src_sr =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRJCCso) ||
-        (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRSTso);
+        (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRSTso)  ||
+        w_uses_flags;
 
     // Default field extraction based on spec bit locations
     wire [`HBIT_IMM12:0] w_imm12_all = iw_instr[`HBIT_INSTR_IMM12:0];
@@ -126,6 +129,7 @@ module stg_id(
             // 12-bit immediates
             `OPC_MOVui, `OPC_ADDui, `OPC_SUBui, `OPC_ANDui, `OPC_ORui, `OPC_XORui, `OPC_SHLui, `OPC_SHRui,
             `OPC_MOVsi, `OPC_ADDsi, `OPC_SUBsi, `OPC_SHRsi, `OPC_CMPsi,
+            `OPC_JCCui,
             `OPC_LDAso, `OPC_STAso, `OPC_LEAso, `OPC_ADDAsi, `OPC_SUBAsi,
             `OPC_STui, `OPC_SRSTso, `OPC_SRLDso: begin
                 r_imm12_val = w_imm12_all;
@@ -165,7 +169,7 @@ module stg_id(
     wire [`HBIT_TGT_GP:0] w_tgt_gp = w_has_tgt_gp ? iw_instr[15:12] : `SIZE_TGT_GP'b0;
     wire [`HBIT_SRC_GP:0] w_src_gp = w_has_src_gp ? iw_instr[11:8]  : `SIZE_SRC_GP'b0;
     wire [`HBIT_TGT_SR:0] w_tgt_sr = w_has_tgt_sr ? iw_instr[15:14] : `SIZE_TGT_SR'b0;
-    wire [`HBIT_SRC_SR:0] w_src_sr = w_has_src_sr ? iw_instr[13:12] : `SIZE_SRC_SR'b0;
+    wire [`HBIT_SRC_SR:0] w_src_sr = w_has_src_sr ? (w_uses_flags ? 2'b10 : iw_instr[13:12]) : `SIZE_SRC_SR'b0;
 
     // Address register fields (normalized per op)
     reg                   r_has_src_ar;

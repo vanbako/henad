@@ -97,9 +97,9 @@ _*Note:*_ In assembly, the last operand is the target; if there are two operands
 - **Data Registers:** 0-7 Dx : data (24 bit)
 - **Address Registers:** 0-3 Ax : address (48 bit)
 - **Special Registers:** 0-3 Sx : address (48 bit)
-  - 0: L: link register
+  - 0: LR: link register
   - 1: SSP: shadow stack pointer
-  - 2: T: temporary register
+  - 2: FL: flag register
   - 3: PC: program counter
 - **Flags:**
   - FL:
