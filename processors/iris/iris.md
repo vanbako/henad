@@ -19,10 +19,10 @@
 - **Module**: `gw5ast_8x24gpu`
 - **Parallel cores**: 8 instances of `gw5ast_core` created with a generate block
 - **Data path**: 24‑bit wide for inputs, outputs and calculations
-- **Per‑core memory**: each core links to its own `gw5ast_memory` via an AXI‑Lite style interface
+- **Per‑core memory**: each core links to its own `gw5ast_memory` via an AXI‑Lite style interface, now with proper ready/valid backpressure and small per‑channel FIFOs for pipelined AW/W/AR acceptance
 - **Core logic**: current core performs a simple accumulate operation on memory input
 - **Result output**: each core exposes its computation result through `core_result`
-- **Status**: early prototype; wiring for AXI buses and memory signal arrays still requires completion
+- **Status**: AXI handshakes implemented end‑to‑end; memory channels support backpressure and 1–2 deep pipelining for reads and writes
 
 ## Memory
 

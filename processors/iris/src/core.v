@@ -5,11 +5,15 @@ module gw5ast_core #(
     input  wire                       clk,
     input  wire                       rst_n,
 
-    // Simple input/output stream per core (for demo/testing)
-    input  wire [DATA_WIDTH-1:0]      axi_data_in,
-    output reg  [DATA_WIDTH-1:0]      axi_data_out,
+    // Simple command interface (valid/ready)
+    // cmd_write_in=1 -> write cmd uses cmd_addr_in/cmd_wdata_in
+    // cmd_write_in=0 -> read  cmd uses cmd_addr_in, returns data on axi_data_out
     input  wire                       axi_valid_in,
     output wire                       axi_ready_out,
+    input  wire                       cmd_write_in,
+    input  wire [ADDR_WIDTH-1:0]      cmd_addr_in,
+    input  wire [DATA_WIDTH-1:0]      cmd_wdata_in,
+    output reg  [DATA_WIDTH-1:0]      axi_data_out,
 
     // AXI-Lite master towards memory
     output reg                        axi_awvalid,
@@ -40,7 +44,7 @@ module gw5ast_core #(
     output reg [DATA_WIDTH-1:0]       result
 );
 
-    // Simple sequencer: on valid input, write to memory then read back.
+    // Simple sequencer: perform either write or read transaction.
     localparam ST_IDLE  = 3'd0;
     localparam ST_WRITE = 3'd1;
     localparam ST_B     = 3'd2;
@@ -49,8 +53,10 @@ module gw5ast_core #(
 
     reg [2:0]                 state;
     reg [ADDR_WIDTH-1:0]      cur_addr;
-    reg [DATA_WIDTH-1:0]      in_data;
+    reg [DATA_WIDTH-1:0]      cur_wdata;
+    reg                        cur_is_write;
 
+    // Ready only when the core will accept a new command this cycle.
     assign axi_ready_out = (state == ST_IDLE);
 
     always @(posedge clk or negedge rst_n) begin
@@ -72,23 +78,33 @@ module gw5ast_core #(
             axi_rready  <= 1'b0;
 
             cur_addr    <= {ADDR_WIDTH{1'b0}};
-            in_data     <= {DATA_WIDTH{1'b0}};
+            cur_wdata   <= {DATA_WIDTH{1'b0}};
+            cur_is_write<= 1'b0;
         end else begin
             case (state)
                 ST_IDLE: begin
-                    // Accept new command
-                    if (axi_valid_in) begin
-                        in_data    <= axi_data_in;
-                        cur_addr   <= axi_data_in[ADDR_WIDTH-1:0];
-                        // Launch write
-                        axi_awaddr  <= axi_data_in[ADDR_WIDTH-1:0];
-                        axi_awvalid <= 1'b1;
-                        axi_wdata   <= axi_data_in;
-                        axi_wvalid  <= 1'b1;
-                        axi_wstrb   <= 4'b0111;
-                        axi_wlast   <= 1'b1;
-                        axi_bready  <= 1'b1;
-                        state       <= ST_WRITE;
+                    // Accept new command only on valid & ready handshake
+                    if (axi_valid_in && axi_ready_out) begin
+                        cur_is_write <= cmd_write_in;
+                        cur_addr     <= cmd_addr_in;
+                        cur_wdata    <= cmd_wdata_in;
+                        if (cmd_write_in) begin
+                            // Launch write
+                            axi_awaddr  <= cmd_addr_in;
+                            axi_awvalid <= 1'b1;
+                            axi_wdata   <= cmd_wdata_in;
+                            axi_wvalid  <= 1'b1;
+                            axi_wstrb   <= 4'b0111;
+                            axi_wlast   <= 1'b1;
+                            axi_bready  <= 1'b1;
+                            state       <= ST_WRITE;
+                        end else begin
+                            // Launch read
+                            axi_araddr  <= cmd_addr_in;
+                            axi_arvalid <= 1'b1;
+                            axi_rready  <= 1'b1;
+                            state       <= ST_AR;
+                        end
                     end
                 end
 
@@ -107,11 +123,8 @@ module gw5ast_core #(
                 ST_B: begin
                     if (axi_bvalid && axi_bready) begin
                         axi_bready  <= 1'b0;
-                        // Launch read
-                        axi_araddr  <= cur_addr;
-                        axi_arvalid <= 1'b1;
-                        axi_rready  <= 1'b1;
-                        state       <= ST_AR;
+                        // Complete write; return to idle
+                        state       <= ST_IDLE;
                     end
                 end
 

@@ -6,11 +6,15 @@ module gw5ast_8x24gpu #(
     input  wire clk,
     input  wire rst_n,
 
-    // Inputs/outputs for each core (arrayed interfaces)
-    input  wire [DATA_WIDTH-1:0] axi_data_in [N_CORES-1:0],
-    output wire [DATA_WIDTH-1:0] axi_data_out[N_CORES-1:0],
-    input  wire                  axi_valid_in[N_CORES-1:0],
+    // Command interface per core (valid/ready)
+    input  wire                  axi_valid_in [N_CORES-1:0],
     output wire                  axi_ready_out[N_CORES-1:0],
+    input  wire                  cmd_write_in [N_CORES-1:0],
+    input  wire [ADDR_WIDTH-1:0] cmd_addr_in  [N_CORES-1:0],
+    input  wire [DATA_WIDTH-1:0] cmd_wdata_in [N_CORES-1:0],
+
+    // Read data response (from reads)
+    output wire [DATA_WIDTH-1:0] axi_data_out [N_CORES-1:0],
 
     // Core results (for observation)
     output wire [DATA_WIDTH-1:0] core_result [N_CORES-1:0]
@@ -56,10 +60,12 @@ generate
             .clk(clk),
             .rst_n(rst_n),
 
-            .axi_data_in (axi_data_in[i]),
-            .axi_data_out(axi_data_out[i]),
             .axi_valid_in(axi_valid_in[i]),
             .axi_ready_out(axi_ready_out[i]),
+            .cmd_write_in(cmd_write_in[i]),
+            .cmd_addr_in (cmd_addr_in[i]),
+            .cmd_wdata_in(cmd_wdata_in[i]),
+            .axi_data_out(axi_data_out[i]),
 
             // AXI-Lite master to memory
             .axi_awvalid (mem_axi_awvalid[i]),
