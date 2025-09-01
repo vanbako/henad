@@ -2,7 +2,7 @@
 
 Henad is a modular **24-bit game system** where all registers and memory are 24-bit wide (diad).  
 Addresses extend to 48-bit (tetrad) when needed.  
-The design is fully modular, with each function (CPU, graphics, sound, input, etc.) implemented as a separate module connected via the **lygos interconnect**.
+The design is fully modular, with each function (CPU, graphics, sound, input, etc.) implemented as a separate module connected via the **enid interconnect**.
 
 This repository contains documentation split by **processors, units, modules, board, and interfaces**.
 
@@ -12,39 +12,39 @@ This repository contains documentation split by **processors, units, modules, bo
 
 ### 🔗 Interfaces
 
-- [interface-lygo](interfaces/lygo/lygo.md)
+- [interface-enid](interfaces/enid/enid.md)
 
 ### 🔧 Units
 
-- [unit-kairos](units/kairos/kairos.md)
+- [unit-ada](units/ada/ada.md)
 
 ### 🖥️ boards
 
-- [board-pontifex](boards/pontifex/pontifex.md)
-- [board-archon](boards/archon/archon.md)
+- [board-stella](boards/stella/stella.md)
+- [board-ivy](boards/ivy/ivy.md)
 
 ### ⚙️ Diad processors
 
-- [diad-atomos](processors/atomos/atomos.md) – control/firmware core
-- [diad-cosmos](processors/cosmos/cosmos.md) – main CPU
-- [diad-optiko](processors/optiko/optiko.md) – graphics/display processor
-- [diad-echos](processors/echos/echos.md) – sound processor
-- [diad-hapto](processors/hapto/hapto.md) – input processor
-- [diad-dikto](processors/dikto/dikto.md) – network processor
-- [diad-mneme](processors/mneme/mneme.md) – mass storage processor
-- [diad-noos](processors/noos/noos.md) – neural network processor
+- [diad-amber](processors/amber/amber.md) – control/firmware core
+- [diad-ethel](processors/ethel/ethel.md) – main CPU
+- [diad-iris](processors/iris/iris.md) – graphics/display processor
+- [diad-lyra](processors/lyra/lyra.md) – sound processor
+- [diad-maeve](processors/maeve/maeve.md) – input processor
+- [diad-clara](processors/clara/clara.md) – network processor
+- [diad-opal](processors/opal/opal.md) – mass storage processor
+- [diad-nova](processors/nova/nova.md) – neural network processor
 
 ### 🎛️ Modules
 
-Each module is built around a **unit-kairos** and one specialized processor:
+Each module is built around a **unit-ada** and one specialized processor:
 
-- [module-cosmos](modules/cosmos/cosmos.md) → [diad-cosmos](processors/cosmos/cosmos.md) (CPU)
-- [module-optiko](modules/optiko/optiko.md) → [diad-optiko](processors/optiko/optiko.md) (Graphics/GPU)
-- [module-echos](modules/echos/echos.md) → [diad-echos](processors/echos/echos.md) (Audio)
-- [module-hapto](modules/hapto/hapto.md) → [diad-hapto](processors/hapto/hapto.md) (Input)
-- [module-dikto](modules/dikto/dikto.md) → [diad-dikto](processors/dikto/dikto.md) (Network)
-- [module-mneme](modules/mneme/mneme.md) → [diad-mneme](processors/mneme/mneme.md) (Storage)
-- [module-noos](modules/noos/noos.md) → [diad-noos](processors/noos/noos.md) (Neural)
+- [module-ethel](modules/ethel/ethel.md) → [diad-ethel](processors/ethel/ethel.md) (CPU)
+- [module-iris](modules/iris/iris.md) → [diad-iris](processors/iris/iris.md) (Graphics/GPU)
+- [module-lyra](modules/lyra/lyra.md) → [diad-lyra](processors/lyra/lyra.md) (Audio)
+- [module-maeve](modules/maeve/maeve.md) → [diad-maeve](processors/maeve/maeve.md) (Input)
+- [module-clara](modules/clara/clara.md) → [diad-clara](processors/clara/clara.md) (Network)
+- [module-opal](modules/opal/opal.md) → [diad-opal](processors/opal/opal.md) (Storage)
+- [module-nova](modules/nova/nova.md) → [diad-nova](processors/nova/nova.md) (Neural)
 
 ---
 
@@ -52,18 +52,18 @@ Each module is built around a **unit-kairos** and one specialized processor:
 
 - **diad** = 24-bit word (data, math, characters, pixels)
 - **tetrad** = 48-bit (used for addresses)
-- **lygos** = full-duplex LVDS interconnect
-- **kairos** = base control unit (Atomos + memory + endpoint)
-- **archon** = main board (hub + switch + power)
+- **enid** = full-duplex LVDS interconnect
+- **ada** = base control unit (amber + memory + endpoint)
+- **ivy** = main board (hub + switch + power)
 
 ---
 
 ## 🛠️ Prototype 1 Notes
 
-- Platform: **ULX3S FPGA boards**
-- One ULX3S board per module and for the board-archon
-- The kairos unit is in the same fpga
+- Platform: **Sipeed Gowin Arora-V FPGA boards**
+- One Arora-V board per module and for the board-ivy
+- The ada unit is in the same fpga
 - Target frequencies:
-  - lygos: **25 MHz**
-  - Diad-atomos: **25 MHz**
-  - diad-cosmos: **50 MHz**
+  - enid: **100 MHz**
+  - Diad-amber: **100 MHz**
+  - diad-ethel: **100 MHz**
