@@ -8,7 +8,8 @@ module hazard(
     output wire                 ow_stall
 );
     reg [2:0] r_cnt;
-    wire hazard = (iw_idex_opc == `OPC_RU_LDu || iw_idex_opc == `OPC_SR_SRLDu);
+    // Stall on loads (data comes back in later stages)
+    wire hazard = (iw_idex_opc == `OPC_LDur || iw_idex_opc == `OPC_LDso || iw_idex_opc == `OPC_SRLDso);
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             r_cnt <= 3'b000;

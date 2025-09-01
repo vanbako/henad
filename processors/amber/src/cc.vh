@@ -15,6 +15,9 @@
 `define CC_BE 4'b1001 // branch if below than or equal (unsigned)
 `define CC_AE 4'b1010 // branch if above than or equal (unsigned)
 
+// Backward-compatible alias used in some modules
+`define CC_RA `CC_AL
+
 function automatic [79:0] cc2str;
     input [`HBIT_CC:0] cc;
     begin

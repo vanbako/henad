@@ -13,6 +13,7 @@
 `define SIZE_IMM12  12
 `define SIZE_IMM10  10
 `define SIZE_IMM8    8
+`define SIZE_IMM16  16
 `define SIZE_TGT_GP  4
 `define SIZE_TGT_AR  2
 `define SIZE_TGT_SR  2
@@ -51,5 +52,13 @@
 `define HBIT_ADDR_GP  3
 `define HBIT_ADDR_AR  1
 `define HBIT_ADDR_SR  1
+
+// Aliases for address bit widths per operand kind
+`define HBIT_TGT_GP  `HBIT_ADDR_GP
+`define HBIT_SRC_GP  `HBIT_ADDR_GP
+`define HBIT_TGT_AR  `HBIT_ADDR_AR
+`define HBIT_SRC_AR  `HBIT_ADDR_AR
+`define HBIT_TGT_SR  `HBIT_ADDR_SR
+`define HBIT_SRC_SR  `HBIT_ADDR_SR
 
 `endif

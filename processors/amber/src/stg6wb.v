@@ -13,6 +13,9 @@ module stg_wb(
     output wire [`HBIT_TGT_SR:0] ow_sr_write_addr,
     output wire [`HBIT_DATA:0]   ow_sr_write_data,
     output wire                  ow_sr_write_enable,
+    output wire [`HBIT_TGT_AR:0] ow_ar_write_addr,
+    output wire [`HBIT_ADDR:0]   ow_ar_write_data,
+    output wire                  ow_ar_write_enable,
     input wire  [`HBIT_OPC:0]    iw_opc,
     output wire [`HBIT_OPC:0]    ow_opc,
     input wire  [`HBIT_TGT_GP:0] iw_tgt_gp,
@@ -21,7 +24,10 @@ module stg_wb(
     input wire  [`HBIT_TGT_SR:0] iw_tgt_sr,
     input wire                   iw_tgt_sr_we,
     output wire [`HBIT_TGT_SR:0] ow_tgt_sr,
+    input wire  [`HBIT_TGT_AR:0] iw_tgt_ar,
+    input wire                   iw_tgt_ar_we,
     input wire  [`HBIT_DATA:0]   iw_result,
+    input wire  [`HBIT_ADDR:0]   iw_ar_result,
     output wire [`HBIT_DATA:0]   ow_result
 );
     assign ow_gp_write_enable = iw_tgt_gp_we ? 1'b1 : 1'b0;
@@ -30,6 +36,9 @@ module stg_wb(
     assign ow_sr_write_enable = iw_tgt_sr_we ? 1'b1 : 1'b0;
     assign ow_sr_write_addr   = iw_tgt_sr;
     assign ow_sr_write_data   = iw_result;
+    assign ow_ar_write_enable = iw_tgt_ar_we ? 1'b1 : 1'b0;
+    assign ow_ar_write_addr   = iw_tgt_ar;
+    assign ow_ar_write_data   = iw_ar_result;
 
     reg [`HBIT_ADDR:0]   r_pc_latch;
     reg [`HBIT_DATA:0]   r_instr_latch;

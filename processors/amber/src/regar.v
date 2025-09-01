@@ -3,9 +3,9 @@
 module regar(
     input wire                   iw_clk,
     input wire                   iw_rst,
-    input wire  [`HBIT_TGT_GP:0] iw_read_addr1,
-    input wire  [`HBIT_TGT_GP:0] iw_read_addr2,
-    input wire  [`HBIT_TGT_GP:0] iw_write_addr,
+    input wire  [`HBIT_TGT_AR:0] iw_read_addr1,
+    input wire  [`HBIT_TGT_AR:0] iw_read_addr2,
+    input wire  [`HBIT_TGT_AR:0] iw_write_addr,
     input wire  [`HBIT_ADDR:0]   iw_write_data,
     input wire                   iw_write_enable,
     output wire [`HBIT_ADDR:0]   ow_read_data1,
