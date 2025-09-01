@@ -1,6 +1,7 @@
 module gw5ast_core #(
     parameter DATA_WIDTH = 24,
-    parameter ADDR_WIDTH = 16
+    parameter ADDR_WIDTH = 16,
+    parameter ID_WIDTH   = 4
 )(
     input  wire                       clk,
     input  wire                       rst_n,
@@ -15,10 +16,18 @@ module gw5ast_core #(
     input  wire [DATA_WIDTH-1:0]      cmd_wdata_in,
     output reg  [DATA_WIDTH-1:0]      axi_data_out,
 
-    // AXI-Lite master towards memory
+    // AXI4 master towards memory
     output reg                        axi_awvalid,
     input  wire                       axi_awready,
     output reg [ADDR_WIDTH-1:0]       axi_awaddr,
+    output reg [ID_WIDTH-1:0]         axi_awid,
+    output reg [7:0]                  axi_awlen,
+    output reg [2:0]                  axi_awsize,
+    output reg [1:0]                  axi_awburst,
+    output reg                        axi_awlock,
+    output reg [3:0]                  axi_awcache,
+    output reg [2:0]                  axi_awprot,
+    output reg [3:0]                  axi_awqos,
 
     output reg                        axi_wvalid,
     input  wire                       axi_wready,
@@ -29,16 +38,26 @@ module gw5ast_core #(
     input  wire                       axi_bvalid,
     output reg                        axi_bready,
     input  wire [1:0]                 axi_bresp,
+    input  wire [ID_WIDTH-1:0]        axi_bid,
 
     output reg                        axi_arvalid,
     input  wire                       axi_arready,
     output reg [ADDR_WIDTH-1:0]       axi_araddr,
+    output reg [ID_WIDTH-1:0]         axi_arid,
+    output reg [7:0]                  axi_arlen,
+    output reg [2:0]                  axi_arsize,
+    output reg [1:0]                  axi_arburst,
+    output reg                        axi_arlock,
+    output reg [3:0]                  axi_arcache,
+    output reg [2:0]                  axi_arprot,
+    output reg [3:0]                  axi_arqos,
 
     input  wire                       axi_rvalid,
     output reg                        axi_rready,
     input  wire [DATA_WIDTH-1:0]      axi_rdata,
     input  wire [1:0]                 axi_rresp,
     input  wire                       axi_rlast,
+    input  wire [ID_WIDTH-1:0]        axi_rid,
 
     // Result observation
     output reg [DATA_WIDTH-1:0]       result
@@ -67,6 +86,14 @@ module gw5ast_core #(
 
             axi_awvalid <= 1'b0;
             axi_awaddr  <= {ADDR_WIDTH{1'b0}};
+            axi_awid    <= {ID_WIDTH{1'b0}};
+            axi_awlen   <= 8'd0;
+            axi_awsize  <= 3'd0;
+            axi_awburst <= 2'b01; // INCR
+            axi_awlock  <= 1'b0;
+            axi_awcache <= 4'd0;
+            axi_awprot  <= 3'd0;
+            axi_awqos   <= 4'd0;
             axi_wvalid  <= 1'b0;
             axi_wdata   <= {DATA_WIDTH{1'b0}};
             axi_wstrb   <= 4'b0111; // 24-bit: lower 3 bytes
@@ -75,6 +102,14 @@ module gw5ast_core #(
 
             axi_arvalid <= 1'b0;
             axi_araddr  <= {ADDR_WIDTH{1'b0}};
+            axi_arid    <= {ID_WIDTH{1'b0}};
+            axi_arlen   <= 8'd0;
+            axi_arsize  <= 3'd0;
+            axi_arburst <= 2'b01; // INCR
+            axi_arlock  <= 1'b0;
+            axi_arcache <= 4'd0;
+            axi_arprot  <= 3'd0;
+            axi_arqos   <= 4'd0;
             axi_rready  <= 1'b0;
 
             cur_addr    <= {ADDR_WIDTH{1'b0}};
@@ -91,6 +126,14 @@ module gw5ast_core #(
                         if (cmd_write_in) begin
                             // Launch write
                             axi_awaddr  <= cmd_addr_in;
+                            axi_awid    <= {ID_WIDTH{1'b0}};
+                            axi_awlen   <= 8'd0; // single beat
+                            axi_awsize  <= 3'd0; // not used by local memory
+                            axi_awburst <= 2'b01; // INCR
+                            axi_awlock  <= 1'b0;
+                            axi_awcache <= 4'd0;
+                            axi_awprot  <= 3'd0;
+                            axi_awqos   <= 4'd0;
                             axi_awvalid <= 1'b1;
                             axi_wdata   <= cmd_wdata_in;
                             axi_wvalid  <= 1'b1;
@@ -101,6 +144,14 @@ module gw5ast_core #(
                         end else begin
                             // Launch read
                             axi_araddr  <= cmd_addr_in;
+                            axi_arid    <= {ID_WIDTH{1'b0}};
+                            axi_arlen   <= 8'd0; // single beat
+                            axi_arsize  <= 3'd0;
+                            axi_arburst <= 2'b01; // INCR
+                            axi_arlock  <= 1'b0;
+                            axi_arcache <= 4'd0;
+                            axi_arprot  <= 3'd0;
+                            axi_arqos   <= 4'd0;
                             axi_arvalid <= 1'b1;
                             axi_rready  <= 1'b1;
                             state       <= ST_AR;
