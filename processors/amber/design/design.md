@@ -8,7 +8,7 @@ Toolchain is currently iverilog.
 
 ## Details
 
-- **Board:** ULX3S or similar
+- **Board:** Board with Arora-V
 - **Instruction, Memories, and GP Registers:** diad (24 bit) in size
 - **Special Registers (SSP, LR, PC):** tetrad (48 bit) in size
 - **Memory Properties:**

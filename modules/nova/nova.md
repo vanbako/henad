@@ -21,8 +21,8 @@
 
 ## Prototype 1 Parameters
 
-- FPGA: ULX3S (dedicated board)
-- Clock: 25–50 MHz (TBD)
+- FPGA: Arora-V (dedicated board)
+- Clock: 100 MHz (TBD)
 
 ## Roadmap
 

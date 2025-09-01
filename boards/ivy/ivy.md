@@ -22,8 +22,8 @@
 
 ## Prototype 1 Parameters
 
-- Platform: ULX3S FPGA
-- Dedicated ULX3S board for hub and routing logic
+- Platform: Arora-V
+- Dedicated Arora-V board for hub and routing logic
 - JTAG: single header switched between module targets
 - Signal integrity: LVDS termination and decoupling on [enid](../../interfaces/enid/enid.md) ports
 - Thermal: fan control or temperature monitoring

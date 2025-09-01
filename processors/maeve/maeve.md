@@ -23,4 +23,4 @@
 ## Prototype 1 Parameters
 
 - Frequency: TBD
-- FPGA: ULX3S
+- FPGA: Arora-V

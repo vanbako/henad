@@ -14,7 +14,7 @@
 
 ## Performance
 
-- Prototype 1 frequency: 25 MHz
+- Prototype 1 frequency: 100 MHz
 - Bandwidth per lane: 1 lane = 1 bit, So 25Mbit per lane (prototype-1)
 - Low latency, suitable for synchronous game workloads
 
@@ -27,5 +27,5 @@
 
 ## Roadmap
 
-- Increase link speed beyond 25 MHz
+- Increase link speed beyond 100 MHz
 - Possible high-speed serial encoding

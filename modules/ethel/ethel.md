@@ -70,8 +70,8 @@ graph TB
 
 ## Prototype 1 Parameters
 
-- FPGA: ULX3S
-- Clock: 50 MHz (proto-1)
+- FPGA: Arora-V
+- Clock: 100 MHz (proto-1)
 
 ## Roadmap
 

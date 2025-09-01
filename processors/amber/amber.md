@@ -27,8 +27,8 @@
 
 ## Prototype 1 Parameters
 
-- Frequency: 25 MHz
-- FPGA platform: ULX3S
+- Frequency: 100 MHz
+- FPGA platform: Arora-V
 
 ## Future Extensions
 

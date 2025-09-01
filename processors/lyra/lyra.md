@@ -24,8 +24,8 @@
 
 ## Prototype 1 Parameters
 
-- Frequency: TBD (25–50 MHz)
-- FPGA: ULX3S
+- Frequency: 100 MHz
+- FPGA: Arora-V
 
 ## Roadmap
 

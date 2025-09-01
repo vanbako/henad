@@ -22,8 +22,8 @@
 
 ## Prototype 1 Notes
 
-- Clock: 25 MHz
-- Implemented on ULX3S FPGA
+- Clock: 100 MHz
+- Implemented on Arora-V FPGA
 
 ## Future Options
 
