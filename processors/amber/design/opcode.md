@@ -162,7 +162,7 @@ LUIui    #x, #imm12            ; case (x); 0: uimm[11-0] = imm12; 1: uimm[23-12]
     {}
 MOVui    #imm12, DRt           ; DRt = {uimm[11-0], imm12};
     µop
-    isa                copy imm24, dt (macro: LUIui #0, #imm12; MOVui #imm12, DRt)
+    isa                copy imm24, dt (macro: LUIui #0, #imm24[23-12]; MOVui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 0001
     [15-12] DRt
@@ -170,7 +170,7 @@ MOVui    #imm12, DRt           ; DRt = {uimm[11-0], imm12};
     {Z}
 ADDui    #imm12, DRt           ; unsigned DRt += {uimm[11-0], imm12};
     µop
-    isa                add.u imm24, dt (macro: LUIui #0, #imm12; ADDui #imm12, DRt)
+    isa                add.u imm24, dt (macro: LUIui #0, #imm24[23-12]; ADDui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 0011
     [15-12] DRt
@@ -178,7 +178,7 @@ ADDui    #imm12, DRt           ; unsigned DRt += {uimm[11-0], imm12};
     {Z, C}
 SUBui    #imm12, DRt           ; unsigned DRt -= {uimm[11-0], imm12};
     µop
-    isa                sub.u imm24, dt (macro: LUIui #0, #imm12; SUBui #imm12, DRt)
+    isa                sub.u imm24, dt (macro: LUIui #0, #imm24[23-12]; SUBui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 0100
     [15-12] DRt
@@ -186,7 +186,7 @@ SUBui    #imm12, DRt           ; unsigned DRt -= {uimm[11-0], imm12};
     {Z, C}
 ANDui    #imm12, DRt           ; DRt &= {uimm[11-0], imm12};
     µop
-    isa                and imm24, dt (macro: LUIui #0, #imm12; ANDui #imm12, DRt)
+    isa                and imm24, dt (macro: LUIui #0, #imm24[23-12]; ANDui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 0110
     [15-12] DRt
@@ -194,7 +194,7 @@ ANDui    #imm12, DRt           ; DRt &= {uimm[11-0], imm12};
     {Z}
 ORui     #imm12, DRt           ; DRt |= {uimm[11-0], imm12};
     µop
-    isa                or imm24, dt (macro: LUIui #0, #imm12; ORui #imm12, DRt)
+    isa                or imm24, dt (macro: LUIui #0, #imm24[23-12]; ORui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 0111
     [15-12] DRt
@@ -202,7 +202,7 @@ ORui     #imm12, DRt           ; DRt |= {uimm[11-0], imm12};
     {Z}
 XORui    #imm12, DRt           ; DRt ^= {uimm[11-0], imm12};
     µop
-    isa                xor imm24, dt (macro: LUIui #0, #imm12; XORui #imm12, DRt)
+    isa                xor imm24, dt (macro: LUIui #0, #imm24[23-12]; XORui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 1000
     [15-12] DRt
@@ -210,7 +210,7 @@ XORui    #imm12, DRt           ; DRt ^= {uimm[11-0], imm12};
     {Z}
 SHLui    #imm5, DRt            ; DRt <<= imm5;
     µop
-    isa                shift_left imm24, dt (macro: LUIui #0, #imm12; SHLui #imm12, DRt)
+    isa                shift_left imm5, dt
     [23-20] opclass            ; 0001
     [19-16] subop              ; 1001
     [15-12] DRt
@@ -219,7 +219,7 @@ SHLui    #imm5, DRt            ; DRt <<= imm5;
     {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
 ROLui    #imm5, DRt            ; DRt <<<= imm5;
     µop
-    isa                rot_left imm24, dt (macro: LUIui #0, #imm12; ROLui #imm12, DRt)
+    isa                rot_left imm5, dt
     [23-20] opclass            ; 0001
     [19-16] subop              ; 1010
     [15-12] DRt
@@ -228,7 +228,7 @@ ROLui    #imm5, DRt            ; DRt <<<= imm5;
     {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
 SHRui    #imm5, DRt            ; unsigned DRt >>= imm5;
     µop
-    isa                shift_right imm24, dt (macro: LUIui #0, #imm12; SHRui #imm12, DRt)
+    isa                shift_right imm5, dt
     [23-20] opclass            ; 0001
     [19-16] subop              ; 1011
     [15-12] DRt
@@ -237,16 +237,16 @@ SHRui    #imm5, DRt            ; unsigned DRt >>= imm5;
     {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
 RORui    #imm5, DRt            ; DRt >>>= imm5;
     µop
-    isa                rot_right imm24, dt (macro: LUIui #0, #imm12; RORui #imm12, DRt)
+    isa                rot_right imm5, dt
     [23-20] opclass            ; 0001
     [19-16] subop              ; 1100
     [15-12] DRt
     [11- 5] RESERVED
     [ 4- 0] imm5
     {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
-CMPui    #imm12, DRt           ; unsigned {uimm[11-0], imm12} == DRt;
+CMPui    #imm12, DRt           ; unsigned compare {uimm[11-0], imm12}, DRt;
     µop
-    isa                comp.u imm24, dt (macro: LUIui #0, #imm12; RORui #imm12, DRt)
+    isa                comp.u imm24, dt (macro: LUIui #0, #imm24[23-12]; CMPui #imm24[11-0], DRt)
     [23-20] opclass            ; 0001
     [19-16] subop              ; 1101
     [15-12] DRt
@@ -290,7 +290,7 @@ SHRsr    DRs, DRt              ; signed DRt >>= DRs[4:0];
     [11- 8] DRs
     [ 7- 0] RESERVED
     {Z, N, C}                  ; only if DRs is non-zero, otherwise unchanged
-CMPsr    DRs, DRt              ; signed DRs == DRt;
+CMPsr    DRs, DRt              ; signed compare DRs, DRt;
     µop
     isa                comp.s ds, dt
     [23-20] opclass            ; 0010
@@ -352,7 +352,7 @@ SHRsi    #imm5, DRt            ; signed DRt >>= imm5;
     [11- 5] RESERVED
     [ 4- 0] imm5
     {Z, N, C}                  ; only if imm5 is non-zero, otherwise unchanged
-CMPsi    #imm12, DRt           ; sext(imm12) == DRt;
+CMPsi    #imm12, DRt           ; signed compare sext(imm12), DRt;
     µop
     isa               comp.s imm12, dt
     [23-20] opclass            ; 0011
@@ -382,7 +382,7 @@ STur     DRs, (ARt)            ; (ARt) = DRs;
     {}
 STui     #imm12, (ARt)         ; (ARt) = {uimm[11-0], imm12};
     µop
-    isa                store imm24, (at) (macro: LUIui #0, #imm12; STui #imm12, (ARt))
+    isa                store imm24, (at) (macro: LUIui #0, #imm24[23-12]; STui #imm24[11-0], (ARt))
     [23-20] opclass            ; 0100
     [19-16] subop              ; 0010
     [15-14] ARt
@@ -529,8 +529,8 @@ ADRAso      PC+#imm14, ARt     ; ARt = PC + sext(imm14); (signed + operation)
     [15-14] ARt
     [13- 0] imm14
     {}
-; TODO: MOVAui (LUIui #0, #imm12 ; LUIui #1, #imm12 ; LUIui #2, #imm12 ; MOVAui #imm12, ARt)
-CMPAur      ARs, ARt           ; unsigned ARs == ARt;
+; TODO: MOVAui (#imm48[47-36]; LUIui #1, #imm48[35-24]; LUIui #0, #imm48[23-12]; MOVAui #imm48[11-0], ARt)
+CMPAur      ARs, ARt           ; unsigned compare ARs, ARt;
     µop
     isa                comp.u as, at
     [23-20] opclass            ; 0110
@@ -567,7 +567,7 @@ JCCur    CC, ARt               ; if (CC) goto ARt;
     {}
 JCCui    CC, #imm12            ; if (CC) goto {uimm[35-0], imm12};
     µop
-    isa                jump.[cc] imm48 (macro: LUIui #0, #imm12; LUIui #1, #imm12; LUIui #2, #imm12; JCCui CC, #imm12)
+    isa                jump.[cc] imm48 (macro: LUIui #2, #imm48[47-36]; LUIui #1, #imm48[35-24]; LUIui #0, #imm48[23-12]; JCCui CC, #imm48[11-0])
     [23-20] opclass            ; 0111
     [19-16] subop              ; 0010
     [15-12] CC
@@ -610,7 +610,7 @@ JSRur       ARt                ; call ARt;
         SRMOVur     PC, LR
         JCCur       AL, ARt
 JSRui       #imm12             ; call {uimm[35-0], imm12};
-    isa                jump_sub imm48 (macro: LUIui #0, #imm12; LUIui #1, #imm12; LUIui #2, #imm12; JSRui #imm12)
+    isa                jump_sub imm48 (macro: LUIui #2, #imm48[47-36]; LUIui #1, #imm48[35-24]; LUIui #0, #imm48[23-12]; JSRui #imm48[11-0])
     [23-20] opclass            ; 0111
     [19-16] subop              ; 0111
     [15-12] RESERVED
@@ -741,7 +741,7 @@ SRMOVur     SRs, SRt           ; SRt = SRs;
     [13-12] SRs
     [11- 0] RESERVED
     {}
-SRMOVAur    ARs, SRt           ; SRt = SRs;
+SRMOVAur    ARs, SRt           ; SRt = ARs;
     µop
     [23-20] opclass            ; 1111
     [19-16] subop              ; 0001

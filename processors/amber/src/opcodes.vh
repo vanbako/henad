@@ -225,6 +225,7 @@
 `define SUBOP_SRLDso   4'b0110 // µop
 
 `define OPC_SRMOVur {`OPCLASS_F, `SUBOP_SRMOVur}
+`define OPC_SRMOVAur {`OPCLASS_F, `SUBOP_SRMOVAur}
 `define OPC_SRJCCso {`OPCLASS_F, `SUBOP_SRJCCso}
 `define OPC_SRADDsi {`OPCLASS_F, `SUBOP_SRADDsi}
 `define OPC_SRSUBsi {`OPCLASS_F, `SUBOP_SRSUBsi}
@@ -265,12 +266,12 @@ function automatic [79:0] opc2str;
             `OPC_RORui:   opc2str = "RORui";
             `OPC_CMPui:   opc2str = "CMPui";
 // OPCLASS_2
-            `OPC_NEGsr:   opc2str = "ADDsr":
-            `OPC_ADDsr:   opc2str = "SUBsr":
-            `OPC_SUBsr:   opc2str = "NEGsr":
-            `OPC_SHRsr:   opc2str = "SHRsr":
-            `OPC_CMPsr:   opc2str = "CMPsr":
-            `OPC_TSTsr:   opc2str = "TSTsr":
+            `OPC_NEGsr:   opc2str = "NEGsr";
+            `OPC_ADDsr:   opc2str = "ADDsr";
+            `OPC_SUBsr:   opc2str = "SUBsr";
+            `OPC_SHRsr:   opc2str = "SHRsr";
+            `OPC_CMPsr:   opc2str = "CMPsr";
+            `OPC_TSTsr:   opc2str = "TSTsr";
 // OPCLASS_3
             `OPC_MOVsi:   opc2str = "MOVsi";
             `OPC_MCCsi:   opc2str = "MCCsi";
@@ -293,7 +294,6 @@ function automatic [79:0] opc2str;
             `OPC_MOVDur:  opc2str = "MOVDur";
             `OPC_ADDAur:  opc2str = "ADDAur";
             `OPC_SUBAur:  opc2str = "SUBAur";
-            `OPC_MOVAsr:  opc2str = "MOVAsr";
             `OPC_ADDAsr:  opc2str = "ADDAsr";
             `OPC_SUBAsr:  opc2str = "SUBAsr";
             `OPC_ADDAsi:  opc2str = "ADDAsi";
@@ -329,6 +329,7 @@ function automatic [79:0] opc2str;
 // OPCLASS_E
 // OPCLASS_F
             `OPC_SRMOVur: opc2str = "SRMOVur";
+            `OPC_SRMOVAur:opc2str = "SRMOVAur";
             `OPC_SRJCCso: opc2str = "SRJCCso";
             `OPC_SRADDsi: opc2str = "SRADDsi";
             `OPC_SRSUBsi: opc2str = "SRSUBsi";
