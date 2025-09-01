@@ -37,14 +37,15 @@ module stg_ex(
     output wire [`HBIT_ADDR:0]   ow_addr,
     output wire [`HBIT_DATA:0]   ow_result,
     output wire [`HBIT_ADDR:0]   ow_ar_result,
+    output wire [`HBIT_ADDR:0]   ow_sr_result,
     output wire                  ow_branch_taken,
     output wire [`HBIT_ADDR:0]   ow_branch_pc,
     input wire  [`HBIT_DATA:0]   iw_src_gp_val,
     input wire  [`HBIT_DATA:0]   iw_tgt_gp_val,
     input wire  [`HBIT_ADDR:0]   iw_src_ar_val,
     input wire  [`HBIT_ADDR:0]   iw_tgt_ar_val,
-    input wire  [`HBIT_DATA:0]   iw_src_sr_val,
-    input wire  [`HBIT_DATA:0]   iw_tgt_sr_val,
+    input wire  [`HBIT_ADDR:0]   iw_src_sr_val,
+    input wire  [`HBIT_ADDR:0]   iw_tgt_sr_val,
     input wire                   iw_flush,
     input wire                   iw_stall
 );
@@ -57,6 +58,7 @@ module stg_ex(
     reg [`HBIT_ADDR:0]  r_addr;
     reg [`HBIT_DATA:0]  r_result;
     reg [`HBIT_ADDR:0]  r_ar_result;
+    reg [`HBIT_ADDR:0]  r_sr_result;
     reg [`HBIT_FLAG:0]  r_fl;
     reg                 r_branch_taken;
     reg [`HBIT_ADDR:0]  r_branch_pc;
@@ -77,6 +79,7 @@ module stg_ex(
             r_addr         = {`SIZE_ADDR{1'b0}};
             r_result       = {`SIZE_DATA{1'b0}};
             r_ar_result    = {`SIZE_ADDR{1'b0}};
+            r_sr_result    = {`SIZE_ADDR{1'b0}};
             r_tgt_ar_we    = 1'b0;
         end
         r_ir            = {r_ui_latch, iw_imm12_val};
@@ -218,8 +221,14 @@ module stg_ex(
                 r_ar_result = $signed(iw_src_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
             end
             `OPC_LDAso: begin
+                // 48-bit memory load into ARt: compute address now; value assembled in MO stage
+                r_addr      = $signed(iw_src_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
                 r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_src_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
+            end
+            `OPC_STAso: begin
+                // 48-bit memory store of ARs: compute address and pass full 48-bit source via ar_result
+                r_addr      = $signed(iw_tgt_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
+                r_ar_result = iw_src_ar_val;
             end
             `OPC_ADRAso: begin
                 r_tgt_ar_we = 1'b1;
@@ -376,38 +385,29 @@ module stg_ex(
                 r_result = r_se_imm14_val;
             end
             `OPC_SRMOVur: begin
-                r_result = (iw_src_sr == `SR_IDX_PC) ? iw_pc : iw_src_sr_val;
+                r_sr_result = (iw_src_sr == `SR_IDX_PC) ? iw_pc : iw_src_sr_val;
+                r_result    = r_sr_result[23:0];
             end
             `OPC_SRADDsi: begin
-                r_result = $signed(iw_tgt_sr_val) + $signed(r_se_imm14_val);
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_V] =
-                    ((~(iw_tgt_sr_val[`HBIT_DATA-1] ^ r_se_imm14_val[`HBIT_DATA-1])) &&
-                    (iw_tgt_sr_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+                r_sr_result = $signed(iw_tgt_sr_val) + $signed({{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val});
+                r_result    = r_sr_result[23:0];
             end
             `OPC_SRSUBsi: begin
-                r_result = $signed(iw_tgt_sr_val) - $signed(r_se_imm14_val);
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_V] =
-                    ((r_se_imm14_val[`HBIT_DATA-1] ^ iw_tgt_sr_val[`HBIT_DATA-1]) &&
-                    (iw_tgt_sr_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+                r_sr_result = $signed(iw_tgt_sr_val) - $signed({{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val});
+                r_result    = r_sr_result[23:0];
             end
             `OPC_SRJCCso: begin
                 if (r_branch_taken) begin
-                    r_branch_pc = iw_tgt_sr_val + r_se_imm10_val;
-                    // $display("SRJCCu: branch_pc=%h", r_branch_pc);
+                    r_branch_pc = $signed(iw_tgt_sr_val) + $signed({{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val});
                 end
-                // $display("SRJCCu: branch_pc=%h", r_branch_pc);
             end
             `OPC_SRLDso: begin
-                r_addr = iw_src_sr_val + r_se_imm12_val;
+                r_addr = $signed(iw_src_sr_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
                 // $display("SRLDu: addr=%h", r_addr);
             end
             `OPC_SRSTso: begin
-                r_addr = iw_tgt_sr_val + r_se_imm12_val;
-                r_result = iw_src_sr_val; 
+                r_addr   = $signed(iw_tgt_sr_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
+                r_result = iw_src_sr_val[23:0]; 
                 // $display("SRSTu: addr=%h result=%h", r_addr, r_result);
             end
             `OPC_BALso: begin
@@ -433,6 +433,7 @@ module stg_ex(
     reg [`HBIT_ADDR:0]   r_addr_latch;
     reg [`HBIT_DATA:0]   r_result_latch;
     reg [`HBIT_ADDR:0]   r_ar_result_latch;
+    reg [`HBIT_ADDR:0]   r_sr_result_latch;
     reg                  r_branch_taken_latch;
     reg [`HBIT_ADDR:0]   r_branch_pc_latch;
     always @(posedge iw_clk or posedge iw_rst) begin
@@ -449,6 +450,7 @@ module stg_ex(
             r_addr_latch         <= `SIZE_ADDR'b0;
             r_result_latch       <= `SIZE_DATA'b0;
             r_ar_result_latch    <= `SIZE_ADDR'b0;
+            r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
         end else if (iw_flush) begin
@@ -464,6 +466,7 @@ module stg_ex(
             r_addr_latch         <= `SIZE_ADDR'b0;
             r_result_latch       <= `SIZE_DATA'b0;
             r_ar_result_latch    <= `SIZE_ADDR'b0;
+            r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
         end else if (iw_stall) begin
@@ -479,6 +482,7 @@ module stg_ex(
             r_addr_latch         <= r_addr_latch;
             r_result_latch       <= r_result_latch;
             r_ar_result_latch    <= r_ar_result_latch;
+            r_sr_result_latch    <= r_sr_result_latch;
             r_branch_taken_latch <= r_branch_taken_latch;
             r_branch_pc_latch    <= r_branch_pc_latch;
         end else begin
@@ -494,6 +498,7 @@ module stg_ex(
             r_addr_latch         <= r_addr;
             r_result_latch       <= r_result;
             r_ar_result_latch    <= r_ar_result;
+            r_sr_result_latch    <= r_sr_result;
             r_branch_taken_latch <= r_branch_taken;
             r_branch_pc_latch    <= r_branch_pc;
         end
@@ -510,6 +515,7 @@ module stg_ex(
     assign ow_addr         = r_addr_latch;
     assign ow_result       = r_result_latch;
     assign ow_ar_result    = r_ar_result_latch;
+    assign ow_sr_result    = r_sr_result_latch;
     assign ow_branch_taken = r_branch_taken_latch;
     assign ow_branch_pc    = r_branch_pc_latch;
 endmodule

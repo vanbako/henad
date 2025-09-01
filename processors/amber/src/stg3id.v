@@ -121,7 +121,7 @@ module stg_id(
             // 12-bit immediates
             `OPC_MOVui, `OPC_ADDui, `OPC_SUBui, `OPC_ANDui, `OPC_ORui, `OPC_XORui, `OPC_SHLui, `OPC_SHRui,
             `OPC_MOVsi, `OPC_ADDsi, `OPC_SUBsi, `OPC_SHRsi, `OPC_CMPsi,
-            `OPC_LDAso, `OPC_LEAso, `OPC_ADDAsi, `OPC_SUBAsi,
+            `OPC_LDAso, `OPC_STAso, `OPC_LEAso, `OPC_ADDAsi, `OPC_SUBAsi,
             `OPC_STui, `OPC_SRSTso, `OPC_SRLDso: begin
                 r_imm12_val = w_imm12_all;
             end

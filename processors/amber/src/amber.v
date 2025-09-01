@@ -73,12 +73,12 @@ module amber(
     wire [`HBIT_TGT_SR:0] w_sr_read_addr1;
     wire [`HBIT_TGT_SR:0] w_sr_read_addr2;
     wire [`HBIT_TGT_SR:0] w_sr_write_addr;
-    wire [`HBIT_DATA:0]   w_sr_write_data;
+    wire [`HBIT_ADDR:0]   w_sr_write_data;
     wire                  w_sr_write_enable;
-    wire [`HBIT_DATA:0]   w_sr_write_pc;
+    wire [`HBIT_ADDR:0]   w_sr_write_pc;
     wire                  w_sr_write_pc_enable;
-    wire [`HBIT_DATA:0]   w_sr_read_data1;
-    wire [`HBIT_DATA:0]   w_sr_read_data2;
+    wire [`HBIT_ADDR:0]   w_sr_read_data1;
+    wire [`HBIT_ADDR:0]   w_sr_read_data2;
 
     regsr u_regsr(
         .iw_clk            (iw_clk),
@@ -227,6 +227,7 @@ module amber(
     wire                  w_exma_tgt_ar_we;
     wire [`HBIT_ADDR:0]   w_exma_addr;
     wire [`HBIT_DATA:0]   w_exma_result;
+    wire [`HBIT_ADDR:0]   w_exma_sr_result;
     wire [`HBIT_ADDR:0]   w_exma_ar_result;
 
     wire [`HBIT_OPC:0]    w_mamo_opc;
@@ -237,6 +238,7 @@ module amber(
     wire [`HBIT_DATA:0]   w_mamo_result;
     wire [`HBIT_TGT_AR:0] w_mamo_tgt_ar;
     wire                  w_mamo_tgt_ar_we;
+    wire [`HBIT_ADDR:0]   w_mamo_sr_result;
     wire [`HBIT_ADDR:0]   w_mamo_ar_result;
 
     wire [`HBIT_OPC:0]    w_mowb_opc;
@@ -247,14 +249,15 @@ module amber(
     wire [`HBIT_DATA:0]   w_mowb_result;
     wire [`HBIT_TGT_AR:0] w_mowb_tgt_ar;
     wire                  w_mowb_tgt_ar_we;
+    wire [`HBIT_ADDR:0]   w_mowb_sr_result;
     wire [`HBIT_ADDR:0]   w_mowb_ar_result;
 
     wire [`HBIT_DATA:0]   w_src_gp_val;
     wire [`HBIT_DATA:0]   w_tgt_gp_val;
     wire [`HBIT_ADDR:0]   w_src_ar_val;
     wire [`HBIT_ADDR:0]   w_tgt_ar_val;
-    wire [`HBIT_DATA:0]   w_src_sr_val;
-    wire [`HBIT_DATA:0]   w_tgt_sr_val;
+    wire [`HBIT_ADDR:0]   w_src_sr_val;
+    wire [`HBIT_ADDR:0]   w_tgt_sr_val;
 
     assign w_gp_read_addr1 = w_src_gp;
     assign w_gp_read_addr2 = w_tgt_gp;
@@ -272,6 +275,7 @@ module amber(
         .iw_tgt_mamo_gp_we(w_mamo_tgt_gp_we),
         .iw_tgt_mowb_gp   (w_mowb_tgt_gp),
         .iw_tgt_mowb_gp_we(w_mowb_tgt_gp_we),
+        // SR
         .iw_tgt_sr        (w_tgt_sr),
         .iw_tgt_sr_we     (w_tgt_sr_we),
         .iw_tgt_exma_sr   (w_exma_tgt_sr),
@@ -280,19 +284,38 @@ module amber(
         .iw_tgt_mamo_sr_we(w_mamo_tgt_sr_we),
         .iw_tgt_mowb_sr   (w_mowb_tgt_sr),
         .iw_tgt_mowb_sr_we(w_mowb_tgt_sr_we),
+        // AR
+        .iw_tgt_ar        (w_tgt_ar),
+        .iw_tgt_exma_ar   (w_exma_tgt_ar),
+        .iw_tgt_exma_ar_we(w_exma_tgt_ar_we),
+        .iw_tgt_mamo_ar   (w_mamo_tgt_ar),
+        .iw_tgt_mamo_ar_we(w_mamo_tgt_ar_we),
+        .iw_tgt_mowb_ar   (w_mowb_tgt_ar),
+        .iw_tgt_mowb_ar_we(w_mowb_tgt_ar_we),
         .iw_src_gp        (w_src_gp),
         .iw_src_sr        (w_src_sr),
+        .iw_src_ar        (w_src_ar),
         .iw_gp_read_data1 (w_gp_read_data1),
         .iw_gp_read_data2 (w_gp_read_data2),
         .iw_sr_read_data1 (w_sr_read_data1),
         .iw_sr_read_data2 (w_sr_read_data2),
+        .iw_ar_read_data1 (w_ar_read_data1),
+        .iw_ar_read_data2 (w_ar_read_data2),
         .iw_exma_result   (w_exma_result),
         .iw_mamo_result   (w_mamo_result),
         .iw_mowb_result   (w_mowb_result),
+        .iw_exma_sr_result(w_exma_sr_result),
+        .iw_mamo_sr_result(w_mamo_sr_result),
+        .iw_mowb_sr_result(w_mowb_sr_result),
+        .iw_exma_ar_result(w_exma_ar_result),
+        .iw_mamo_ar_result(w_mamo_ar_result),
+        .iw_mowb_ar_result(w_mowb_ar_result),
         .or_src_gp_val    (w_src_gp_val),
         .or_tgt_gp_val    (w_tgt_gp_val),
         .or_src_sr_val    (w_src_sr_val),
-        .or_tgt_sr_val    (w_tgt_sr_val)
+        .or_tgt_sr_val    (w_tgt_sr_val),
+        .or_src_ar_val    (w_src_ar_val),
+        .or_tgt_ar_val    (w_tgt_ar_val)
     );
 
     hazard u_hazard(
@@ -335,12 +358,13 @@ module amber(
         .ow_addr          (w_exma_addr),
         .ow_result        (w_exma_result),
         .ow_ar_result     (w_exma_ar_result),
+        .ow_sr_result     (w_exma_sr_result),
         .ow_branch_taken  (w_branch_taken),
         .ow_branch_pc     (w_branch_pc),
         .iw_src_gp_val    (w_src_gp_val),
         .iw_tgt_gp_val    (w_tgt_gp_val),
-        .iw_src_ar_val    (w_ar_read_data1),
-        .iw_tgt_ar_val    (w_ar_read_data2),
+        .iw_src_ar_val    (w_src_ar_val),
+        .iw_tgt_ar_val    (w_tgt_ar_val),
         .iw_src_sr_val    (w_src_sr_val),
         .iw_tgt_sr_val    (w_tgt_sr_val),
         .iw_flush         (w_branch_taken),
@@ -375,6 +399,8 @@ module amber(
         .iw_addr     (w_exma_addr),
         .iw_result   (w_exma_result),
         .ow_result   (w_mamo_result),
+        .iw_sr_result(w_exma_sr_result),
+        .ow_sr_result(w_mamo_sr_result),
         .iw_ar_result(w_exma_ar_result),
         .ow_ar_result(w_mamo_ar_result)
     );
@@ -406,6 +432,8 @@ module amber(
         .iw_mem_rdata(w_dmem_rdata),
         .iw_result   (w_mamo_result),
         .ow_result   (w_mowb_result),
+        .iw_sr_result(w_mamo_sr_result),
+        .ow_sr_result(w_mowb_sr_result),
         .iw_ar_result(w_mamo_ar_result),
         .ow_ar_result(w_mowb_ar_result)
     );
@@ -442,6 +470,7 @@ module amber(
         .ow_ar_write_data  (w_ar_write_data),
         .ow_ar_write_enable(w_ar_write_enable),
         .iw_result         (w_mowb_result),
+        .iw_sr_result      (w_mowb_sr_result),
         .iw_ar_result      (w_mowb_ar_result),
         .ow_result         (w_wb_result)
     );

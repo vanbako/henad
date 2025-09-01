@@ -8,8 +8,24 @@ module hazard(
     output wire                 ow_stall
 );
     reg [2:0] r_cnt;
-    // Stall on loads (data comes back in later stages)
-    wire hazard = (iw_idex_opc == `OPC_LDur || iw_idex_opc == `OPC_LDso || iw_idex_opc == `OPC_SRLDso);
+    // Stall on all memory operations that interact with data memory.
+    // Policy: no memory-result forwarding; hold the front of the pipeline
+    // for a fixed number of cycles regardless of following instructions.
+    wire hazard = (
+        // Loads
+        (iw_idex_opc == `OPC_LDur)   ||
+        (iw_idex_opc == `OPC_LDso)   ||
+        (iw_idex_opc == `OPC_SRLDso) ||
+        (iw_idex_opc == `OPC_LDAso)  ||
+        // Stores
+        (iw_idex_opc == `OPC_STur)   ||
+        (iw_idex_opc == `OPC_STui)   ||
+        (iw_idex_opc == `OPC_STsi)   ||
+        (iw_idex_opc == `OPC_STso)   ||
+        (iw_idex_opc == `OPC_SRSTso) ||
+        // Address register store (planned/ISA)
+        (iw_idex_opc == `OPC_STAso)
+    );
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             r_cnt <= 3'b000;

@@ -18,6 +18,10 @@ module mem #(
             $readmemh(`MEM_HEX_FILE, r_mem);
     end
     always @(posedge iw_clk) begin
+`ifdef DEBUG_MEM_TB
+        if (iw_we[0]) $display("mem wr0 addr=%0d data=%h", iw_addr[0], iw_wdata[0]);
+        if (iw_we[1]) $display("mem wr1 addr=%0d data=%h", iw_addr[1], iw_wdata[1]);
+`endif
         if (iw_we[0]) begin
             r_mem[iw_addr[0]] <= iw_wdata[0];
             if (iw_addr[0] == iw_addr[1])
