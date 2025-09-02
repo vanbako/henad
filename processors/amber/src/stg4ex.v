@@ -49,7 +49,10 @@ module stg_ex(
     input wire                   iw_flush,
     input wire                   iw_stall
 );
-    reg [`HBIT_IMM12:0] r_ui_latch;
+    // Upper immediate banks for LUIui x∈{0,1,2}
+    reg [`HBIT_IMM12:0] r_uimm_bank0; // bits [23:12] for 24-bit immediates
+    reg [`HBIT_IMM12:0] r_uimm_bank1; // bits [35:24] lower-half of 48-bit
+    reg [`HBIT_IMM12:0] r_uimm_bank2; // bits [47:36] upper-half of 48-bit
     reg [`HBIT_DATA:0]  r_ir;
     reg [`HBIT_DATA:0]  r_se_imm12_val;
     reg [`HBIT_DATA:0]  r_se_imm14_val;
@@ -67,13 +70,26 @@ module stg_ex(
     reg                  r_flags_we;
     // Current flags come from SR[FL] via SR read port 1 (forwarded)
     wire [`HBIT_FLAG:0]  w_fl_in = iw_src_sr_val[`HBIT_FLAG:0];
-    // Latch for upper immediate bank
+    // Latch for upper immediate banks (cleared on reset/flush)
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
-            r_ui_latch <= {(`HBIT_IMM12+1){1'b0}};
+            r_uimm_bank0 <= {(`HBIT_IMM12+1){1'b0}};
+            r_uimm_bank1 <= {(`HBIT_IMM12+1){1'b0}};
+            r_uimm_bank2 <= {(`HBIT_IMM12+1){1'b0}};
         end else if (!iw_stall) begin
-            if (iw_opc == `OPC_LUIui)
-                r_ui_latch <= iw_imm12_val;
+            if (iw_flush) begin
+                // Prevent cross-path mixing after branch/flush
+                r_uimm_bank0 <= {(`HBIT_IMM12+1){1'b0}};
+                r_uimm_bank1 <= {(`HBIT_IMM12+1){1'b0}};
+                r_uimm_bank2 <= {(`HBIT_IMM12+1){1'b0}};
+            end else if (iw_opc == `OPC_LUIui) begin
+                case (iw_instr[15:14])
+                    2'b00: r_uimm_bank0 <= iw_imm12_val;
+                    2'b01: r_uimm_bank1 <= iw_imm12_val;
+                    2'b10: r_uimm_bank2 <= iw_imm12_val;
+                    default: r_uimm_bank0 <= iw_imm12_val; // treat others as bank0
+                endcase
+            end
         end
     end
 
@@ -90,7 +106,8 @@ module stg_ex(
         // By default, clear computed flags each cycle; set only when op defines them
         r_fl             = {`SIZE_FLAG{1'b0}};
         r_flags_we       = 1'b0;
-        r_ir            = {r_ui_latch, iw_imm12_val};
+        // Default 24-bit immediate: high 12 bits from bank0
+        r_ir            = {r_uimm_bank0, iw_imm12_val};
         r_se_imm12_val  = {{12{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val};
         r_se_imm14_val  = {{10{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
         r_se_imm10_val  = {{14{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
@@ -125,33 +142,41 @@ module stg_ex(
                 // Rotate left by variable amount (mod 24)
                 reg [4:0] amt;
                 reg [4:0] amt_mod;
+                reg [4:0] carry_idx;
                 amt = iw_src_gp_val[4:0];
                 amt_mod = amt % `SIZE_DATA;
-                if (amt_mod == 5'd0) begin
+                // Compute result regardless of flag updates
+                if (amt_mod == 5'd0)
                     r_result = iw_tgt_gp_val;
-                    r_fl[`FLAG_C] = 1'b0;
-                end else begin
+                else
                     r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
-                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod)) & 1'b1;
+                // Flags are only updated if source amount is non-zero (per spec)
+                if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
+                    // For full-width multiples, the last bit shifted out corresponds to bit 0
+                    carry_idx = (amt_mod == 5'd0) ? 5'd0 : (`SIZE_DATA - amt_mod);
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> carry_idx) & 1'b1;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_RORur: begin
                 // Rotate right by variable amount (mod 24)
                 reg [4:0] amt;
                 reg [4:0] amt_mod;
+                reg [4:0] carry_idx;
                 amt = iw_src_gp_val[4:0];
                 amt_mod = amt % `SIZE_DATA;
-                if (amt_mod == 5'd0) begin
+                if (amt_mod == 5'd0)
                     r_result = iw_tgt_gp_val;
-                    r_fl[`FLAG_C] = 1'b0;
-                end else begin
+                else
                     r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
-                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (amt_mod-1)) & 1'b1;
+                if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
+                    // For full-width multiples, the last shift-out comes from bit SIZE-1
+                    carry_idx = (amt_mod == 5'd0) ? (`SIZE_DATA-1) : (amt_mod-1);
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> carry_idx) & 1'b1;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_MOVDur: begin
                 // H|L bit = instr[9]; H=1 means use [47:24], L=0 means use [23:0]
@@ -160,6 +185,7 @@ module stg_ex(
                 else
                     r_result = iw_src_ar_val[23:0];
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_flags_we = 1'b1;
             end
             `OPC_MOVAur: begin
                 // Write DRs half into ARt
@@ -207,14 +233,19 @@ module stg_ex(
                 n = iw_src_gp_val[4:0];
                 if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
+                    // Flags updated only if amount is non-zero (true here)
                     r_fl[`FLAG_C] = 1'b0;
+                    r_fl[`FLAG_Z] = 1'b1;
+                    r_flags_we = 1'b1;
                 end else begin
                     n_eff = n;
                     r_result = iw_tgt_gp_val << n_eff;
-                    r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (`SIZE_DATA - n_eff)) & 1'b1);
+                    if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
+                        r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (`SIZE_DATA - n_eff)) & 1'b1);
+                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                        r_flags_we = 1'b1;
+                    end
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_SHRur: begin
                 reg [4:0] n;
@@ -222,14 +253,19 @@ module stg_ex(
                 n = iw_src_gp_val[4:0];
                 if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
+                    // Flags updated only if amount is non-zero (true here)
                     r_fl[`FLAG_C] = 1'b0;
+                    r_fl[`FLAG_Z] = 1'b1;
+                    r_flags_we = 1'b1;
                 end else begin
                     n_eff = n;
                     r_result = iw_tgt_gp_val >> n_eff;
-                    r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
+                    if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
+                        r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
+                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                        r_flags_we = 1'b1;
+                    end
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_CMPur: begin
                 r_fl[`FLAG_Z] = (iw_src_gp_val == iw_tgt_gp_val) ? 1'b1 : 1'b0;
@@ -249,11 +285,23 @@ module stg_ex(
                 r_result = iw_src_gp_val;
             end
             `OPC_LDso: begin
-                r_addr = iw_src_ar_val + r_se_imm10_val;
+                // 24-bit load with signed 10-bit offset into DRt
+                r_addr = $signed(iw_src_ar_val) + $signed({{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val});
             end
             `OPC_STso: begin
-                r_addr = iw_tgt_ar_val + r_se_imm10_val;
+                // 24-bit store with signed 10-bit offset from DRs
+                r_addr   = $signed(iw_tgt_ar_val) + $signed({{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val});
                 r_result = iw_src_gp_val;
+            end
+            `OPC_STui: begin
+                // Store 24-bit zero-extended immediate to (ARt)
+                r_addr   = iw_tgt_ar_val;
+                r_result = r_ir;
+            end
+            `OPC_STsi: begin
+                // Store 24-bit sign-extended immediate to (ARt)
+                r_addr   = iw_tgt_ar_val;
+                r_result = r_se_imm14_val;
             end
             `OPC_ADDAur: begin
                 r_tgt_ar_we = 1'b1;
@@ -311,18 +359,20 @@ module stg_ex(
                 r_result = $signed(iw_src_gp_val) + $signed(iw_tgt_gp_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
+                // Signed overflow: operands have same sign, result differs
                 r_fl[`FLAG_V] =
-                    ((~(iw_src_gp_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1])) &&
-                    (iw_src_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+                    ((~(iw_src_gp_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA])) &&
+                    (iw_src_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
             `OPC_SUBsr: begin
                 r_result = $signed(iw_tgt_gp_val) - $signed(iw_src_gp_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
+                // Signed overflow: operands have different signs and result differs from minuend
                 r_fl[`FLAG_V] =
-                    ((iw_src_gp_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1]) &&
-                    (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+                    ((iw_src_gp_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA]) &&
+                    (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
             `OPC_NEGsr: begin
@@ -332,18 +382,31 @@ module stg_ex(
                 r_fl[`FLAG_N] = ($signed(r_result) < 0);
                 // Overflow if operand is most negative value
                 r_fl[`FLAG_V] = (iw_tgt_gp_val == 24'h800000);
+                r_flags_we = 1'b1;
             end
             `OPC_SHRsr: begin
-                if (iw_src_gp_val >= `SIZE_DATA) begin
-                    r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_V] = 1'b1;
+                // Arithmetic right shift by variable amount; flags {Z,N,C} only if amount != 0
+                reg [4:0] n;
+                reg [4:0] n_eff;
+                n = iw_src_gp_val[4:0];
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
+                    // Shift by width or more: result all sign bits; carry=0 per policy
+                    r_result = (iw_tgt_gp_val[`HBIT_DATA]) ? {`SIZE_DATA{1'b1}} : {`SIZE_DATA{1'b0}};
+                    r_fl[`FLAG_C] = 1'b0;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_fl[`FLAG_N] = r_result[`HBIT_DATA];
+                    r_flags_we = 1'b1;
                 end else begin
-                    r_result = $signed(iw_tgt_gp_val) >>> iw_src_gp_val[4:0];
-                    r_fl[`FLAG_V] = 1'b0;
+                    n_eff = n;
+                    r_result = $signed(iw_tgt_gp_val) >>> n_eff;
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_fl[`FLAG_N] = r_result[`HBIT_DATA];
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_N] = (r_result[`HBIT_DATA] == 1'b1) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
             end
             `OPC_CMPsr: begin
                 reg signed [`HBIT_DATA:0] s_diff;
@@ -361,20 +424,21 @@ module stg_ex(
                 take = 1'b0;
                 case (iw_cc)
                     `CC_RA: take = 1'b1;
-                    `CC_EQ: take =  r_fl[`FLAG_Z];
-                    `CC_NE: take = ~r_fl[`FLAG_Z];
-                    `CC_LT: take =  r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
-                    `CC_GT: take = ~r_fl[`FLAG_Z] & (~r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
-                    `CC_GE: take = ~r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
-                    `CC_LE: take =  r_fl[`FLAG_Z] | ( r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
-                    `CC_BT: take =  r_fl[`FLAG_C];
-                    `CC_AT: take = ~r_fl[`FLAG_Z] &  ~r_fl[`FLAG_C];
-                    `CC_BE: take =  r_fl[`FLAG_C] |   r_fl[`FLAG_Z];
-                    `CC_AE: take = ~r_fl[`FLAG_C];
+                    `CC_EQ: take =  w_fl_in[`FLAG_Z];
+                    `CC_NE: take = ~w_fl_in[`FLAG_Z];
+                    `CC_LT: take =  w_fl_in[`FLAG_N] ^   w_fl_in[`FLAG_V];
+                    `CC_GT: take = ~w_fl_in[`FLAG_Z] & (~w_fl_in[`FLAG_N] ^ w_fl_in[`FLAG_V]);
+                    `CC_GE: take = ~w_fl_in[`FLAG_N] ^   w_fl_in[`FLAG_V];
+                    `CC_LE: take =  w_fl_in[`FLAG_Z] | ( w_fl_in[`FLAG_N] ^ w_fl_in[`FLAG_V]);
+                    `CC_BT: take =  w_fl_in[`FLAG_C];
+                    `CC_AT: take = ~w_fl_in[`FLAG_Z] &  ~w_fl_in[`FLAG_C];
+                    `CC_BE: take =  w_fl_in[`FLAG_C] |   w_fl_in[`FLAG_Z];
+                    `CC_AE: take = ~w_fl_in[`FLAG_C];
                 endcase
                 if (take) begin
                     r_result = iw_src_gp_val;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1; // update Z only when move happens
                 end else begin
                     // Write back original value (no-op)
                     r_result = iw_tgt_gp_val;
@@ -419,15 +483,20 @@ module stg_ex(
             `OPC_SHLui: begin
                 reg [4:0] n;
                 n = r_ir[4:0];
-                if (n >= `SIZE_DATA) begin
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
                     r_fl[`FLAG_C] = 1'b0;
+                    r_fl[`FLAG_Z] = 1'b1;
+                    r_flags_we = 1'b1;
                 end else begin
                     r_result = iw_tgt_gp_val << n;
-                    r_fl[`FLAG_C] = (n == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (`SIZE_DATA - n)) & 1'b1);
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (`SIZE_DATA - n)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_ROLui: begin
                 // Rotate left by immediate (use low 5 bits of r_ir)
@@ -437,13 +506,13 @@ module stg_ex(
                 amt_mod = amt % `SIZE_DATA;
                 if (amt_mod == 5'd0) begin
                     r_result = iw_tgt_gp_val;
-                    r_fl[`FLAG_C] = 1'b0;
+                    // flags unchanged
                 end else begin
                     r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
                     r_fl[`FLAG_C] = (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod)) & 1'b1;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_RORui: begin
                 // Rotate right by immediate (use low 5 bits of r_ir)
@@ -453,26 +522,31 @@ module stg_ex(
                 amt_mod = amt % `SIZE_DATA;
                 if (amt_mod == 5'd0) begin
                     r_result = iw_tgt_gp_val;
-                    r_fl[`FLAG_C] = 1'b0;
+                    // flags unchanged
                 end else begin
                     r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
                     r_fl[`FLAG_C] = (iw_tgt_gp_val >> (amt_mod-1)) & 1'b1;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_SHRui: begin
                 reg [4:0] n;
                 n = r_ir[4:0];
-                if (n >= `SIZE_DATA) begin
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
                     r_result = {`SIZE_DATA{1'b0}};
                     r_fl[`FLAG_C] = 1'b0;
+                    r_fl[`FLAG_Z] = 1'b1;
+                    r_flags_we = 1'b1;
                 end else begin
                     r_result = iw_tgt_gp_val >> n;
-                    r_fl[`FLAG_C] = (n == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (n-1)) & 1'b1);
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
             end
             `OPC_CMPui: begin
                 r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_ir) ? 1'b1 : 1'b0;
@@ -481,19 +555,17 @@ module stg_ex(
             end
             `OPC_JCCui: begin
                 if (r_branch_taken)
-                    r_branch_pc = r_ir;
+                    // Assemble 48-bit absolute from banks and imm12
+                    r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
             end
             `OPC_JCCur: begin
                 if (r_branch_taken)
                     r_branch_pc = iw_tgt_ar_val;
             end
-            `OPC_STui: begin
-                r_addr = iw_tgt_gp_val;
-                r_result = r_ir;
-            end
             `OPC_MOVsi: begin
                 r_result = r_se_imm12_val;
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
             `OPC_MCCsi: begin
@@ -504,16 +576,16 @@ module stg_ex(
                 take = 1'b0;
                 case (iw_cc)
                     `CC_RA: take = 1'b1;
-                    `CC_EQ: take =  r_fl[`FLAG_Z];
-                    `CC_NE: take = ~r_fl[`FLAG_Z];
-                    `CC_LT: take =  r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
-                    `CC_GT: take = ~r_fl[`FLAG_Z] & (~r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
-                    `CC_GE: take = ~r_fl[`FLAG_N] ^   r_fl[`FLAG_V];
-                    `CC_LE: take =  r_fl[`FLAG_Z] | ( r_fl[`FLAG_N] ^ r_fl[`FLAG_V]);
-                    `CC_BT: take =  r_fl[`FLAG_C];
-                    `CC_AT: take = ~r_fl[`FLAG_Z] &  ~r_fl[`FLAG_C];
-                    `CC_BE: take =  r_fl[`FLAG_C] |   r_fl[`FLAG_Z];
-                    `CC_AE: take = ~r_fl[`FLAG_C];
+                    `CC_EQ: take =  w_fl_in[`FLAG_Z];
+                    `CC_NE: take = ~w_fl_in[`FLAG_Z];
+                    `CC_LT: take =  w_fl_in[`FLAG_N] ^   w_fl_in[`FLAG_V];
+                    `CC_GT: take = ~w_fl_in[`FLAG_Z] & (~w_fl_in[`FLAG_N] ^ w_fl_in[`FLAG_V]);
+                    `CC_GE: take = ~w_fl_in[`FLAG_N] ^   w_fl_in[`FLAG_V];
+                    `CC_LE: take =  w_fl_in[`FLAG_Z] | ( w_fl_in[`FLAG_N] ^ w_fl_in[`FLAG_V]);
+                    `CC_BT: take =  w_fl_in[`FLAG_C];
+                    `CC_AT: take = ~w_fl_in[`FLAG_Z] &  ~w_fl_in[`FLAG_C];
+                    `CC_BE: take =  w_fl_in[`FLAG_C] |   w_fl_in[`FLAG_Z];
+                    `CC_AE: take = ~w_fl_in[`FLAG_C];
                 endcase
                 if (take) begin
                     r_result = seimm8;
@@ -542,40 +614,46 @@ module stg_ex(
                 r_flags_we = 1'b1;
             end
             `OPC_SHRsi: begin
-                if (iw_imm12_val >= `SIZE_DATA) begin
-                    r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_V] = 1'b1;
+                // Arithmetic right shift by immediate imm5; flags {Z,N,C} only if imm5 != 0
+                reg [4:0] n;
+                n = iw_imm12_val[4:0];
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
+                    // Overshift: all sign bits; carry=0 per policy
+                    r_result = (iw_tgt_gp_val[`HBIT_DATA]) ? {`SIZE_DATA{1'b1}} : {`SIZE_DATA{1'b0}};
+                    r_fl[`FLAG_C] = 1'b0;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_fl[`FLAG_N] = r_result[`HBIT_DATA];
+                    r_flags_we = 1'b1;
                 end else begin
-                    r_result = $signed(iw_tgt_gp_val) >>> iw_imm12_val[4:0];
-                    r_fl[`FLAG_V] = 1'b0;
+                    r_result = $signed(iw_tgt_gp_val) >>> n;
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_fl[`FLAG_N] = r_result[`HBIT_DATA];
+                    r_flags_we = 1'b1;
                 end
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_N] = (r_result[`HBIT_DATA] == 1'b1) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
             end
             `OPC_CMPsi: begin
                 reg signed [`HBIT_DATA:0] s_diff;
                 s_diff = $signed(iw_tgt_gp_val) - $signed(r_se_imm12_val);
                 r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_se_imm12_val) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_N] = (s_diff < 0) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_V] = ((iw_tgt_gp_val[`HBIT_DATA] ^ r_se_imm12_val[`HBIT_DATA]) &
-                                 (iw_tgt_gp_val[`HBIT_DATA] ^ s_diff[`HBIT_DATA]));
+                // Signed overflow detection for a - b: V=1 when sign(a)!=sign(b) and sign(a)!=sign(a-b)
+                r_fl[`FLAG_V] = ((iw_tgt_gp_val[`HBIT_DATA-1] ^ r_se_imm12_val[`HBIT_DATA-1]) &
+                                 (iw_tgt_gp_val[`HBIT_DATA-1] ^ s_diff[`HBIT_DATA-1]));
                 r_flags_we = 1'b1;
             end
             `OPC_TSTsr: begin
                 // Signed test: set Z and N from dt
                 r_fl[`FLAG_Z] = (iw_tgt_gp_val == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_N] = (iw_tgt_gp_val[`HBIT_DATA-1] == 1'b1) ? 1'b1 : 1'b0;
+                r_fl[`FLAG_N] = (iw_tgt_gp_val[`HBIT_DATA] == 1'b1) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
             `OPC_BCCso: begin
                 if (r_branch_taken)
                     r_branch_pc = iw_pc + $signed(r_se_imm12_val);
-            end
-            `OPC_STsi: begin
-                r_addr = iw_tgt_gp_val;
-                // STsi uses imm14 signed
-                r_result = r_se_imm14_val;
             end
             `OPC_SRMOVur: begin
                 r_sr_result = (iw_src_sr == `SR_IDX_PC) ? iw_pc : iw_src_sr_val;

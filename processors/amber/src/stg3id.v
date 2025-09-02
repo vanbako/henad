@@ -68,7 +68,7 @@ module stg_id(
         (w_opc == `OPC_NOTur)     || (w_opc == `OPC_ANDur)     || (w_opc == `OPC_ORur)    ||
         (w_opc == `OPC_XORur)     || (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)   ||
         (w_opc == `OPC_ROLur)     || (w_opc == `OPC_RORur)     ||
-        (w_opc == `OPC_LDur)      ||
+        (w_opc == `OPC_LDur)      || (w_opc == `OPC_LDso)      ||
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_NEGsr) ||
         (w_opc == `OPC_MOVui)     || (w_opc == `OPC_ADDui)     || (w_opc == `OPC_SUBui)   ||
         (w_opc == `OPC_ANDui)     || (w_opc == `OPC_ORui)      || (w_opc == `OPC_XORui)   ||
@@ -78,12 +78,14 @@ module stg_id(
         // AR->DR move writes DRt
         (w_opc == `OPC_MOVDur);
 
-    // Has GP target field present (even if not writing, e.g. CMP, ST)
+    // Has GP target field present (even if not writing, e.g. CMP or branch with DRt)
     wire w_has_tgt_gp =
-        w_tgt_gp_we                || (w_opc == `OPC_CMPur)     || (w_opc == `OPC_STur)     ||
-        (w_opc == `OPC_CMPsr)     || (w_opc == `OPC_CMPui)     || (w_opc == `OPC_STui)     ||
-        (w_opc == `OPC_STsi)      || (w_opc == `OPC_TSTur)     || (w_opc == `OPC_TSTsr)    ||
-        (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi);
+        w_tgt_gp_we                || (w_opc == `OPC_CMPur)     ||
+        (w_opc == `OPC_CMPsr)     || (w_opc == `OPC_CMPui)     ||
+        (w_opc == `OPC_TSTur)     || (w_opc == `OPC_TSTsr)    ||
+        (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi)    ||
+        // BCCsr uses DRt as the signed PC-relative offset
+        (w_opc == `OPC_BCCsr);
 
     // SR target write enable
     wire w_tgt_sr_we =
@@ -95,12 +97,19 @@ module stg_id(
 
     // Has GP source
     wire w_has_src_gp =
+        // Core ALU uses
         (w_opc == `OPC_MOVur)     || (w_opc == `OPC_ADDur)     || (w_opc == `OPC_SUBur)   ||
         (w_opc == `OPC_ANDur)     || (w_opc == `OPC_ORur)      || (w_opc == `OPC_XORur)   ||
         (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)     || (w_opc == `OPC_ROLur)   || (w_opc == `OPC_RORur) || (w_opc == `OPC_CMPur)   ||
-        (w_opc == `OPC_LDur)      || (w_opc == `OPC_STur)      ||
+        // Stores use DRs as source
+        (w_opc == `OPC_STur)      || (w_opc == `OPC_STso)      ||
+        // Signed ALU uses
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_CMPsr) ||
-        (w_opc == `OPC_BCCsr)     || (w_opc == `OPC_MCCur);
+        // Conditional move consults DRs
+        (w_opc == `OPC_MCCur)     ||
+        // OPCLASS_6 AR-ALU that take DRs as source
+        (w_opc == `OPC_MOVAur)    || (w_opc == `OPC_ADDAur)    || (w_opc == `OPC_SUBAur)  ||
+        (w_opc == `OPC_ADDAsr)    || (w_opc == `OPC_SUBAsr);
 
     // Has SR source
     wire w_has_src_sr =
@@ -127,9 +136,10 @@ module stg_id(
         r_imm16_val = {(`HBIT_IMM16+1){1'b0}};
         case (w_opc)
             // 12-bit immediates
-            `OPC_MOVui, `OPC_ADDui, `OPC_SUBui, `OPC_ANDui, `OPC_ORui, `OPC_XORui, `OPC_SHLui, `OPC_SHRui,
+            `OPC_LUIui, `OPC_MOVui, `OPC_ADDui, `OPC_SUBui, `OPC_ANDui, `OPC_ORui, `OPC_XORui, `OPC_SHLui, `OPC_SHRui,
+            `OPC_ROLui, `OPC_RORui,
             `OPC_MOVsi, `OPC_ADDsi, `OPC_SUBsi, `OPC_SHRsi, `OPC_CMPsi,
-            `OPC_JCCui,
+            `OPC_JCCui, `OPC_BCCso,
             `OPC_LDAso, `OPC_STAso, `OPC_LEAso, `OPC_ADDAsi, `OPC_SUBAsi,
             `OPC_STui, `OPC_SRSTso, `OPC_SRLDso: begin
                 r_imm12_val = w_imm12_all;
@@ -167,7 +177,20 @@ module stg_id(
 
     // Register field extraction (spec bit positions)
     wire [`HBIT_TGT_GP:0] w_tgt_gp = w_has_tgt_gp ? iw_instr[15:12] : `SIZE_TGT_GP'b0;
-    wire [`HBIT_SRC_GP:0] w_src_gp = w_has_src_gp ? iw_instr[11:8]  : `SIZE_SRC_GP'b0;
+    // Source GP field location varies for stores; select per-op
+    reg  [`HBIT_SRC_GP:0] r_src_gp_sel;
+    always @* begin
+        r_src_gp_sel = `SIZE_SRC_GP'b0;
+        if (w_has_src_gp) begin
+            case (w_opc)
+                // DR source field at [13:10] for stores and OPCLASS_6 DR-source ops
+                `OPC_STur, `OPC_STso,
+                `OPC_MOVAur, `OPC_ADDAur, `OPC_SUBAur, `OPC_ADDAsr, `OPC_SUBAsr: r_src_gp_sel = iw_instr[13:10];
+                default:                                           r_src_gp_sel = iw_instr[11:8];
+            endcase
+        end
+    end
+    wire [`HBIT_SRC_GP:0] w_src_gp = r_src_gp_sel;
     wire [`HBIT_TGT_SR:0] w_tgt_sr = w_has_tgt_sr ? iw_instr[15:14] : `SIZE_TGT_SR'b0;
     wire [`HBIT_SRC_SR:0] w_src_sr = w_has_src_sr ? (w_uses_flags ? 2'b10 : iw_instr[13:12]) : `SIZE_SRC_SR'b0;
 
@@ -183,6 +206,8 @@ module stg_id(
             // OPCLASS_4 base
             `OPC_LDur:   begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
             `OPC_STur:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            `OPC_STui:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            `OPC_STsi:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             // OPCLASS_5 base + offset
             `OPC_LDso:   begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
             `OPC_STso:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end

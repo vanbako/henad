@@ -11,7 +11,7 @@ module stg_wb(
     output wire [`HBIT_DATA:0]   ow_gp_write_data,
     output wire                  ow_gp_write_enable,
     output wire [`HBIT_TGT_SR:0] ow_sr_write_addr,
-    output wire [`HBIT_DATA:0]   ow_sr_write_data,
+    output wire [`HBIT_ADDR:0]   ow_sr_write_data,
     output wire                  ow_sr_write_enable,
     output wire [`HBIT_TGT_AR:0] ow_ar_write_addr,
     output wire [`HBIT_ADDR:0]   ow_ar_write_data,
