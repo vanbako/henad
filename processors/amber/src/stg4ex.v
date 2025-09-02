@@ -678,6 +678,9 @@ module stg_ex(
             end
             `OPC_SRSTso: begin
                 r_addr   = $signed(iw_tgt_sr_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
+                // Drive full 48-bit SR source into sr_result for MO stage store
+                r_sr_result = iw_src_sr_val;
+                // Optionally also present low 24b on the generic result bus (not written back)
                 r_result = iw_src_sr_val[23:0]; 
                 // $display("SRSTu: addr=%h result=%h", r_addr, r_result);
             end
