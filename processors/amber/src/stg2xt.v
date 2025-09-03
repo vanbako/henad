@@ -233,45 +233,45 @@ module stg_xt(
                         `SUBOP_JSRur: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd4;
-                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP[1:0], 14'd2);
-                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP[1:0], `SR_IDX_LR[1:0], 12'sd0);
-                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR[1:0], `SR_IDX_PC[1:0]);
+                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP, 14'd2);
+                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd0);
+                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR, `SR_IDX_PC);
                             w_seq_list[3] = pack_jccur(iw_instr[15:14], 4'b0000);
                             r_instr       = w_seq_list[0];
                         end
                         `SUBOP_JSRui: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd4;
-                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP[1:0], 14'd2);
-                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP[1:0], `SR_IDX_LR[1:0], 12'sd0);
-                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR[1:0], `SR_IDX_PC[1:0]);
+                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP, 14'd2);
+                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd0);
+                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR, `SR_IDX_PC);
                             w_seq_list[3] = pack_jccui(4'b0000, w_imm12_val);
                             r_instr       = w_seq_list[0];
                         end
                         `SUBOP_BSRsr: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd4;
-                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP[1:0], 14'd2);
-                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP[1:0], `SR_IDX_LR[1:0], 12'sd0);
-                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR[1:0], `SR_IDX_PC[1:0]);
+                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP, 14'd2);
+                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd0);
+                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR, `SR_IDX_PC);
                             w_seq_list[3] = pack_bccsr(iw_instr[15:12], 4'b0000);
                             r_instr       = w_seq_list[0];
                         end
                         `SUBOP_BSRso: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd4;
-                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP[1:0], 14'd2);
-                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP[1:0], `SR_IDX_LR[1:0], 12'sd0);
-                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR[1:0], `SR_IDX_PC[1:0]);
+                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP, 14'd2);
+                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd0);
+                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR, `SR_IDX_PC);
                             w_seq_list[3] = pack_balso(iw_instr[15:0]);
                             r_instr       = w_seq_list[0];
                         end
                         `SUBOP_RET: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd3;
-                            w_seq_list[0] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_SSP[1:0], 14'd2);
-                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_LR[1:0], `SR_IDX_SSP[1:0], 12'sd-2);
-                            w_seq_list[2] = pack_sr_cc_imm10(`OPC_SRJCCso, `SR_IDX_LR[1:0], 4'b0000, 10'sd1);
+                            w_seq_list[0] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_SSP, 14'd2);
+                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_LR, `SR_IDX_SSP, -12'sd2);
+                            w_seq_list[2] = pack_sr_cc_imm10(`OPC_SRJCCso, `SR_IDX_LR, 4'b0000, 10'sd1);
                             r_instr       = w_seq_list[0];
                         end
                         default: begin
@@ -299,14 +299,14 @@ module stg_xt(
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd2;
                             w_seq_list[0] = pack_addasi(iw_instr[11:10], 12'sd1);
-                            w_seq_list[1] = pack_ldso(iw_instr[15:12], iw_instr[11:10], 10'sd-1);
+                            w_seq_list[1] = pack_ldso(iw_instr[15:12], iw_instr[11:10], -10'sd1);
                             r_instr       = w_seq_list[0];
                         end
                         `SUBOP_POPAur: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 3'd2;
                             w_seq_list[0] = pack_addasi(iw_instr[13:12], 12'sd2);
-                            w_seq_list[1] = pack_lda_so(iw_instr[15:14], iw_instr[13:12], 12'sd-2);
+                            w_seq_list[1] = pack_lda_so(iw_instr[15:14], iw_instr[13:12], -12'sd2);
                             r_instr       = w_seq_list[0];
                         end
                         default: begin
@@ -316,7 +316,7 @@ module stg_xt(
                 end
                 `OPCLASS_A: begin
                     if (w_subop == `SUBOP_SETSSP) begin
-                        r_instr = { `OPC_SRMOVAur, `SR_IDX_SSP[1:0], iw_instr[15:14], 12'b0 };
+                        r_instr = { `OPC_SRMOVAur, `SR_IDX_SSP, iw_instr[15:14], 12'b0 };
                     end else begin
                         r_instr = iw_instr;
                     end
