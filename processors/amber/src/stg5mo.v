@@ -22,10 +22,15 @@ module stg_mo(
     input wire                   iw_tgt_ar_we,
     output wire [`HBIT_TGT_AR:0] ow_tgt_ar,
     output wire                  ow_tgt_ar_we,
-    // iw_mem_mp selects which memory port MO uses for 24-bit ops in this
-    // cycle. MA sets the address on the opposite port in the previous cycle.
-    // For 48-bit ops, MO uses both ports at once while MA has provided
-    // base and base+1 addresses.
+    // iw_mem_mp selects which memory port MO uses in this cycle.
+    // MA set the address on the opposite port in the previous cycle, so the
+    // two ports exist to let MA and MO alternate each cycle.
+    //
+    // 48-bit ops do NOT use both ports simultaneously. MO still accesses a
+    // single port selected by iw_mem_mp, using the full 48-bit per-port
+    // buses: `ow_mem_wdata[*]` for stores and `iw_mem_rdata[*]` for loads.
+    // The memory (`mem.v`) packs/unpacks adjacent 24-bit words internally
+    // when `ow_mem_is48[*]` is asserted for that selected port.
     input wire                   iw_mem_mp,
     output reg                   ow_mem_we [0:1],
     output reg  [`HBIT_ADDR:0]   ow_mem_wdata [0:1],  // 48-bit write bus per port
