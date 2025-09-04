@@ -742,6 +742,21 @@ SETSSP      ARs                ; SSP = ARs;
     µops
         SRMOVAur     ARs, SSP
 
+SWI        #imm12             ; software interrupt to absolute handler
+    isa                swi #imm12
+    ; Semantics:
+    ;   LR := PC + 1 (return address)
+    ;   PC := {UIMM2[47:36], UIMM1[35:24], UIMM0[23:12], imm12[11:0]}
+    ; Notes:
+    ;   - The three upper immediate banks are loaded via prior LUIui #2/#1/#0 instructions.
+    ;   - imm12 provides the low 12 bits of the absolute handler address.
+    ;   - On a taken SWI, the branch flushes earlier in-flight instructions as usual.
+    [23-20] opclass            ; 1010
+    [19-16] subop              ; 0010
+    [15-12] RESERVED
+    [11- 0] imm12
+    {}
+
 ; opclass 1011 MMU / TLB & Cache management
 
 ; opclass 1100 Atomics & SMP

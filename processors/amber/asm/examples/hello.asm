@@ -40,3 +40,13 @@ next:
     ; Move with H/L halves
     MOVAur DR1, AR0, L
     MOVDur AR2, DR3, H
+
+    ; CSR access (24-bit CSR file with 8-bit index)
+    CSRRD #0x04, DR0      ; read CYCLE_L into DR0
+    CSRWR DR0, #0x04      ; write it back (no-op demonstration)
+
+    ; Software interrupt to absolute handler using macro
+    SWIui handler
+
+handler:
+    ; On entry LR holds return address; fall-through here for demo

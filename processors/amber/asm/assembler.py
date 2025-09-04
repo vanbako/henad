@@ -145,7 +145,7 @@ class Assembler:
 
             # Instruction
             mnem, ops = self._parse_instruction(line)
-            if mnem in ("JCCUI", "JSRUI"):
+            if mnem in ("JCCUI", "JSRUI", "SWIUI"):
                 # Macro placeholder; expands to 4 instructions in pass2
                 self._ir.append(IRMacro(pc, mnem, ops, raw, lineno))
                 pc += 4
@@ -209,6 +209,24 @@ class Assembler:
                         w = lui.encode([str(x), f"#{imm12}"], resolve_expr=self._resolve_expr, pc=item.addr)
                         words.append(w & 0xFFFFFF)
                     w = jsrui.encode([f"#{imm48 & 0xFFF}"], resolve_expr=self._resolve_expr, pc=item.addr)
+                    words.append(w & 0xFFFFFF)
+                elif item.kind == "SWIUI":
+                    if len(item.operands) != 1:
+                        raise AsmError(f"SWIui requires 1 operand at line {item.lineno}")
+                    (expr_tok,) = item.operands
+                    imm48 = self._resolve_expr(expr_tok, width=48, is_signed=False, pc=item.addr, pc_relative=False)
+                    parts = [
+                        (2, (imm48 >> 36) & 0xFFF),
+                        (1, (imm48 >> 24) & 0xFFF),
+                        (0, (imm48 >> 12) & 0xFFF),
+                    ]
+                    lui = get_spec("LUIUI"); swi = get_spec("SWI")
+                    if not lui or not swi:
+                        raise AsmError("Missing spec for LUIui/SWI")
+                    for x, imm12 in parts:
+                        w = lui.encode([str(x), f"#{imm12}"], resolve_expr=self._resolve_expr, pc=item.addr)
+                        words.append(w & 0xFFFFFF)
+                    w = swi.encode([f"#{imm48 & 0xFFF}"], resolve_expr=self._resolve_expr, pc=item.addr)
                     words.append(w & 0xFFFFFF)
                 else:
                     raise AsmError(f"Unknown macro '{item.kind}' at line {item.lineno}")
