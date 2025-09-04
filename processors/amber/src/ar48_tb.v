@@ -7,17 +7,19 @@ module ar48_tb;
     reg clk;
     reg rst;
 
-    // Data memory
+    // Data memory (24-bit storage, 24/48-bit access via 48-bit buses)
     wire                w_dmem_we    [0:1];
     wire [`HBIT_ADDR:0] w_dmem_addr  [0:1];
-    wire [`HBIT_DATA:0] w_dmem_wdata [0:1];
-    wire [`HBIT_DATA:0] w_dmem_rdata [0:1];
+    wire [`HBIT_ADDR:0] w_dmem_wdata [0:1];
+    wire                w_dmem_is48  [0:1];
+    wire [`HBIT_ADDR:0] w_dmem_rdata [0:1];
 
     mem #(.READ_MEM(0)) u_dmem(
         .iw_clk  (clk),
         .iw_we   (w_dmem_we),
         .iw_addr (w_dmem_addr),
         .iw_wdata(w_dmem_wdata),
+        .iw_is48 (w_dmem_is48),
         .or_rdata(w_dmem_rdata)
     );
 
@@ -98,6 +100,7 @@ module ar48_tb;
         .iw_mem_mp   (w_mem_mp),
         .ow_mem_we   (w_dmem_we),
         .ow_mem_wdata(w_dmem_wdata),
+        .ow_mem_is48 (w_dmem_is48),
         .iw_mem_rdata(w_dmem_rdata),
         .iw_result   (r_result),
         .ow_result   (w_mowb_result),
@@ -150,4 +153,3 @@ module ar48_tb;
         $finish;
     end
 endmodule
-

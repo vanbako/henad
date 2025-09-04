@@ -134,7 +134,8 @@ module stg_xt(
         input [1:0]         tgt_ar;
         input [11:0]        imm12;
         begin
-            pack_addasi = { `OPC_ADDAsi, tgt_ar, imm12 };
+            // OPCLASS_6 immediate encoding: [23:16]=OPC, [15:14]=ARt, [13:12]=resv0, [11:0]=imm12
+            pack_addasi = { `OPC_ADDAsi, tgt_ar, 2'b00, imm12 };
         end
     endfunction
 
@@ -142,7 +143,8 @@ module stg_xt(
         input [1:0]         tgt_ar;
         input [11:0]        imm12;
         begin
-            pack_subasi = { `OPC_SUBAsi, tgt_ar, imm12 };
+            // OPCLASS_6 immediate encoding: [23:16]=OPC, [15:14]=ARt, [13:12]=resv0, [11:0]=imm12
+            pack_subasi = { `OPC_SUBAsi, tgt_ar, 2'b00, imm12 };
         end
     endfunction
 
