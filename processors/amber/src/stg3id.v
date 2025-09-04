@@ -1,5 +1,6 @@
 `include "src/sizes.vh"
 `include "src/opcodes.vh"
+`include "src/sr.vh"
 
 module stg_id(
     input wire                    iw_clk,
@@ -50,7 +51,7 @@ module stg_id(
         (w_opclass == `OPCLASS_1) || (w_opclass == `OPCLASS_3) || (w_opclass == `OPCLASS_5) ||
         (w_opc == `OPC_ADDAsi)    || (w_opc == `OPC_SUBAsi)    || (w_opc == `OPC_LEAso)     ||
         (w_opc == `OPC_ADRAso)    || (w_opc == `OPC_STui)      || (w_opc == `OPC_STsi)      ||
-        (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
+        (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     || (w_opc == `OPC_SWI) ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
         (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso)    ||
         (w_opc == `OPC_ROLui)     || (w_opc == `OPC_RORui);
@@ -76,7 +77,9 @@ module stg_id(
         (w_opc == `OPC_MOVsi)     || (w_opc == `OPC_ADDsi)     || (w_opc == `OPC_SUBsi)   ||
         (w_opc == `OPC_SHRsi)     || (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi)   ||
         // AR->DR move writes DRt
-        (w_opc == `OPC_MOVDur);
+        (w_opc == `OPC_MOVDur)    ||
+        // CSR read writes DRt
+        (w_opc == `OPC_CSRRD);
 
     // Has GP target field present (even if not writing, e.g. CMP or branch with DRt)
     wire w_has_tgt_gp =
@@ -85,12 +88,16 @@ module stg_id(
         (w_opc == `OPC_TSTur)     || (w_opc == `OPC_TSTsr)    ||
         (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi)    ||
         // BCCsr uses DRt as the signed PC-relative offset
-        (w_opc == `OPC_BCCsr);
+        (w_opc == `OPC_BCCsr)     ||
+        // CSR read has DRt field
+        (w_opc == `OPC_CSRRD);
 
     // SR target write enable
     wire w_tgt_sr_we =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRADDsi)   ||
-        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur);
+        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur) ||
+        // SWI saves return PC into LR
+        (w_opc == `OPC_SWI);
 
     wire w_has_tgt_sr =
         w_tgt_sr_we               || (w_opc == `OPC_SRSTso);
@@ -109,7 +116,9 @@ module stg_id(
         (w_opc == `OPC_MCCur)     ||
         // OPCLASS_6 AR-ALU that take DRs as source
         (w_opc == `OPC_MOVAur)    || (w_opc == `OPC_ADDAur)    || (w_opc == `OPC_SUBAur)  ||
-        (w_opc == `OPC_ADDAsr)    || (w_opc == `OPC_SUBAsr);
+        (w_opc == `OPC_ADDAsr)    || (w_opc == `OPC_SUBAsr)    ||
+        // CSR write takes DRs as source
+        (w_opc == `OPC_CSRWR);
 
     // Has SR source
     wire w_has_src_sr =
@@ -191,7 +200,19 @@ module stg_id(
         end
     end
     wire [`HBIT_SRC_GP:0] w_src_gp = r_src_gp_sel;
-    wire [`HBIT_TGT_SR:0] w_tgt_sr = w_has_tgt_sr ? iw_instr[15:14] : `SIZE_TGT_SR'b0;
+    // Target SR: for most ops it comes from [15:14], but SWI targets LR explicitly
+    reg  [`HBIT_TGT_SR:0] r_tgt_sr_sel;
+    always @* begin
+        if (w_has_tgt_sr) begin
+            if (w_opc == `OPC_SWI)
+                r_tgt_sr_sel = `SR_IDX_LR;
+            else
+                r_tgt_sr_sel = iw_instr[15:14];
+        end else begin
+            r_tgt_sr_sel = `SIZE_TGT_SR'b0;
+        end
+    end
+    wire [`HBIT_TGT_SR:0] w_tgt_sr = r_tgt_sr_sel;
     wire [`HBIT_SRC_SR:0] w_src_sr = w_has_src_sr ? (w_uses_flags ? 2'b10 : iw_instr[13:12]) : `SIZE_SRC_SR'b0;
 
     // Address register fields (normalized per op)

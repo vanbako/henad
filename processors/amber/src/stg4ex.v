@@ -130,6 +130,14 @@ module stg_ex(
             endcase
         end
         case (iw_opc)
+            `OPC_SWI: begin
+                // Software interrupt: save return PC into LR, branch to absolute handler
+                // Save LR = PC + 1 (next instruction address)
+                r_sr_result = iw_pc + `SIZE_ADDR'd1;
+                r_branch_taken = 1'b1;
+                // Absolute branch target assembled from uimm banks + imm12
+                r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
+            end
             `OPC_LUIui: begin
                 // r_ui_latch updated in sequential block
             end
@@ -187,6 +195,12 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
                 r_flags_we = 1'b1;
             end
+            // CSR read: r_result already muxed via amber to contain CSR value (in iw_src_sr_val[23:0])
+            `OPC_CSRRD: begin
+                r_result = iw_src_sr_val[23:0];
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_flags_we = 1'b1;
+            end
             `OPC_MOVAur: begin
                 // Write DRs half into ARt
                 r_tgt_ar_we = 1'b1;
@@ -194,6 +208,10 @@ module stg_ex(
                     r_ar_result = {iw_src_gp_val, iw_tgt_ar_val[23:0]};
                 else // L=0
                     r_ar_result = {iw_tgt_ar_val[`HBIT_ADDR:`HBIT_ADDR-23], iw_src_gp_val};
+            end
+            // CSR write: pass DRs value along result path for WB to write into CSR file
+            `OPC_CSRWR: begin
+                r_result = iw_src_gp_val;
             end
             `OPC_ADDur: begin
                 r_result = iw_src_gp_val + iw_tgt_gp_val;

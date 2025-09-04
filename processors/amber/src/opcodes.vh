@@ -197,6 +197,11 @@
 `define OPC_POPAur  {`OPCLASS_8, `SUBOP_POPAur}
 
 // OPCLASS_9
+`define SUBOP_CSRRD 4'b0000 // isa
+`define SUBOP_CSRWR 4'b0001 // isa
+
+`define OPC_CSRRD {`OPCLASS_9, `SUBOP_CSRRD}
+`define OPC_CSRWR {`OPCLASS_9, `SUBOP_CSRWR}
 
 // OPCLASS_A
 
@@ -205,6 +210,8 @@
 
 `define OPC_SRHLT  {`OPCLASS_A, `SUBOP_SRHLT}
 `define OPC_SETSSP {`OPCLASS_A, `SUBOP_SETSSP}
+`define SUBOP_SWI    4'b0010 // isa (software interrupt)
+`define OPC_SWI    {`OPCLASS_A, `SUBOP_SWI}
 
 // OPCLASS_B
 
@@ -320,9 +327,12 @@ function automatic [79:0] opc2str;
             `OPC_POPur:   opc2str = "POPur";
             `OPC_POPAur:  opc2str = "POPAur";
 // OPCLASS_9
+            `OPC_CSRRD:   opc2str = "CSRRD";
+            `OPC_CSRWR:   opc2str = "CSRWR";
 // OPCLASS_A
             `OPC_SRHLT:   opc2str = "SRHLT";
             `OPC_SETSSP:  opc2str = "SETSSP";
+            `OPC_SWI:     opc2str = "SWI";
 // OPCLASS_B
 // OPCLASS_C
 // OPCLASS_D

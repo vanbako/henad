@@ -397,10 +397,24 @@ SPECS.update({
     ),
 })
 
+# OPCLASS 9: CSR access (read/write 24-bit CSR by 8-bit index)
+SPECS.update({
+    # Read CSR[index] -> DRt
+    "CSRRD": InstructionSpec(
+        "CSRRD", 0x9, 0x0, ["IMM8", "DRt"], {"DRt": (15, 12), "IMM8": (7, 0)}
+    ),
+    # Write DRs -> CSR[index]
+    "CSRWR": InstructionSpec(
+        "CSRWR", 0x9, 0x1, ["DRs", "IMM8"], {"DRs": (13, 10), "IMM8": (7, 0)}
+    ),
+})
+
 # OPCLASS A: privileged
 SPECS.update({
     "SRHLT": InstructionSpec("SRHLT", 0xA, 0x0, [], {}),
     "SETSSP": InstructionSpec("SETSSP", 0xA, 0x1, ["ARs"], {"ARs": (15, 14)}),
+    # Software interrupt: jumps to absolute handler address formed via LUIui banks + IMM12
+    "SWI": InstructionSpec("SWI", 0xA, 0x2, ["IMM12"], {"IMM12": (11, 0)}),
 })
 
 # OPCLASS F: SR ops

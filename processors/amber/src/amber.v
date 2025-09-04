@@ -1,5 +1,6 @@
 `include "src/sizes.vh"
 `include "src/sr.vh"
+`include "src/opcodes.vh"
 
 module amber(
     input wire iw_clk,
@@ -278,6 +279,38 @@ module amber(
     assign w_sr_read_addr1 = w_src_sr;
     assign w_sr_read_addr2 = w_tgt_sr;
 
+    // CSR file plumbing
+    wire [`HBIT_TGT_CSR:0] w_csr_read_addr1;
+    wire [`HBIT_TGT_CSR:0] w_csr_read_addr2;
+    wire [`HBIT_TGT_CSR:0] w_csr_write_addr;
+    wire [`HBIT_DATA:0]    w_csr_write_data;
+    wire                   w_csr_write_enable;
+    wire [`HBIT_DATA:0]    w_csr_read_data1;
+    wire [`HBIT_DATA:0]    w_csr_read_data2;
+
+    regcsr u_regcsr(
+        .iw_clk         (iw_clk),
+        .iw_rst         (iw_rst),
+        .iw_read_addr1  (w_csr_read_addr1),
+        .iw_read_addr2  (w_csr_read_addr2),
+        .iw_write_addr  (w_csr_write_addr),
+        .iw_write_data  (w_csr_write_data),
+        .iw_write_enable(w_csr_write_enable),
+        .ow_read_data1  (w_csr_read_data1),
+        .ow_read_data2  (w_csr_read_data2)
+    );
+
+    // Drive CSR read addr from current EX instruction when CSRRD
+    assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[7:0] : {(`HBIT_TGT_CSR+1){1'b0}};
+    assign w_csr_read_addr2 = {(`HBIT_TGT_CSR+1){1'b0}};
+    // Mux SR source value: for CSRRD feed CSR read data zero-extended
+    wire [`HBIT_ADDR:0] w_src_sr_val_mux = (w_opc == `OPC_CSRRD) ? { {(`SIZE_ADDR-`SIZE_DATA){1'b0}}, w_csr_read_data1 } : w_src_sr_val;
+
+    // CSR write driven in WB when CSRWR retires
+    assign w_csr_write_enable = (w_wb_opc == `OPC_CSRWR);
+    assign w_csr_write_addr   = w_wb_instr[7:0];
+    assign w_csr_write_data   = w_wb_result;
+
     forward u_forward(
         .iw_tgt_gp        (w_tgt_gp),
         .iw_tgt_gp_we     (w_tgt_gp_we),
@@ -377,7 +410,7 @@ module amber(
         .iw_tgt_gp_val    (w_tgt_gp_val),
         .iw_src_ar_val    (w_src_ar_val),
         .iw_tgt_ar_val    (w_tgt_ar_val),
-        .iw_src_sr_val    (w_src_sr_val),
+        .iw_src_sr_val    (w_src_sr_val_mux),
         .iw_tgt_sr_val    (w_tgt_sr_val),
         .iw_flush         (w_branch_taken),
         .iw_stall         (w_stall)
