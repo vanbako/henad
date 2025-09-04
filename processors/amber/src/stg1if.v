@@ -3,7 +3,8 @@
 module stg_if(
     input wire                 iw_clk,
     input wire                 iw_rst,
-    input wire  [`HBIT_DATA:0] iw_mem_data [0:1],
+    // Memory returns a 48-bit bus per port; instructions are 24-bit, so use low 24 bits.
+    input wire  [`HBIT_ADDR:0] iw_mem_data [0:1],
     input wire                 iw_ia_valid,
     input wire  [`HBIT_ADDR:0] iw_pc,
     output wire [`HBIT_ADDR:0] ow_pc,
@@ -22,7 +23,7 @@ module stg_if(
             r_instr_latch <= r_instr_latch;
         end else if (iw_ia_valid) begin
             r_pc_latch    <= iw_pc;
-            r_instr_latch <= iw_mem_data[0];
+            r_instr_latch <= iw_mem_data[0][23:0];
         end else begin
             r_pc_latch    <= `SIZE_ADDR'b0;
             r_instr_latch <= `SIZE_DATA'b0;

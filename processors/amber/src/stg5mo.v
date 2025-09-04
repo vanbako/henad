@@ -22,10 +22,15 @@ module stg_mo(
     input wire                   iw_tgt_ar_we,
     output wire [`HBIT_TGT_AR:0] ow_tgt_ar,
     output wire                  ow_tgt_ar_we,
+    // iw_mem_mp selects which memory port MO uses for 24-bit ops in this
+    // cycle. MA sets the address on the opposite port in the previous cycle.
+    // For 48-bit ops, MO uses both ports at once while MA has provided
+    // base and base+1 addresses.
     input wire                   iw_mem_mp,
     output reg                   ow_mem_we [0:1],
-    output reg  [`HBIT_DATA:0]   ow_mem_wdata [0:1],
-    input wire  [`HBIT_DATA:0]   iw_mem_rdata [0:1],
+    output reg  [`HBIT_ADDR:0]   ow_mem_wdata [0:1],  // 48-bit write bus per port
+    output reg                   ow_mem_is48 [0:1],   // per-port access width: 1=48b
+    input wire  [`HBIT_ADDR:0]   iw_mem_rdata [0:1],  // 48-bit read bus per port
     input wire  [`HBIT_DATA:0]   iw_result,
     output wire [`HBIT_DATA:0]   ow_result,
     input wire  [`HBIT_ADDR:0]   iw_sr_result,
@@ -39,41 +44,52 @@ module stg_mo(
     always @(*) begin
         ow_mem_we[0] = 1'b0;
         ow_mem_we[1] = 1'b0;
-        ow_mem_wdata[0] = `SIZE_DATA'b0;
-        ow_mem_wdata[1] = `SIZE_DATA'b0;
+        ow_mem_wdata[0] = {`SIZE_ADDR{1'b0}};
+        ow_mem_wdata[1] = {`SIZE_ADDR{1'b0}};
+        ow_mem_is48[0] = 1'b0;
+        ow_mem_is48[1] = 1'b0;
         r_result = iw_result;
         r_sr_result_next = iw_sr_result;
         r_ar_result_next = iw_ar_result;
         case (iw_opc)
             `OPC_LDur, `OPC_LDso: begin
-                r_result = iw_mem_rdata[iw_mem_mp];
+                // 24-bit load from the selected port (low 24 bits)
+                r_result = iw_mem_rdata[iw_mem_mp][23:0];
             end
             `OPC_SRLDso: begin
-                // 48-bit little-endian load: {hi, lo} from {addr+1, addr}
-                r_sr_result_next = {iw_mem_rdata[1], iw_mem_rdata[0]};
+                // 48-bit little-endian load from the selected port
+                // Enable 48-bit read packing on both ports to tolerate the
+                // MA/MO port alternation.
+                ow_mem_is48[0] = 1'b1;
+                ow_mem_is48[1] = 1'b1;
+                r_sr_result_next = iw_mem_rdata[iw_mem_mp];
                 r_result = r_sr_result_next[23:0];
             end
             `OPC_LDAso: begin
-                // 48-bit little-endian load into AR: {hi, lo} from {addr+1, addr}
-                r_ar_result_next = {iw_mem_rdata[1], iw_mem_rdata[0]};
+                // 48-bit little-endian load into AR from the selected port
+                ow_mem_is48[0] = 1'b1;
+                ow_mem_is48[1] = 1'b1;
+                r_ar_result_next = iw_mem_rdata[iw_mem_mp];
             end
             `OPC_STur, `OPC_STso, `OPC_STui, `OPC_STsi: begin
+                // 24-bit store to the selected port for this cycle
                 ow_mem_we[iw_mem_mp] = 1'b1;
-                ow_mem_wdata[iw_mem_mp] = iw_result;
+                ow_mem_wdata[iw_mem_mp] = {24'b0, iw_result};
+                ow_mem_is48[iw_mem_mp] = 1'b0;
             end
             `OPC_SRSTso: begin
-                // 48-bit little-endian store: lo to addr, hi to addr+1
-                ow_mem_we[0] = 1'b1;
-                ow_mem_we[1] = 1'b1;
-                ow_mem_wdata[0] = iw_sr_result[23:0];
-                ow_mem_wdata[1] = iw_sr_result[47:24];
+                // 48-bit little-endian store on the selected port
+                // Use latched SR value (from previous cycle) to align with MA
+                ow_mem_we[iw_mem_mp] = 1'b1;
+                ow_mem_wdata[iw_mem_mp] = r_sr_result_latch;
+                ow_mem_is48[iw_mem_mp] = 1'b1;
             end
             `OPC_STAso: begin
-                // 48-bit little-endian store of ARs: lo to addr, hi to addr+1
-                ow_mem_we[0] = 1'b1;
-                ow_mem_we[1] = 1'b1;
-                ow_mem_wdata[0] = iw_ar_result[23:0];
-                ow_mem_wdata[1] = iw_ar_result[47:24];
+                // 48-bit little-endian store of ARs on the selected port
+                // Use latched AR value (from previous cycle)
+                ow_mem_we[iw_mem_mp] = 1'b1;
+                ow_mem_wdata[iw_mem_mp] = r_ar_result_latch;
+                ow_mem_is48[iw_mem_mp] = 1'b1;
             end
         endcase
     end

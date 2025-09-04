@@ -7,27 +7,39 @@ module amber(
 );
     wire                w_imem_we    [0:1];
     wire [`HBIT_ADDR:0] w_imem_addr  [0:1];
-    wire [`HBIT_DATA:0] w_imem_wdata [0:1];
-    wire [`HBIT_DATA:0] w_imem_rdata [0:1];
+    wire [`HBIT_ADDR:0] w_imem_wdata [0:1]; // unused for I-mem
+    wire                w_imem_is48  [0:1];
+    wire [`HBIT_ADDR:0] w_imem_rdata [0:1];
 
     mem #(.READ_MEM(1)) u_imem(
         .iw_clk  (iw_clk),
         .iw_we   (w_imem_we),
         .iw_addr (w_imem_addr),
         .iw_wdata(w_imem_wdata),
+        .iw_is48 (w_imem_is48),
         .or_rdata(w_imem_rdata)
     );
 
+    // Instruction memory is read-only 24-bit; tie controls to zero
+    assign w_imem_we[0]    = 1'b0;
+    assign w_imem_we[1]    = 1'b0;
+    assign w_imem_wdata[0] = {(`HBIT_ADDR+1){1'b0}};
+    assign w_imem_wdata[1] = {(`HBIT_ADDR+1){1'b0}};
+    assign w_imem_is48[0]  = 1'b0;
+    assign w_imem_is48[1]  = 1'b0;
+
     wire                w_dmem_we    [0:1];
     wire [`HBIT_ADDR:0] w_dmem_addr  [0:1];
-    wire [`HBIT_DATA:0] w_dmem_wdata [0:1];
-    wire [`HBIT_DATA:0] w_dmem_rdata [0:1];
+    wire [`HBIT_ADDR:0] w_dmem_wdata [0:1];
+    wire                w_dmem_is48  [0:1];
+    wire [`HBIT_ADDR:0] w_dmem_rdata [0:1];
 
     mem #(.READ_MEM(0)) u_dmem(
         .iw_clk  (iw_clk),
         .iw_we   (w_dmem_we),
         .iw_addr (w_dmem_addr),
         .iw_wdata(w_dmem_wdata),
+        .iw_is48 (w_dmem_is48),
         .or_rdata(w_dmem_rdata)
     );
 
@@ -429,6 +441,7 @@ module amber(
         .iw_mem_mp   (w_mem_mp),
         .ow_mem_we   (w_dmem_we),
         .ow_mem_wdata(w_dmem_wdata),
+        .ow_mem_is48 (w_dmem_is48),
         .iw_mem_rdata(w_dmem_rdata),
         .iw_result   (w_mamo_result),
         .ow_result   (w_mowb_result),
