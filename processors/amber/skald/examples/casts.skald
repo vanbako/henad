@@ -1,0 +1,7 @@
+﻿fn add(a: s24, b: u24) -> s24 out DR0 {
+    // Force unsigned add by casting result context later
+    let x: s24 = cast_s24(a) + cast_s24(b);
+    // Comparison mixed signedness
+    let y: u24 = (cast_u24(a) < b) + (a > cast_s24(b));
+    return x + cast_s24(y);
+}

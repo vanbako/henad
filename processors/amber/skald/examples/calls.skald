@@ -1,0 +1,13 @@
+﻿// Function call demo
+fn add(a: u24 in DR1, b: u24 in DR2) -> u24 out DR0 {
+    let s: u24 = a + b;
+    return s;
+}
+
+fn main() -> u24 out DR0 {
+    let x: u24 = 5;
+    let y: u24 = 7;
+    let z: u24 = add(x, y);
+    add(x, y); // call as statement
+    return z;
+}

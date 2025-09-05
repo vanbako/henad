@@ -58,6 +58,18 @@ class Assign(Stmt):
     op: str = "="  # '=', '+=', '-=', '&=', '|=', '^=', '<<=', '>>='
 
 
+@dataclass
+class ExprStmt(Stmt):
+    expr: "Expr"
+
+
+@dataclass
+class If(Stmt):
+    cond: "Expr"
+    then_body: List["Stmt"]
+    else_body: Optional[List["Stmt"]] = None
+
+
 # Expressions
 class Expr(Node):
     pass
@@ -75,7 +87,25 @@ class NameRef(Expr):
 
 
 @dataclass
+class Unary(Expr):
+    op: str
+    expr: Expr
+
+
+@dataclass
 class Binary(Expr):
     op: str
     lhs: Expr
     rhs: Expr
+
+
+@dataclass
+class Call(Expr):
+    callee: str
+    args: List[Expr]
+
+
+@dataclass
+class Cast(Expr):
+    target: Type
+    expr: Expr

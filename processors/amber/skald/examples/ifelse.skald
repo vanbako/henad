@@ -1,0 +1,9 @@
+﻿fn main() -> u24 out DR0 {
+    let a: u24 = 0;
+    if (1) {
+        a += 2;
+    } else {
+        a += 3;
+    }
+    return a;
+}

@@ -1,0 +1,6 @@
+﻿fn main() -> u24 out DR0 {
+    let a: u24 = 5;
+    let b: u24 = 7;
+    let x: u24 = (a < b) + (a == b) + (a >= b);
+    return x;
+}

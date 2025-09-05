@@ -1,9 +1,6 @@
     .org 0
-main:
+add:
     ; prologue (callee-saved)
-    ADRAso #__skald_stack_top, AR0
-    PUSHur DR1, AR0
-    PUSHur DR2, AR0
     PUSHur DR3, AR0
     PUSHur DR4, AR0
     PUSHur DR5, AR0
@@ -11,25 +8,25 @@ main:
     PUSHur DR7, AR0
     PUSHur DR8, AR0
     PUSHur DR9, AR0
-    PUSHur DR10, AR0
-    ; let x:u24 -> DR1
-    MOVui #1, DR2
-    MOVur DR2, DR3
-    MOVui #2, DR4
-    MOVur DR4, DR5
-    MOVui #3, DR6
+    ; param a:s24 in DR1
+    ; param b:u24 in DR2
+    ; let x:s24 -> DR3
+    MOVur DR1, DR4
+    ADDSR DR2, DR4
+    MOVur DR4, DR3
+    ; let y:u24 -> DR5
+    CMPUR DR2, DR1
+    MOVui #0, DR6
+    MCCsi BT, #1, DR6
     MOVur DR6, DR7
-    MOVui #4, DR8
+    CMPSR DR2, DR1
+    MOVui #0, DR8
+    MCCsi GT, #1, DR8
     ADDUR DR8, DR7
-    SUBUR DR7, DR5
-    SUBUR DR5, DR3
-    MOVur DR3, DR1
-    MOVur DR1, DR9
-    MOVui #1, DR10
-    ADDUR DR10, DR9
-    MOVur DR9, DR1
-    MOVur DR1, DR0
-    POPur AR0, DR10
+    MOVur DR7, DR5
+    MOVur DR3, DR9
+    ADDSR DR5, DR9
+    MOVur DR9, DR0
     POPur AR0, DR9
     POPur AR0, DR8
     POPur AR0, DR7
@@ -37,8 +34,6 @@ main:
     POPur AR0, DR5
     POPur AR0, DR4
     POPur AR0, DR3
-    POPur AR0, DR2
-    POPur AR0, DR1
     RET
     ; --- Skald demo stack region ---
 __skald_stack_area:

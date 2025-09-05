@@ -7,33 +7,20 @@ main:
     PUSHur DR3, AR0
     PUSHur DR4, AR0
     PUSHur DR5, AR0
-    PUSHur DR6, AR0
-    PUSHur DR7, AR0
-    PUSHur DR8, AR0
-    PUSHur DR9, AR0
-    PUSHur DR10, AR0
-    ; let x:u24 -> DR1
-    MOVui #1, DR2
-    MOVur DR2, DR3
+    ; let a:u24 -> DR1
+    MOVui #0, DR2
+    MOVur DR2, DR1
+    MOVui #1, DR3
+    TSTUR DR3
+    BCCso EQ, __sk_else_1
     MOVui #2, DR4
-    MOVur DR4, DR5
-    MOVui #3, DR6
-    MOVur DR6, DR7
-    MOVui #4, DR8
-    ADDUR DR8, DR7
-    SUBUR DR7, DR5
-    SUBUR DR5, DR3
-    MOVur DR3, DR1
-    MOVur DR1, DR9
-    MOVui #1, DR10
-    ADDUR DR10, DR9
-    MOVur DR9, DR1
+    ADDUR DR4, DR1
+    BALso __sk_endif_2
+__sk_else_1:
+    MOVui #3, DR5
+    ADDUR DR5, DR1
+__sk_endif_2:
     MOVur DR1, DR0
-    POPur AR0, DR10
-    POPur AR0, DR9
-    POPur AR0, DR8
-    POPur AR0, DR7
-    POPur AR0, DR6
     POPur AR0, DR5
     POPur AR0, DR4
     POPur AR0, DR3

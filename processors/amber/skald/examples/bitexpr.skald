@@ -1,0 +1,7 @@
+﻿fn main() -> u24 out DR0 {
+    let a: u24 = 1;
+    let b: u24 = 2;
+    let c: u24 = (a | b) ^ (a & b);
+    let d: u24 = (c << 3) >> 1;
+    return d;
+}

@@ -12,23 +12,35 @@ main:
     PUSHur DR8, AR0
     PUSHur DR9, AR0
     PUSHur DR10, AR0
-    ; let x:u24 -> DR1
+    PUSHur DR11, AR0
+    PUSHur DR12, AR0
+    PUSHur DR13, AR0
+    ; let a:u24 -> DR1
     MOVui #1, DR2
-    MOVur DR2, DR3
+    MOVur DR2, DR1
+    ; let b:u24 -> DR3
     MOVui #2, DR4
-    MOVur DR4, DR5
-    MOVui #3, DR6
+    MOVur DR4, DR3
+    ; let c:u24 -> DR5
+    MOVur DR1, DR6
+    ORUR DR3, DR6
     MOVur DR6, DR7
-    MOVui #4, DR8
-    ADDUR DR8, DR7
-    SUBUR DR7, DR5
-    SUBUR DR5, DR3
-    MOVur DR3, DR1
-    MOVur DR1, DR9
-    MOVui #1, DR10
-    ADDUR DR10, DR9
-    MOVur DR9, DR1
-    MOVur DR1, DR0
+    MOVur DR1, DR8
+    ANDUR DR3, DR8
+    XORUR DR8, DR7
+    MOVur DR7, DR5
+    ; let d:u24 -> DR9
+    MOVur DR5, DR10
+    MOVui #3, DR11
+    SHLUR DR11, DR10
+    MOVur DR10, DR12
+    MOVui #1, DR13
+    SHRUR DR13, DR12
+    MOVur DR12, DR9
+    MOVur DR9, DR0
+    POPur AR0, DR13
+    POPur AR0, DR12
+    POPur AR0, DR11
     POPur AR0, DR10
     POPur AR0, DR9
     POPur AR0, DR8

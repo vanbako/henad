@@ -1,0 +1,5 @@
+﻿fn main() -> s24 out DR0 {
+    let x: s24 = 0xFFFFFF; // -1 in 24-bit two's
+    let y: s24 = (x >> 4) | (x & 0xF);
+    return y;
+}

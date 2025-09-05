@@ -8,6 +8,8 @@ KEYWORDS = {
     "let",
     "fn",
     "return",
+    "if",
+    "else",
     "u24",
     "s24",
     "addr",
@@ -82,12 +84,39 @@ class Lexer:
             if self._match("->"):
                 toks.append(Token("ARROW", "->", start_line, start_col))
                 continue
+            # equality/relational compound tokens (longest first)
+            if self._match("=="):
+                toks.append(Token("EQEQ", "==", start_line, start_col))
+                continue
+            if self._match("!="):
+                toks.append(Token("NEQ", "!=", start_line, start_col))
+                continue
+            if self._match("<="):
+                toks.append(Token("LTE", "<=", start_line, start_col))
+                continue
+            if self._match(">="):
+                toks.append(Token("GTE", ">=", start_line, start_col))
+                continue
+            # rotate compound (must come before shift compound)
+            if self._match("<<<="):
+                toks.append(Token("ROLEQ", "<<<=", start_line, start_col))
+                continue
+            if self._match(">>>="):
+                toks.append(Token("ROREQ", ">>>=", start_line, start_col))
+                continue
             # compound assignment (check longer tokens first)
             if self._match("<<="):
                 toks.append(Token("SHLEQ", "<<=", start_line, start_col))
                 continue
             if self._match(">>="):
                 toks.append(Token("SHREQ", ">>=", start_line, start_col))
+                continue
+            # non-compound shift operators
+            if self._match("<<"):
+                toks.append(Token("SHL", "<<", start_line, start_col))
+                continue
+            if self._match(">>"):
+                toks.append(Token("SHR", ">>", start_line, start_col))
                 continue
             if self._match("+="):
                 toks.append(Token("PLUSEQ", "+=", start_line, start_col))
@@ -113,6 +142,7 @@ class Lexer:
                 ",": "COMMA",
                 ";": "SEMI",
                 "=": "EQ",
+                "!": "BANG",
                 "+": "PLUS",
                 "-": "MINUS",
                 "*": "STAR",

@@ -1,0 +1,16 @@
+﻿// Rotate, unary ~, and addr +=/-=
+fn main() -> u24 out DR0 {
+    let x: u24 = 1;
+    let y: u24 = 3;
+    let s: s24 = 2;
+    let A: addr = 0;
+
+    x <<<= y;   // rotate-left by 3
+    x >>>= 1;   // rotate-right by 1
+    x = ~x;     // bitwise not
+
+    A += y;     // add u24 to addr
+    A -= s;     // subtract s24 from addr
+
+    return x;
+}
