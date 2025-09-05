@@ -289,6 +289,16 @@ module amber(
     wire [`HBIT_DATA:0]    w_csr_read_data1;
     wire [`HBIT_DATA:0]    w_csr_read_data2;
 
+    // Wires for async CSR write port (e.g., math unit)
+    wire                   w_csr_w2_en;
+    wire [`HBIT_TGT_CSR:0] w_csr_w2_addr;
+    wire [`HBIT_DATA:0]    w_csr_w2_data;
+    // Taps for math engine CSRs
+    wire [`HBIT_DATA:0]    w_csr_math_ctrl;
+    wire [`HBIT_DATA:0]    w_csr_math_opa;
+    wire [`HBIT_DATA:0]    w_csr_math_opb;
+    wire [`HBIT_DATA:0]    w_csr_math_opc;
+
     regcsr u_regcsr(
         .iw_clk         (iw_clk),
         .iw_rst         (iw_rst),
@@ -297,8 +307,16 @@ module amber(
         .iw_write_addr  (w_csr_write_addr),
         .iw_write_data  (w_csr_write_data),
         .iw_write_enable(w_csr_write_enable),
+        // Aux write port from async engines
+        .iw_w2_enable   (w_csr_w2_en),
+        .iw_w2_addr     (w_csr_w2_addr),
+        .iw_w2_data     (w_csr_w2_data),
         .ow_read_data1  (w_csr_read_data1),
-        .ow_read_data2  (w_csr_read_data2)
+        .ow_read_data2  (w_csr_read_data2),
+        .ow_math_ctrl   (w_csr_math_ctrl),
+        .ow_math_opa    (w_csr_math_opa),
+        .ow_math_opb    (w_csr_math_opb),
+        .ow_math_opc    (w_csr_math_opc)
     );
 
     // Privilege mode: 1 = kernel, 0 = user
@@ -318,6 +336,19 @@ module amber(
     assign w_csr_write_enable = (w_wb_opc == `OPC_CSRWR);
     assign w_csr_write_addr   = w_wb_instr[7:0];
     assign w_csr_write_data   = w_wb_result;
+
+    // Async 24-bit math engine connected via CSR window
+    math24_async u_math24_async(
+        .iw_clk        (iw_clk),
+        .iw_rst        (iw_rst),
+        .iw_math_ctrl  (w_csr_math_ctrl),
+        .iw_math_opa   (w_csr_math_opa),
+        .iw_math_opb   (w_csr_math_opb),
+        .iw_math_opc   (w_csr_math_opc),
+        .ow_csr_wen    (w_csr_w2_en),
+        .ow_csr_waddr  (w_csr_w2_addr),
+        .ow_csr_wdata  (w_csr_w2_data)
+    );
 
     // Kernel/User mode state machine
     always @(posedge iw_clk or posedge iw_rst) begin
