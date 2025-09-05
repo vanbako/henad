@@ -101,6 +101,23 @@ Async Int24 Math macros
 - `MAX_S24 DRa, DRb, DRres, DRtmp`
 - `CLAMP_U24 DRa, DRmin, DRmax, DRres, DRtmp`
 - `CLAMP_S24 DRa, DRmin, DRmax, DRres, DRtmp`
+- `ADD24   DRa, DRb, DRres, DRtmp`
+- `SUB24   DRa, DRb, DRres, DRtmp`
+- `NEG24   DRa, DRres, DRtmp`
+- `ADD12   DRa, DRb, DRres, DRtmp` (lane-wise 12-bit)
+- `SUB12   DRa, DRb, DRres, DRtmp` (lane-wise 12-bit)
+- `NEG12   DRa, DRres, DRtmp`      (lane-wise 12-bit)
+ - `MUL12   DRa, DRb, DRres, DRtmp` (lane-wise 12-bit unsigned)
+ - `DIV12   DRa, DRb, DRq, DRr, DRtmp` (lane-wise 12-bit unsigned; RES0->q, RES1->r)
+ - `MOD12   DRa, DRb, DRr, DRtmp` (lane-wise 12-bit unsigned)
+ - `SQRT12  DRa, DRres, DRtmp` (lane-wise 12-bit unsigned)
+ - `ABS12   DRa, DRres, DRtmp` (lane-wise 12-bit signed)
+ - `MIN12_U DRa, DRb, DRres, DRtmp` (lane-wise 12-bit unsigned)
+ - `MAX12_U DRa, DRb, DRres, DRtmp` (lane-wise 12-bit unsigned)
+ - `MIN12_S DRa, DRb, DRres, DRtmp` (lane-wise 12-bit signed)
+ - `MAX12_S DRa, DRb, DRres, DRtmp` (lane-wise 12-bit signed)
+ - `CLAMP12_U DRa, DRmin, DRmax, DRres, DRtmp` (lane-wise 12-bit unsigned)
+ - `CLAMP12_S DRa, DRmin, DRmax, DRres, DRtmp` (lane-wise 12-bit signed)
 
 Semantics:
 - Macros issue CSR writes to `MATH_OP*`, kick the operation via `MATH_CTRL`, poll `MATH_STATUS` until `READY`, and read results (`RES0`, and `RES1` when applicable).
@@ -110,6 +127,21 @@ Semantics:
 Examples:
 - See `processors/amber/asm/examples/math_async.asm` for manual CSR usage.
 - See `processors/amber/asm/examples/math_macros.asm` for macro-based usage.
+
+Diad helpers (pack/unpack)
+- `PACK_DIAD DRhi, DRlo, DRdst, DRtmp`: build a 24-bit diad in `DRdst` from two 12-bit values in `DRhi` and `DRlo` (wraps each to 12 bits). Clobbers `DRtmp`.
+- `UNPACK_DIAD DRsrc, DRhi, DRlo`: split diad in `DRsrc` into `DRhi`=`[23:12]` and `DRlo`=`[11:0]`.
+- `DIAD_MOVUI DRdst, #hi12, #lo12`: materialize a diad from immediates: `DRdst = (hi12 << 12) | lo12`.
+
+Example diad usage:
+```
+    ; Build diad {hi=0x123, lo=0x045} into DR1
+    DIAD_MOVUI DR1, #0x123, #0x045
+    ; Unpack into DR2 (hi) and DR3 (lo)
+    UNPACK_DIAD DR1, DR2, DR3
+    ; Lane-wise add two diads: DR4 = DR1 + DR5
+    ADD12 DR1, DR5, DR4, DR0
+```
 
 Async Int24 Math usage
 - Write operands: `CSRWR DRa, MATH_OPA` and `CSRWR DRb, MATH_OPB` (and `CSRWR DRc, MATH_OPC` for clamp min).

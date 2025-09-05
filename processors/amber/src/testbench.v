@@ -23,7 +23,7 @@ module testbench;
     // MEM_HEX_FILE is provided). If MEM_HEX_FILE is defined at compile time
     // the instruction memory is preloaded via $readmemh in mem.v and this
     // block is disabled.
-`ifndef MEM_HEX_FILE
+`ifndef NO_ROM_INIT
     // 0: MOVsi #0, DR1         ; set Z=1
     // 1: JCCui EQ, #3          ; jump to 3 if Z==1
     // 2: MOVsi #1, DR2         ; should be skipped

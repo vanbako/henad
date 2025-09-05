@@ -12,13 +12,22 @@
 `define CSR_IDX_INSTRET_H 8'h07
 
 // Async 24-bit math engine CSRs
-// Control: [0] START, [4:1] OP
+// Control: [0] START, [5:1] OP
 // OP encodings:
-//   0x0 MULU, 0x1 DIVU, 0x2 MODU, 0x3 SQRTU,
-//   0x4 MULS, 0x5 DIVS, 0x6 MODS,
-//   0x7 ABS_S,
-//   0x8 MIN_U, 0x9 MAX_U, 0xA MIN_S, 0xB MAX_S,
-//   0xC CLAMP_U, 0xD CLAMP_S
+//   0x00 MULU, 0x01 DIVU, 0x02 MODU, 0x03 SQRTU,
+//   0x04 MULS, 0x05 DIVS, 0x06 MODS,
+//   0x07 ABS_S,
+//   0x08 MIN_U, 0x09 MAX_U, 0x0A MIN_S, 0x0B MAX_S,
+//   0x0C CLAMP_U, 0x0D CLAMP_S,
+//   0x0E ADD24, 0x0F SUB24, 0x10 NEG24,
+//   0x11 ADD12 (lane-wise), 0x12 SUB12 (lane-wise), 0x13 NEG12 (lane-wise)
+//   0x14 MUL12  (lane-wise, unsigned)
+//   0x15 DIV12  (lane-wise, unsigned) -> RES0:quot, RES1:rem
+//   0x16 MOD12  (lane-wise, unsigned) -> RES0:rem
+//   0x17 SQRT12 (lane-wise, unsigned)
+//   0x18 ABS12  (lane-wise, signed)
+//   0x19 MIN12_U, 0x1A MAX12_U, 0x1B MIN12_S, 0x1C MAX12_S
+//   0x1D CLAMP12_U, 0x1E CLAMP12_S (lane-wise; OPA clamped to [OPC(min), OPB(max)])
 // Status:  [0] READY, [1] BUSY, [2] DIV0, other bits reserved
 // Operands/Results are 24-bit wide
 `define CSR_IDX_MATH_CTRL   8'h10

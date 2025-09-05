@@ -156,15 +156,22 @@ class Assembler:
                 "ABS_S24",
                 "MIN_U24", "MAX_U24", "MIN_S24", "MAX_S24",
                 "CLAMP_U24", "CLAMP_S24",
+                # 24/12-bit add/sub/neg via async unit
+                "ADD24", "SUB24", "NEG24",
+                "ADD12", "SUB12", "NEG12",
+                # Packed 12-bit diad math
+                "MUL12", "DIV12", "MOD12", "SQRT12", "ABS12",
+                "MIN12_U", "MAX12_U", "MIN12_S", "MAX12_S",
+                "CLAMP12_U", "CLAMP12_S",
             ):
                 # Estimate expansion size to advance PC correctly
                 k = mnem
                 def need_b() -> bool:
-                    return k not in ("SQRTU24", "ABS_S24")
+                    return k not in ("SQRTU24", "ABS_S24", "NEG24", "NEG12", "SQRT12", "ABS12")
                 def need_c() -> bool:
-                    return k.startswith("CLAMP_")
+                    return k.startswith("CLAMP_") or k.startswith("CLAMP12_")
                 def res1_needed() -> bool:
-                    return k in ("MULU24", "MULS24", "DIVU24", "DIVS24")
+                    return k in ("MULU24", "MULS24", "DIVU24", "DIVS24", "DIV12")
                 base = 0
                 base += 1  # OPA write
                 if need_b():
@@ -177,6 +184,17 @@ class Assembler:
                 base += 1  # RES0 read
                 if res1_needed():
                     base += 1  # RES1 read
+                self._ir.append(IRMacro(pc, mnem, ops, raw, lineno))
+                pc += base
+            elif mnem in ("PACK_DIAD", "UNPACK_DIAD"):
+                # Fixed-size helper macros for 12-bit diads
+                k = mnem
+                base = 6 if k == "PACK_DIAD" else 5
+                self._ir.append(IRMacro(pc, mnem, ops, raw, lineno))
+                pc += base
+            elif mnem in ("DIAD_MOVUI",):
+                # Build diad from two immediates into DRdst
+                base = 3
                 self._ir.append(IRMacro(pc, mnem, ops, raw, lineno))
                 pc += base
             else:
@@ -192,7 +210,7 @@ class Assembler:
                     gap = item.addr - len(words) - self.origin
                     if gap > 0:
                         words.extend([0] * gap)
-                elif item.name == 'dw24':
+                elif item.name in ('dw24','diad'):
                     for a in item.args:
                         val = self._resolve_expr(a, width=24, is_signed=False, pc=len(words) + self.origin)
                         if val < 0 or val > 0xFFFFFF:
@@ -266,6 +284,15 @@ class Assembler:
                     "ABS_S24",
                     "MIN_U24", "MAX_U24", "MIN_S24", "MAX_S24",
                     "CLAMP_U24", "CLAMP_S24",
+                    # new math ops
+                    "ADD24", "SUB24", "NEG24",
+                    "ADD12", "SUB12", "NEG12",
+                    # packed 12-bit diad ops
+                    "MUL12", "DIV12", "MOD12", "SQRT12", "ABS12",
+                    "MIN12_U", "MAX12_U", "MIN12_S", "MAX12_S",
+                    "CLAMP12_U", "CLAMP12_S",
+                    # diad helpers
+                    "PACK_DIAD", "UNPACK_DIAD", "DIAD_MOVUI",
                 ):
                     # Expand async int24 math macro into CSR writes + poll + reads
                     k = item.kind
@@ -303,8 +330,27 @@ class Assembler:
                         "MAX_S24": "MATH_OP_MAX_S",
                         "CLAMP_U24": "MATH_OP_CLAMP_U",
                         "CLAMP_S24": "MATH_OP_CLAMP_S",
+                        # new
+                        "ADD24": "MATH_OP_ADD24",
+                        "SUB24": "MATH_OP_SUB24",
+                        "NEG24": "MATH_OP_NEG24",
+                        "ADD12": "MATH_OP_ADD12",
+                        "SUB12": "MATH_OP_SUB12",
+                        "NEG12": "MATH_OP_NEG12",
+                        # packed 12-bit diad
+                        "MUL12": "MATH_OP_MUL12",
+                        "DIV12": "MATH_OP_DIV12",
+                        "MOD12": "MATH_OP_MOD12",
+                        "SQRT12": "MATH_OP_SQRT12",
+                        "ABS12": "MATH_OP_ABS12",
+                        "MIN12_U": "MATH_OP_MIN12_U",
+                        "MAX12_U": "MATH_OP_MAX12_U",
+                        "MIN12_S": "MATH_OP_MIN12_S",
+                        "MAX12_S": "MATH_OP_MAX12_S",
+                        "CLAMP12_U": "MATH_OP_CLAMP12_U",
+                        "CLAMP12_S": "MATH_OP_CLAMP12_S",
                     }
-                    op_sym = OP_SYM[k]
+                    op_sym = OP_SYM.get(k)
 
                     # Expand per macro
                     if k in ("MULU24", "MULS24"):
@@ -389,6 +435,141 @@ class Assembler:
                         emit("ANDUI", ["#MATH_STATUS_READY", tmp])
                         emit("BCCSO", ["EQ", ".-2"])       # wait
                         emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("MUL12",):
+                        expect(4)
+                        a, b, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("DIV12",):
+                        expect(5)
+                        a, b, d_q, d_r, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_q])
+                        emit("CSRRD", ["#MATH_RES1", d_r])
+                    elif k in ("MOD12",):
+                        expect(4)
+                        a, b, d_r, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_r])
+                    elif k in ("SQRT12", "ABS12"):
+                        expect(3)
+                        a, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("MIN12_U", "MAX12_U", "MIN12_S", "MAX12_S"):
+                        expect(4)
+                        a, b, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("CLAMP12_U", "CLAMP12_S"):
+                        expect(5)
+                        a, d_min, d_max, d_res, tmp = ops
+                        emit("CSRWR", [a,     "#MATH_OPA"])  # OPA := a
+                        emit("CSRWR", [d_max, "#MATH_OPB"])  # OPB := max
+                        emit("CSRWR", [d_min, "#MATH_OPC"])  # OPC := min
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])   # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])       # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("ADD24", "SUB24"):
+                        expect(4)
+                        a, b, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k == "NEG24":
+                        expect(3)
+                        a, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("ADD12", "SUB12"):
+                        expect(4)
+                        a, b, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k == "NEG12":
+                        expect(3)
+                        a, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k == "PACK_DIAD":
+                        # PACK_DIAD DRhi, DRlo, DRdst, DRtmp
+                        expect(4)
+                        dr_hi, dr_lo, dr_dst, dr_tmp = ops
+                        emit("MOVUR", [dr_hi, dr_dst])
+                        emit("ANDUI", ["#0xFFF", dr_dst])
+                        emit("SHLUI", ["#12", dr_dst])
+                        emit("MOVUR", [dr_lo, dr_tmp])
+                        emit("ANDUI", ["#0xFFF", dr_tmp])
+                        emit("ORUR",  [dr_tmp, dr_dst])
+                    elif k == "UNPACK_DIAD":
+                        # UNPACK_DIAD DRsrc, DRhi, DRlo
+                        expect(3)
+                        dr_src, dr_hi, dr_lo = ops
+                        emit("MOVUR", [dr_src, dr_lo])
+                        emit("ANDUI", ["#0xFFF", dr_lo])
+                        emit("MOVUR", [dr_src, dr_hi])
+                        emit("SHRUI", ["#12", dr_hi])
+                        emit("ANDUI", ["#0xFFF", dr_hi])
+                    elif k == "DIAD_MOVUI":
+                        # DIAD_MOVUI DRdst, #hi12, #lo12
+                        expect(3)
+                        dr_dst, imm_hi, imm_lo = ops
+                        emit("MOVUI", [imm_hi, dr_dst])
+                        emit("SHLUI", ["#12", dr_dst])
+                        emit("ORUI",  [imm_lo, dr_dst])
                     else:
                         raise AsmError(f"Unknown math macro '{k}' at line {item.lineno}")
                 else:

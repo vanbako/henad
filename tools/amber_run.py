@@ -99,6 +99,8 @@ def main(argv: list[str] | None = None) -> int:
             str(AMBER_DIR),
             "-I",
             str(SRC_DIR),
+            # Disable testbench's default ROM preload when external HEX provided
+            "-DNO_ROM_INIT=1",
             f"-DTICKS={args.ticks}",
             "-o",
             str(out_vvp),

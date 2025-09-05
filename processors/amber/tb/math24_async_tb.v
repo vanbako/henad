@@ -63,9 +63,10 @@ module math24_async_tb;
         end
     endtask
 
-    task start_op(input [3:0] op);
+    task start_op(input [4:0] op);
         begin
-            csr_write(`CSR_IDX_MATH_CTRL, {19'd0, op, 1'b1});
+            // CTRL: [5:1]=OP (5b), [0]=START
+            csr_write(`CSR_IDX_MATH_CTRL, {18'd0, op, 1'b1});
         end
     endtask
 
@@ -195,6 +196,132 @@ module math24_async_tb;
             csr_read_t(`CSR_IDX_MATH_RES0, r0);
             csr_read_t(`CSR_IDX_MATH_RES1, r1);
             if (st_div0[2] !== 1'b1) begin errors = errors + 1; $display("FAIL: DIV0 flag, STATUS=%h RES0=%h RES1=%h", st_div0, r0, r1); end
+        end
+
+        // New ops: ADD24
+        csr_write(`CSR_IDX_MATH_OPA, 24'h000001);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h000002);
+        start_op(5'h0E);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h000003) begin errors = errors + 1; $display("FAIL: ADD24"); end
+        end
+
+        // SUB24
+        csr_write(`CSR_IDX_MATH_OPA, 24'h000005);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h000003);
+        start_op(5'h0F);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h000002) begin errors = errors + 1; $display("FAIL: SUB24"); end
+        end
+
+        // NEG24
+        csr_write(`CSR_IDX_MATH_OPA, 24'h000001);
+        start_op(5'h10);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'hFFFFFF) begin errors = errors + 1; $display("FAIL: NEG24"); end
+        end
+
+        // ADD12 diad: {hi=0x001, lo=0x002} + {hi=0x003, lo=0x004} = {0x004,0x006}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h001002);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h003004);
+        start_op(5'h11);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h004006) begin errors = errors + 1; $display("FAIL: ADD12"); end
+        end
+
+        // SUB12 diad: {0x010,0x008} - {0x003,0x005} = {0x00D,0x003}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h010008);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h003005);
+        start_op(5'h12);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h00D003) begin errors = errors + 1; $display("FAIL: SUB12"); end
+        end
+
+        // NEG12 diad: {0x001,0x002} -> {0xFFF,0xFFE}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h001002);
+        start_op(5'h13);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'hFFFFFE) begin errors = errors + 1; $display("FAIL: NEG12"); end
+        end
+
+        // MUL12 diad: {0x002,0x003} * {0x004,0x005} = {0x008,0x00F}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h002003);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h004005);
+        start_op(5'h14);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h00800F) begin errors = errors + 1; $display("FAIL: MUL12"); end
+        end
+
+        // DIV12 diad: {10, 100} / {2, 7} => q={5,14}, r={0,2}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h00A064);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h002007);
+        start_op(5'h15);
+        wait_ready;
+        begin reg [23:0] q, r;
+            csr_read_t(`CSR_IDX_MATH_RES0, q);
+            csr_read_t(`CSR_IDX_MATH_RES1, r);
+            if (q !== 24'h00500E) begin errors = errors + 1; $display("FAIL: DIV12 q"); end
+            if (r !== 24'h000002) begin errors = errors + 1; $display("FAIL: DIV12 r"); end
+        end
+
+        // MOD12 diad: {100, 33} % {24,7} => {4,5}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h064021);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h018007);
+        start_op(5'h16);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h004005) begin errors = errors + 1; $display("FAIL: MOD12"); end
+        end
+
+        // SQRT12 diad: {9,144} -> {3,12}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h009090);
+        start_op(5'h17);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h00300C) begin errors = errors + 1; $display("FAIL: SQRT12"); end
+        end
+
+        // ABS12 diad: {-1, -2} -> {1,2}
+        csr_write(`CSR_IDX_MATH_OPA, 24'hFFFffe);
+        start_op(5'h18);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h001002) begin errors = errors + 1; $display("FAIL: ABS12"); end
+        end
+
+        // MIN12_U: {1,10} vs {2,5} -> {1,5}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h00100A);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h002005);
+        start_op(5'h19);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h001005) begin errors = errors + 1; $display("FAIL: MIN12_U"); end
+        end
+
+        // MAX12_S: {-1, 3} vs {-2, 5} -> {-1, 5}
+        csr_write(`CSR_IDX_MATH_OPA, 24'hFFF003);
+        csr_write(`CSR_IDX_MATH_OPB, 24'hFFE005);
+        start_op(5'h1C);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'hFFF005) begin errors = errors + 1; $display("FAIL: MAX12_S"); end
+        end
+
+        // CLAMP12_U: clamp {0,50} to [ {10,20}, {30,60} ] => {10,50}
+        csr_write(`CSR_IDX_MATH_OPA, 24'h000032);
+        csr_write(`CSR_IDX_MATH_OPB, 24'h01E03C); // max {30,60}
+        csr_write(`CSR_IDX_MATH_OPC, 24'h00A014); // min {10,20}
+        start_op(5'h1D);
+        wait_ready;
+        begin reg [23:0] rd;
+            csr_read_t(`CSR_IDX_MATH_RES0, rd); if (rd !== 24'h00A032) begin errors = errors + 1; $display("FAIL: CLAMP12_U"); end
         end
 
         if (errors == 0) $display("math24_async_tb: PASS");
