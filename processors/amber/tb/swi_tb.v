@@ -94,14 +94,20 @@ module swi_tb;
         // Issue SWI with imm12 low = 0x9AB, expect branch to 0x0123456789AB and LR=PC+1
         opc = `OPC_SWI; imm12_val = 12'h9AB; tgt_sr_we = 1'b1; tgt_sr = `SR_IDX_LR; step();
 
-        if (!branch_taken) $fatal("SWI did not set branch_taken");
-        if (branch_pc !== 48'h0123_4567_89AB)
-            $fatal("SWI branch_pc mismatch: %h", branch_pc);
-        if (ex_sr_result !== (pc + 48'd1))
-            $fatal("SWI did not compute LR=PC+1: ex_sr_result=%h pc=%h", ex_sr_result, pc);
+        if (!branch_taken) begin
+            $display("SWI did not set branch_taken");
+            $fatal;
+        end
+        if (branch_pc !== 48'h0123_4567_89AB) begin
+            $display("SWI branch_pc mismatch: %h", branch_pc);
+            $fatal;
+        end
+        if (ex_sr_result !== (pc + 48'd1)) begin
+            $display("SWI did not compute LR=PC+1: ex_sr_result=%h pc=%h", ex_sr_result, pc);
+            $fatal;
+        end
 
         $display("swi_tb PASS");
         $finish;
     end
 endmodule
-

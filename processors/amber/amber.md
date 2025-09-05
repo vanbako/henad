@@ -86,7 +86,7 @@ Assembler integration
 
 ## Testbench
 
-- File: `processors/amber/src/math24_async_tb.v`
+- File: `processors/amber/tb/math24_async_tb.v`
 - Instantiates `regcsr` and `math24_async` together and exercises:
   - MULU, DIVU (incl. div0), DIVS, MIN_U, MAX_S, ABS_S, CLAMP_U, CLAMP_S, SQRTU
 - Run with Icarus Verilog or your simulator of choice. Passes print `math24_async_tb: PASS`.

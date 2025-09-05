@@ -10,7 +10,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SRC_DIR = REPO_ROOT / "processors" / "amber" / "src"
+AMBER_DIR = REPO_ROOT / "processors" / "amber"
+SRC_DIR = AMBER_DIR / "src"
 
 
 def which_or_error(name: str) -> str:
@@ -85,12 +86,17 @@ def main(argv: list[str] | None = None) -> int:
         # Normalize path for Verilog `define string
         mem_path = prog_hex.resolve().as_posix()
 
-        out_vvp = args.out or (tmpdir / "amber_sim.vvp")
+        # Write compiled vvp to a stable build directory by default
+        default_out = REPO_ROOT / "build" / "vvp" / "amber" / "amber_sim.vvp"
+        out_vvp = args.out or default_out
         out_vvp.parent.mkdir(parents=True, exist_ok=True)
 
         cmd = [
             iverilog,
             "-g2012",
+            # Includes support both styles: `include "src/xxx.vh"` and local includes
+            "-I",
+            str(AMBER_DIR),
             "-I",
             str(SRC_DIR),
             f"-DTICKS={args.ticks}",

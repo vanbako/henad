@@ -83,19 +83,31 @@ module csr_ops_tb;
 
         // CSRRD: read CSR value routed via iw_src_sr_val low 24b
         opc = `OPC_CSRRD; src_sr = `SR_IDX_PC; src_sr_val = 48'h0000_0000_00A5B6; step();
-        if (ex_result !== 24'h00A5B6) $fatal("CSRRD failed: %h", ex_result);
+        if (ex_result !== 24'h00A5B6) begin
+            $display("CSRRD failed: %h", ex_result);
+            $fatal;
+        end
 
         // Another CSRRD
         opc = `OPC_CSRRD; src_sr = `SR_IDX_PC; src_sr_val = 48'h0000_0000_00C0DE; step();
-        if (ex_result !== 24'h00C0DE) $fatal("CSRRD failed: %h", ex_result);
+        if (ex_result !== 24'h00C0DE) begin
+            $display("CSRRD failed: %h", ex_result);
+            $fatal;
+        end
 
         // CSRWR: pass DRs value through result path for WB
         opc = `OPC_CSRWR; tgt_sr = `SR_IDX_LR; tgt_sr_val = 48'h0; src_gp_val = 24'h00EF12; step();
-        if (ex_result !== 24'h00EF12) $fatal("CSRWR failed: %h", ex_result);
+        if (ex_result !== 24'h00EF12) begin
+            $display("CSRWR failed: %h", ex_result);
+            $fatal;
+        end
 
         // CSRWR again
         opc = `OPC_CSRWR; tgt_sr = `SR_IDX_LR; tgt_sr_val = 48'h0; src_gp_val = 24'h000001; step();
-        if (ex_result !== 24'h000001) $fatal("CSRWR failed: %h", ex_result);
+        if (ex_result !== 24'h000001) begin
+            $display("CSRWR failed: %h", ex_result);
+            $fatal;
+        end
 
         $display("csr_ops_tb PASS");
         $finish;
