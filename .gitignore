@@ -1,0 +1,50 @@
+# Verilog/HDL simulation outputs
+*.vvp
+*.vcd
+*.fst
+*.lxt
+*.lxt2
+*.vpd
+*.wlf
+*.ghw
+*.sav
+
+# Common simulator artifacts
+transcript
+vsim.wlf
+a.out
+obj_dir/
+
+# Icarus-generated helper scripts (repo-specific)
+processors/amber/sim_*
+processors/amber/src/sim_*
+
+# Temporary outputs
+tmp_*.txt
+*.log
+*.out
+*.dump
+*.trace
+*.bin
+*.dat
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Packaging/build (if ever used)
+dist/
+build/
+*.egg-info/
+
+# Editor/OS cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+~$*
+.vscode/
+.idea/

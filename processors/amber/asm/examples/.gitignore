@@ -1,0 +1,3 @@
+# Ignore assembled program outputs in examples
+*.hex
+
