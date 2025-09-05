@@ -51,6 +51,13 @@ class Return(Stmt):
     value: Optional["Expr"]
 
 
+@dataclass
+class Assign(Stmt):
+    target: str
+    value: "Expr"
+    op: str = "="  # '=', '+=', '-=', '&=', '|=', '^=', '<<=', '>>='
+
+
 # Expressions
 class Expr(Node):
     pass
@@ -72,4 +79,3 @@ class Binary(Expr):
     op: str
     lhs: Expr
     rhs: Expr
-

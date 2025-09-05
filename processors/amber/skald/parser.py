@@ -109,6 +109,9 @@ class Parser:
             return self.parse_local_let()
         if t.kind == "return":
             return self.parse_return()
+        if t.kind == "IDENT":
+            # assignment? IDENT '=' expr ';'
+            return self.parse_assign()
         raise ParseError(f"Unexpected token in function body: {t.kind} at {t.line}:{t.col}")
 
     def parse_local_let(self) -> A.VarDecl:
@@ -130,15 +133,67 @@ class Parser:
         self._eat("SEMI")
         return A.Return(kw.line, kw.col, val)
 
-    # Very simple expressions: NUMBER | IDENT | lhs (+|-) rhs | lhs (*|/) rhs
-    # Left-to-right, no precedence (skeleton)
+    def parse_assign(self) -> A.Assign:
+        name = self._eat("IDENT")
+        # Check for compound assignment operators
+        op_tok = None
+        for kind in ("PLUSEQ", "MINUSEQ", "ANDEQ", "OREQ", "XOREQ", "SHLEQ", "SHREQ", "EQ"):
+            if self._match(kind):
+                op_tok = kind
+                break
+        if op_tok is None:
+            t = self._peek()
+            raise ParseError(f"Expected assignment operator after identifier at {t.line}:{t.col}")
+        val = self.parse_expr()
+        self._eat("SEMI")
+        op_map = {
+            "EQ": "=",
+            "PLUSEQ": "+=",
+            "MINUSEQ": "-=",
+            "ANDEQ": "&=",
+            "OREQ": "|=",
+            "XOREQ": "^=",
+            "SHLEQ": "<<=",
+            "SHREQ": ">>=",
+        }
+        op_str = op_map[op_tok]
+        return A.Assign(name.line, name.col, name.text, val, op_str)
+
+    # Expressions with basic precedence and parentheses
+    # Grammar (skeleton):
+    #   expr    := add
+    #   add     := mul ( ("+"|"-") mul )*
+    #   mul     := unary ( ("*"|"/") unary )*
+    #   unary   := ("+"|"-") unary | primary
+    #   primary := NUMBER | IDENT | "(" expr ")"
     def parse_expr(self) -> A.Expr:
-        lhs = self.parse_primary()
-        while self._peek().kind in ("PLUS", "MINUS", "STAR", "SLASH"):
+        return self.parse_add()
+
+    def parse_add(self) -> A.Expr:
+        lhs = self.parse_mul()
+        while self._peek().kind in ("PLUS", "MINUS"):
             op = self._eat(self._peek().kind)
-            rhs = self.parse_primary()
-            lhs = A.Binary(op.text, lhs, rhs, line=op.line, col=op.col)  # type: ignore[arg-type]
+            rhs = self.parse_mul()
+            lhs = A.Binary(line=op.line, col=op.col, op=op.text, lhs=lhs, rhs=rhs)
         return lhs
+
+    def parse_mul(self) -> A.Expr:
+        lhs = self.parse_unary()
+        while self._peek().kind in ("STAR", "SLASH"):
+            op = self._eat(self._peek().kind)
+            rhs = self.parse_unary()
+            lhs = A.Binary(line=op.line, col=op.col, op=op.text, lhs=lhs, rhs=rhs)
+        return lhs
+
+    def parse_unary(self) -> A.Expr:
+        t = self._peek()
+        if t.kind in ("PLUS", "MINUS"):
+            op = self._eat(t.kind)
+            # Represent unary +x as (0 + x) and -x as (0 - x)
+            zero = A.IntLiteral(op.line, op.col, 0)
+            rhs = self.parse_unary()
+            return A.Binary(line=op.line, col=op.col, op=op.text, lhs=zero, rhs=rhs)
+        return self.parse_primary()
 
     def parse_primary(self) -> A.Expr:
         t = self._peek()
@@ -148,6 +203,11 @@ class Parser:
         if t.kind == "IDENT":
             tok = self._eat("IDENT")
             return A.NameRef(tok.line, tok.col, tok.text)
+        if t.kind == "LPAREN":
+            self._eat("LPAREN")
+            e = self.parse_expr()
+            self._eat("RPAREN")
+            return e
         raise ParseError(f"Expected expression at {t.line}:{t.col}")
 
     @staticmethod
@@ -165,4 +225,3 @@ class Parser:
 
 def parse(src: str) -> A.Program:
     return Parser(src).parse()
-

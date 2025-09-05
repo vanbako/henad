@@ -22,6 +22,7 @@ class CodeGen:
         self.lines: List[str] = []
         self.globals: List[str] = []
         self.sym_regs: Dict[str, Reg] = {}
+        self.sym_types: Dict[str, Type] = {}
         self.next_dr = 1  # DR0 reserved for return/scratch by convention
         self.next_ar = 0
 
@@ -93,6 +94,7 @@ class CodeGen:
         for p in f.params:
             r = self.alloc_reg(p.ty, p.reg_hint)
             self.sym_regs[p.name] = r
+            self.sym_types[p.name] = p.ty
             self.comment(f"param {p.name}:{p.ty} in {r.name}")
 
         ret_reg = None
@@ -109,6 +111,8 @@ class CodeGen:
                 self.gen_local_let(s)
             elif isinstance(s, A.Return):
                 self.gen_return(s, ret_reg, f.ret_ty)
+            elif isinstance(s, A.Assign):
+                self.gen_assign(s)
             else:
                 raise CodegenError("unsupported statement kind")
 
@@ -119,9 +123,50 @@ class CodeGen:
     def gen_local_let(self, v: A.VarDecl) -> None:
         r = self.alloc_reg(v.ty)
         self.sym_regs[v.name] = r
+        self.sym_types[v.name] = v.ty
         self.comment(f"let {v.name}:{v.ty} -> {r.name}")
         if v.init is not None:
             self.gen_store_expr_into(v.init, v.ty, r)
+
+    def gen_assign(self, a: A.Assign) -> None:
+        if a.target not in self.sym_regs:
+            raise CodegenError(f"assignment to unknown variable '{a.target}'")
+        dst = self.sym_regs[a.target]
+        if a.target not in self.sym_types:
+            raise CodegenError(f"internal: missing type for '{a.target}'")
+        ty = self.sym_types[a.target]
+        op = a.op
+        if op == "=":
+            self.gen_store_expr_into(a.value, ty, dst)
+            return
+        # No compound ops on addr (for now)
+        if ty.is_addr:
+            raise CodegenError("compound assignment not supported for 'addr' type in skeleton")
+        # Evaluate RHS with appropriate expected type
+        if op in ("<<=", ">>="):
+            rhs = self.gen_eval_expr(a.value, U24)
+        else:
+            rhs = self.gen_eval_expr(a.value, ty)
+        # Apply op in-place to dst
+        if op == "+=":
+            m = "ADDSR" if ty.is_signed else "ADDUR"
+            self.emit(f"    {m} {rhs.name}, {dst.name}")
+        elif op == "-=":
+            m = "SUBSR" if ty.is_signed else "SUBUR"
+            self.emit(f"    {m} {rhs.name}, {dst.name}")
+        elif op == "&=":
+            self.emit(f"    ANDUR {rhs.name}, {dst.name}")
+        elif op == "|=":
+            self.emit(f"    ORUR {rhs.name}, {dst.name}")
+        elif op == "^=":
+            self.emit(f"    XORUR {rhs.name}, {dst.name}")
+        elif op == "<<=":
+            self.emit(f"    SHLUR {rhs.name}, {dst.name}")
+        elif op == ">>=":
+            m = "SHRSR" if ty.is_signed else "SHRUR"
+            self.emit(f"    {m} {rhs.name}, {dst.name}")
+        else:
+            raise CodegenError(f"unsupported compound operator '{op}'")
 
     def gen_return(self, r: A.Return, ret_reg: Optional[Reg], ret_ty: Optional[Type]) -> None:
         if ret_ty is None:
@@ -166,6 +211,18 @@ class CodeGen:
         if isinstance(e, A.NameRef):
             if e.ident not in self.sym_regs:
                 raise CodegenError(f"unknown identifier '{e.ident}'")
+            # Enforce no implicit conversions: exact match for data types; addr must match
+            if e.ident not in self.sym_types:
+                raise CodegenError(f"internal: missing type for '{e.ident}'")
+            src_ty = self.sym_types[e.ident]
+            if src_ty.is_addr != ty.is_addr:
+                raise CodegenError(
+                    f"type mismatch: expected {ty}, found {src_ty} for '{e.ident}'"
+                )
+            if not ty.is_addr and src_ty.name != ty.name:
+                raise CodegenError(
+                    f"type mismatch: expected {ty}, found {src_ty} for '{e.ident}'"
+                )
             return self.sym_regs[e.ident]
         if isinstance(e, A.Binary):
             if e.op not in ("+", "-"):
@@ -182,4 +239,3 @@ class CodeGen:
             self.emit(f"    {op} {rhs.name}, {dst.name}")
             return dst
         raise CodegenError("unsupported expression form")
-

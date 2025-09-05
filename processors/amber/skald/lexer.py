@@ -30,6 +30,9 @@ class LexError(Exception):
 
 class Lexer:
     def __init__(self, src: str) -> None:
+        # Tolerate a UTF-8 BOM at the start of the source
+        if src.startswith('\ufeff'):
+            src = src.lstrip('\ufeff')
         self.src = src
         self.i = 0
         self.line = 1
@@ -79,6 +82,28 @@ class Lexer:
             if self._match("->"):
                 toks.append(Token("ARROW", "->", start_line, start_col))
                 continue
+            # compound assignment (check longer tokens first)
+            if self._match("<<="):
+                toks.append(Token("SHLEQ", "<<=", start_line, start_col))
+                continue
+            if self._match(">>="):
+                toks.append(Token("SHREQ", ">>=", start_line, start_col))
+                continue
+            if self._match("+="):
+                toks.append(Token("PLUSEQ", "+=", start_line, start_col))
+                continue
+            if self._match("-="):
+                toks.append(Token("MINUSEQ", "-=", start_line, start_col))
+                continue
+            if self._match("&="):
+                toks.append(Token("ANDEQ", "&=", start_line, start_col))
+                continue
+            if self._match("|="):
+                toks.append(Token("OREQ", "|=", start_line, start_col))
+                continue
+            if self._match("^="):
+                toks.append(Token("XOREQ", "^=", start_line, start_col))
+                continue
             single = {
                 "(": "LPAREN",
                 ")": "RPAREN",
@@ -92,6 +117,12 @@ class Lexer:
                 "-": "MINUS",
                 "*": "STAR",
                 "/": "SLASH",
+                "&": "AMP",
+                "|": "BAR",
+                "^": "CARET",
+                "~": "TILDE",
+                "<": "LT",
+                ">": "GT",
             }
             if ch in single:
                 self._get()
@@ -148,4 +179,3 @@ class Lexer:
         while self._peek().isdigit():
             s.append(self._get())
         return "".join(s)
-

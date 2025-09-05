@@ -1,0 +1,16 @@
+﻿// Compound assignment demo
+fn main() -> u24 out DR0 {
+    let a: u24 = 1;
+    let b: u24 = 2;
+    let c: s24 = 3;
+    a += b;      // 1+2=3
+    a |= 1;      // 3|1=3
+    a ^= b;      // 3^2=1
+    a <<= 2;     // 1<<2=4
+    a >>= 1;     // 4>>1=2 (logical)
+    c += 1;      // s24 add
+    c -= 2;
+    c >>= 1;     // arithmetic shift
+    // c &= a;   // would be type mismatch (s24 vs u24)
+    return a;
+}
