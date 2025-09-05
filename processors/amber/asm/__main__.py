@@ -4,7 +4,7 @@ from .assembler import Assembler
 
 
 def main():
-    p = argparse.ArgumentParser(description="Amber assembler (skeleton)")
+    p = argparse.ArgumentParser(description="Amber assembler")
     p.add_argument("input", type=Path, help="Input assembly file (.asm/.s)")
     p.add_argument("-o", "--output", type=Path, help="Output file path")
     p.add_argument(
@@ -40,4 +40,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -52,8 +52,15 @@ class Assembler:
 
     # Public API
     def assemble_path(self, path: Path) -> List[int]:
+        """Assemble a single file with support for .include.
+
+        Relative includes are resolved against the including file's directory.
+        """
         text = path.read_text(encoding="utf-8")
-        return self.assemble(text)
+        pre = self._expand_includes(text, base_stack=[path.parent])
+        return self._assemble_after_preprocess(pre)
+
+    # assemble_paths removed: prefer .include within a single entry file
 
     def assemble(self, source: str) -> List[int]:
         self.symbols.clear()
@@ -66,10 +73,91 @@ class Assembler:
             pass
         self._ir.clear()
         self._pending_equ.clear()
-        expanded = self._expand_macros(source)
+        # When assembling from a raw string, resolve includes relative to CWD.
+        pre = self._expand_includes(source, base_stack=[Path.cwd()])
+        return self._assemble_after_preprocess(pre)
+
+    # Common path after include expansion
+    def _assemble_after_preprocess(self, preprocessed: str) -> List[int]:
+        expanded = self._expand_macros(preprocessed)
         self._pass1(expanded)
         self._resolve_pending_equ()
         return self._pass2()
+
+    # ---- Include preprocessor ----------------------------------------------
+    def _expand_includes(self, source: str, base_stack: List[Path], depth: int = 0) -> str:
+        if depth > 100:
+            raise AsmError("Include depth too deep (possible recursion loop)")
+        # Be tolerant of UTF-8 BOM at start of files (common on Windows)
+        source = source.lstrip('\ufeff')
+        out: List[str] = []
+        for raw in source.splitlines():
+            s = self._strip_comment(raw)
+            if not s:
+                out.append(raw)
+                continue
+            label, rest = self._split_label(s)
+            probe = rest if rest is not None else s
+            if probe.lower().startswith('.include'):
+                # Parse path argument
+                arg = probe[len('.include'):].strip()
+                if not arg:
+                    raise AsmError(".include requires a path argument")
+                inc_spec = self._parse_include_arg(arg)
+                inc_path = self._resolve_include_path(inc_spec, base_stack)
+                try:
+                    inc_text = inc_path.read_text(encoding='utf-8')
+                except Exception as e:
+                    raise AsmError(f"Failed to read include '{inc_path}': {e}")
+                # Emit optional call-site label before included content
+                if label:
+                    out.append(f"{label}:")
+                # Delimit include region with comments for clarity
+                out.append(f"; ---- begin include: {inc_path} ----")
+                out.append(
+                    self._expand_includes(inc_text, base_stack=base_stack + [inc_path.parent], depth=depth + 1)
+                )
+                out.append(f"; ---- end include: {inc_path} ----")
+                continue
+            # Not an include: keep original raw line to preserve formatting
+            out.append(raw)
+        return "\n".join(out) + ("\n" if not source.endswith("\n") else "")
+
+    @staticmethod
+    def _parse_include_arg(arg: str) -> str:
+        a = arg.strip()
+        if not a:
+            raise AsmError(".include missing path argument")
+        if a[0] in ('"', "'"):
+            q = a[0]
+            j = a.find(q, 1)
+            if j == -1:
+                raise AsmError(".include unterminated quoted path")
+            return a[1:j]
+        if a[0] == '<':
+            j = a.find('>')
+            if j == -1:
+                raise AsmError(".include unterminated angle-bracket path")
+            return a[1:j]
+        # Bare token up to whitespace
+        return a.split()[0]
+
+    @staticmethod
+    def _resolve_include_path(spec: str, base_stack: List[Path]) -> Path:
+        p = Path(spec)
+        if p.is_absolute() and p.exists():
+            return p
+        # Resolve relative to the current including file's directory (top of stack)
+        if base_stack:
+            cand = (base_stack[-1] / spec).resolve()
+            if cand.exists():
+                return cand
+        # Fallback: relative to CWD
+        cand = (Path.cwd() / spec).resolve()
+        if cand.exists():
+            return cand
+        # As last resort, return the spec path (it will likely fail on read)
+        return p
 
     # Output helpers
     @staticmethod
@@ -108,9 +196,9 @@ class Assembler:
 
             if line.startswith('.'):
                 dname, dargs = self._parse_directive(line)
-                # Only support .org and .dw24 in skeleton
+                # Directives handled here: .org, .equ, .dw24/.diad
                 if dname == 'org':
-                    # Require numeric literal for skeleton
+                    # Require numeric literal for origin (expressions allowed in .equ)
                     if not dargs:
                         raise AsmError(f".org requires an address at line {lineno}")
                     try:
@@ -963,3 +1051,5 @@ def assemble_file(path: Path, origin: int = 0) -> bytes:
     asm = Assembler(origin=origin)
     words = asm.assemble_path(path)
     return asm.pack_words_bin(words)
+
+# assemble_files helper removed: prefer .include within a single entry file

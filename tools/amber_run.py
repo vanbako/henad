@@ -52,18 +52,21 @@ def build_source_list() -> list[str]:
 
 
 def assemble_if_needed(inp: Path, workdir: Path) -> Path:
+    # Pass-through if HEX/MEM file is provided
     if inp.suffix.lower() in {".hex", ".mem"}:
         return inp
-    # Treat anything else as assembly source
+    # Treat anything else as assembly source (single entry supported; use .include for composition)
     sys.path.insert(0, str(REPO_ROOT))
     from processors.amber.asm.assembler import Assembler
 
     asm = Assembler(origin=0)
     words = asm.assemble_path(inp)
+    stem = inp.stem
+    src_desc = f"{inp}"
     hex_text = asm.pack_words_hex(words)
-    out_hex = workdir / (inp.stem + ".hex")
+    out_hex = workdir / (stem + ".hex")
     out_hex.write_text(hex_text, encoding="utf-8")
-    print(f"Assembled {inp} -> {out_hex} ({len(words)} words)")
+    print(f"Assembled {src_desc} -> {out_hex} ({len(words)} words)")
     return out_hex
 
 

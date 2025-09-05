@@ -1,26 +1,40 @@
-Amber Assembler (Skeleton)
+Amber Assembler
 
-This is a minimal, two-pass assembler skeleton for the Amber ISA.
-It is intentionally incomplete but designed to be easy to extend.
+Two-pass assembler for the Amber ISA with includes, macros, and full ISA
+coverage (excluding internal micro-ops). Designed to be easy to extend via
+`spec.py`.
 
-Capabilities (initial):
-- Two-pass assembly with a symbol table for labels.
-- Basic parsing of labels, directives, and mnemonics.
-- Output in raw 24-bit binary (3 bytes/word) or simple hex text (6 hex chars/line).
-- Partial instruction spec expanded: core ALU (reg/reg and imm), basic loads/stores, branches, CSR access, and SWI.
+Capabilities:
+- Two-pass assembly with a global symbol table (labels + `.equ`).
+- `.include` support with nested, relative path resolution.
+- User-defined macros (`.macro`/`.endm`) with parameters and `.local` labels.
+- Friendly syntax normalization for addresses and CSR ops.
+- Output: raw 24-bit binary (bin) or simple hex text (hex).
 
 Non-goals (yet):
-- Full ISA coverage (many mnemonics are stubbed/TODO).
-- Expressions beyond simple constants for directives.
+- Rich expression language. Expressions are intentionally simple: numbers,
+  symbols, `.`, and `+`/`-` only. Higher-level features belong in a future
+  "skald" layer that can generate Amber assembly.
 
 Usage:
 - Module: `python -m processors.amber.asm -h`
-- Example: `python -m processors.amber.asm processors/amber/asm/examples/hello.asm -o hello.bin --format bin`
+- Single file: `python -m processors.amber.asm processors/amber/asm/examples/hello.asm -o hello.bin --format bin`
+- Preferred: compose programs with `.include` inside your main file.
+  Example:
+  
+  ```
+  ; main.asm
+  .org 0
+  .include "startup.asm"
+  .include "drivers/uart.asm"
+  .include "app.asm"
+  ```
 
 Directives:
 - `.org <const>`: set origin in words (instruction addresses).
-- `.dw24 <const> [,<const> ...]` or `.diad <const>[, ...]`: emit one or more 24-bit diads (24-bit words).
-- `.equ NAME, expr`: defines a symbol; supports forward references (resolved after pass 1). `.equ` can reference labels and earlier `.equ`s.
+- `.dw24 <const> [,<const> ...]` or `.diad <const>[, ...]`: emit 24-bit words.
+- `.equ NAME, expr`: define a symbol; supports forward references across files.
+- `.include "path"`: insert another source file at this point. Paths are relative to the including file (quotes or `<...>` accepted). Nested includes permitted (depth limit 100).
 
 User-defined macros:
 - `.macro NAME [arg1[, arg2 ...]]` ... `.endm`: define a macro with positional parameters.
@@ -54,32 +68,38 @@ Notes:
 - Labels capture the current word address at definition time.
 - Extend `spec.py` with additional instruction definitions and field encoders.
 - Special registers: accepts aliases `PC`, `LR`, `SSP`, `FL` for SR indices (also `SR0..SR3`).
+ - Syntax conveniences:
+   - Memory addressing: `#imm(ARs)` and `ARs + #imm` are normalized.
+   - CSR ops accept either order: `CSRWR CSR, DRs` or `CSRWR DRs, CSR` (rewritten to canonical).
+   - Branch via register: `BCCsr CC, PC+DRt` is supported.
 
-Supported mnemonics (subset):
+Supported mnemonics:
 - OP0 (unsigned reg/reg): `NOP`, `MOVur`, `MCCur`, `ADDur`, `SUBur`, `NOTur`, `ANDur`, `ORur`, `XORur`, `SHLur`, `ROLur`, `SHRur`, `RORur`, `CMPur`, `TSTur`.
 - OP1 (imm/uimm): `LUIui`, `MOVui`, `ADDui`, `SUBui`, `ANDui`, `ORui`, `XORui`, `SHLui`, `ROLui`, `SHRui`, `RORui`, `CMPui`.
 - OP2 (signed reg/reg): `ADDsr`, `SUBsr`, `NEGsr`, `SHRsr`, `CMPsr`, `TSTsr`.
 - OP3 (signed imm): `MOVsi`, `ADDsi`, `SUBsi`, `SHRsi`, `CMPsi`.
-- OP4 (loads/stores base only): `LDur (ARs), DRt`, `STur DRs, (ARt)`.
+- OP4 (loads/stores base only): `LDur (ARs), DRt`, `STur DRs, (ARt)`,
+  `STui #imm12, (ARt)`, `STsi #imm14, (ARt)`.
 - OP5 (base+offset): `LDso #imm10(ARs), DRt`, `STso DRs, #imm10(ARt)`, `LDAso #imm12(ARs), ARt`, `STAso ARs, #imm12(ARt)`.
-- OP7 (branches subset): `JCCur CC, ARt`, `BCCso CC, label|expr`, `BALso label|expr`, `RET`.
-  - Macros: `JCCui CC, abs_expr` and `JSRui abs_expr` expand into `LUIui #2/#1/#0` + `JCCui/JSRui`.
-  - Also `BCCsr CC, PC+DRt` for register-relative branches.
 - OP6 (address-register ops subset): `ADDaur`, `SUBaur`, `ADDAsr`, `SUBAsr`, `ADDAsi`, `SUBAsi`, `LEAso`, `ADRAso`, `CMPAur`, `TSTAur`, `MOVAur DRs, ARt, H|L`, `MOVDur ARs, DRt, H|L` (bit 9: H=1, L=0).
+- OP7 (branches/calls): `BTP`, `JCCur CC, ARt`, `JCCui CC, #imm12`,
+  `BCCsr CC, PC+DRt`, `BCCso CC, label|expr`, `BALso label|expr`,
+  `JSRur ARt`, `JSRui #imm12`, `BSRsr DRt`, `BSRso label|expr`, `RET`.
+  - Macros: `JCCui CC, abs_expr` and `JSRui abs_expr` expand into `LUIui #2/#1/#0` + `JCCui/JSRui` for 48-bit absolute targets.
+- OP8 (stack ops): `PUSHur DRs, ARt`, `PUSHAur ARs, ARt`, `POPur ARs, DRt`, `POPAur ARs, ARt`.
 - OP9 (CSR): `CSRRD #csr8, DRt`, `CSRWR DRs, #csr8`.
   - Built-in CSR aliases include: `STATUS`, `CAUSE`, `EPC_LO`, `EPC_HI`, `CYCLE_L`, `CYCLE_H`, `INSTRET_L`, `INSTRET_H`.
   - Async Int24 Math CSR aliases: `MATH_CTRL`, `MATH_STATUS`, `MATH_OPA`, `MATH_OPB`, `MATH_OPC`, `MATH_RES0`, `MATH_RES1`.
-  - Math control constants: `MATH_CTRL_START` and pre-shifted `MATH_OP_*` (e.g. `MATH_OP_DIVU`, `MATH_OP_MULS`, `MATH_OP_SQRTU`, `MATH_OP_CLAMP_S`).
+  - Math control constants: `MATH_CTRL_START` and pre-shifted `MATH_OP_*` (e.g. `MATH_OP_DIVU`, `MATH_OP_MULS`, `MATH_OP_SQRTU`, `MATH_OP_CLAMP_S`, plus add/sub/neg/12-bit diad variants).
   - Math status bits: `MATH_STATUS_READY`, `MATH_STATUS_BUSY`, `MATH_STATUS_DIV0`.
-- OPA (privileged): `SRHLT`, `SETSSP ARs`, `SWI #imm12`.
+- OPA (privileged): `SRHLT`, `SETSSP ARs`, `SWI #imm12`, `SRET`.
   - Macro: `SWIui abs_expr` expands like `JSRui`: `LUIui #2,#expr[47:36]; LUIui #1,#expr[35:24]; LUIui #0,#expr[23:12]; SWI #expr[11:0]`.
 
 Immediates and expressions:
-- Numeric formats: `#123`, `#0x1F`, `#0b1010`, `#0o77` (leading `#` optional for immediates in expressions).
-- Symbols: bare labels evaluate to their word address; `.` evaluates to current PC.
-- Operators: `+` and `-` (left-to-right, no parentheses yet).
-- PC-relative: for `BCCso` and `BALso`, bare label operands are treated as relative (auto: `label - .`). You can also write `label-.` explicitly.
-  For `ADRAso`, labels are treated as `label - .` (PC-relative address materialization).
+- Numeric formats: `#123`, `#0x1F`, `#0b1010`, `#0o77` (leading `#` optional inside expressions).
+- Symbols: bare labels evaluate to their word address; `.` evaluates to current PC (word address).
+- Operators: `+` and `-` only, left-to-right (no parentheses yet).
+- PC-relative: `BCCso`/`BALso` and `BSRso` take signed immediates relative to `.` automatically; `ADRAso` also treats its operand as PC-relative.
 
 Built-in macro-like conveniences (predefined expansions):
 - `JCCui CC, expr48` expands to `LUIui #2,#expr[47:36]; LUIui #1,#expr[35:24]; LUIui #0,#expr[23:12]; JCCui CC,#expr[11:0]`.

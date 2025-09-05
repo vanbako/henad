@@ -1,8 +1,8 @@
 """
 Amber Assembler (2-pass) - package entry
 
-This package provides a minimal two-pass assembler skeleton for the Amber ISA.
-Extend `spec.py` to add instructions and encodings.
+Two-pass assembler for the Amber ISA with includes, macros, and full ISA
+coverage (excluding internal micro-ops). See `processors/amber/asm/README.md`.
 """
 
 from .assembler import Assembler, assemble_file
@@ -11,4 +11,3 @@ __all__ = [
     "Assembler",
     "assemble_file",
 ]
-

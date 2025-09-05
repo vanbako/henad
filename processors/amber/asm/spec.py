@@ -1,9 +1,8 @@
-"""Amber ISA encoding spec (partial, skeleton).
+"""Amber ISA encoding spec (assembler view).
 
-This file defines a minimal mapping from mnemonic to bit encodings and
-helpers for parsing registers and condition codes. Extend this with the
-rest of the instruction set as needed.
-"""
+Defines the mapping from ISA mnemonics to 24-bit encodings used by the
+assembler. Covers the full architectural ISA (excluding internal micro-ops in
+OPCLASS_F)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -308,6 +307,15 @@ SPECS: Dict[str, InstructionSpec] = {
     ),
     "STUR": InstructionSpec(
         "STUR", 0x4, 0x1, ["DRs", "ARt"], {"ARt": (15, 14), "DRs": (13, 10)}
+    ),
+    # Store immediate (unsigned/signed) to (ARt)
+    # STUI: 24-bit immediate formed from LUIui bank0 (bits[23:12]) + IMM12
+    "STUI": InstructionSpec(
+        "STUI", 0x4, 0x2, ["IMM12", "ARt"], {"ARt": (15, 14), "IMM12": (11, 0)}
+    ),
+    # STSI: sign-extended 14-bit immediate to (ARt)
+    "STSI": InstructionSpec(
+        "STSI", 0x4, 0x3, ["SIMM14", "ARt"], {"ARt": (15, 14), "SIMM14": (13, 0)}
     ),
 
     # OPCLASS 5: Loads/Stores (base + signed offset)

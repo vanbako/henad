@@ -1,5 +1,5 @@
-; Minimal Amber assembly example (skeleton)
-; Assembles NOP and MOVur using the partial spec
+; Minimal Amber assembly example
+; Demonstrates NOP, MOVur, branches, loads/stores, address ops, and macros
 
     .org 0
 
