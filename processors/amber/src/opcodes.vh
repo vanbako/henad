@@ -3,6 +3,14 @@
 
 `include "src/sizes.vh"
 
+// Suffix semantics (mnemonic endings):
+//  - ur: unsigned register form (reg–reg ALU, unsigned flags)
+//  - ui: unsigned immediate form (immediate operand; width varies by opcode; shifts use imm5 in [4:0];
+//        24-bit immediates are formed via uimm banks + imm12)
+//  - sr: signed register form (reg–reg ALU, signed flags)
+//  - si: signed immediate form (immediate is sign-extended; width varies by opcode)
+//  - so: signed offset form (PC-relative or base+offset; offset is sign-extended; width varies)
+
 // OPCLASSES
 `define OPCLASS_0 4'b0000
 `define OPCLASS_1 4'b0001

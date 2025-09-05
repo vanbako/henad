@@ -249,17 +249,18 @@ SPECS: Dict[str, InstructionSpec] = {
     "XORUI": InstructionSpec(
         "XORUI", 0x1, 0x8, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}
     ),
+    # Shift-by-immediate uses imm5 in [4:0] (unsigned op with immediate)
     "SHLUI": InstructionSpec(
-        "SHLUI", 0x1, 0x9, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}
+        "SHLUI", 0x1, 0x9, ["IMM5", "DRt"], {"DRt": (15, 12), "IMM5": (4, 0)}
     ),
     "ROLUI": InstructionSpec(
-        "ROLUI", 0x1, 0xA, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}
+        "ROLUI", 0x1, 0xA, ["IMM5", "DRt"], {"DRt": (15, 12), "IMM5": (4, 0)}
     ),
     "SHRUI": InstructionSpec(
-        "SHRUI", 0x1, 0xB, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}
+        "SHRUI", 0x1, 0xB, ["IMM5", "DRt"], {"DRt": (15, 12), "IMM5": (4, 0)}
     ),
     "RORUI": InstructionSpec(
-        "RORUI", 0x1, 0xC, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}
+        "RORUI", 0x1, 0xC, ["IMM5", "DRt"], {"DRt": (15, 12), "IMM5": (4, 0)}
     ),
     "CMPUI": InstructionSpec(
         "CMPUI", 0x1, 0xD, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}

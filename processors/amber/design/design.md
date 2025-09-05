@@ -56,11 +56,11 @@ _**Flags Consulted:**_
 
 ## Instruction Suffixes
 
-- **ur:** unsigned register operation
-- **ui:** unsigned immediate value (upper from uimm and lower from immxx)
-- **sr:** signed register operation
-- **si:** signed immediate operation (sign extended immxx)
-- **so:** signed immediate operation (sign extended immxx offset)
+- **ur:** unsigned register form (reg–reg ALU, unsigned flags)
+- **ui:** unsigned immediate form (immediate operand; width varies by opcode such as imm5/imm12; for 24‑bit immediates the value is formed using uimm banks + imm12)
+- **sr:** signed register form (reg–reg ALU, signed flags)
+- **si:** signed immediate form (immediate is sign‑extended; widths vary by opcode such as imm8/imm12/imm14)
+- **so:** signed offset form (PC‑relative or base+offset addressing; offset is sign‑extended; widths vary such as imm10/imm12/imm14/imm16)
 
 _*Note:*_ In assembly, the last operand is the target; if there are two operands, the previous is source.
 
