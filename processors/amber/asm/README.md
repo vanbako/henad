@@ -12,7 +12,6 @@ Capabilities (initial):
 Non-goals (yet):
 - Full ISA coverage (many mnemonics are stubbed/TODO).
 - Expressions beyond simple constants for directives.
-- Macros and pseudo-instructions.
 
 Usage:
 - Module: `python -m processors.amber.asm -h`
@@ -21,6 +20,34 @@ Usage:
 Directives:
 - `.org <const>`: set origin in words (instruction addresses).
 - `.dw24 <const> [,<const> ...]` or `.diad <const>[, ...]`: emit one or more 24-bit diads (24-bit words).
+- `.equ NAME, expr`: defines a symbol; supports forward references (resolved after pass 1). `.equ` can reference labels and earlier `.equ`s.
+
+User-defined macros:
+- `.macro NAME [arg1[, arg2 ...]]` ... `.endm`: define a macro with positional parameters.
+- Use `{arg}` in the macro body to reference parameters (case-insensitive).
+- `.local name[, name ...]` inside a macro body declares local labels/symbols; each expansion gets a unique suffix to avoid collisions.
+- Macros can be nested/recursive (guarded by a depth limit of 100). Macros must be defined before use.
+
+Example:
+
+```
+.macro SAVE2 reg1, reg2
+    .local Ldone
+    PUSHur {reg1}, AR0
+    PUSHur {reg2}, AR0
+Ldone:
+.endm
+
+.macro REST2 reg1, reg2
+    POPur  AR0, {reg2}
+    POPur  AR0, {reg1}
+.endm
+
+start:
+    SAVE2 DR1, DR2
+    ; ...
+    REST2 DR1, DR2
+```
 
 Notes:
 - The program counter (PC) counts 24-bit words. One instruction = 1 word.
@@ -54,13 +81,10 @@ Immediates and expressions:
 - PC-relative: for `BCCso` and `BALso`, bare label operands are treated as relative (auto: `label - .`). You can also write `label-.` explicitly.
   For `ADRAso`, labels are treated as `label - .` (PC-relative address materialization).
 
- Macros:
+Built-in macro-like conveniences (predefined expansions):
 - `JCCui CC, expr48` expands to `LUIui #2,#expr[47:36]; LUIui #1,#expr[35:24]; LUIui #0,#expr[23:12]; JCCui CC,#expr[11:0]`.
 - `JSRui expr48` expands similarly with `JSRui` final instruction.
 - `SWIui expr48` expands similarly with `SWI` final instruction.
-
-Directives:
-- `.equ NAME, expr`: defines a symbol; supports forward references (resolved after pass 1). `.equ` can reference labels and earlier `.equ`s.
 
 Async Int24 Math macros
 - `MULU24 DRa, DRb, DRlo, DRhi, DRtmp`

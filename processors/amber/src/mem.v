@@ -27,6 +27,8 @@ module mem #(
     output reg [`HBIT_ADDR:0] or_rdata [0:1]
 );
     reg [`HBIT_DATA:0] r_mem [0:4095];
+    // Optional plusarg file name for runtime program load: +HEX=<path>
+    reg [1023:0] plusarg_hex_file;
     initial begin
         integer i;
         for (i = 0; i < 4096; i = i + 1)
@@ -34,6 +36,15 @@ module mem #(
 `ifdef MEM_HEX_FILE
         if (READ_MEM)
             $readmemh(`MEM_HEX_FILE, r_mem);
+`else
+        // If no compile-time MEM_HEX_FILE was provided, allow runtime plusarg:
+        // vvp ... +HEX=path/to/file.hex
+        if (READ_MEM) begin
+            if ($value$plusargs("HEX=%s", plusarg_hex_file)) begin
+                $display("[mem] Loading program from +HEX=%0s", plusarg_hex_file);
+                $readmemh(plusarg_hex_file, r_mem);
+            end
+        end
 `endif
     end
     // Read path with cross-port forwarding (supports 24/48-bit).

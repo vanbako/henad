@@ -46,6 +46,9 @@ class Assembler:
         self.symbols: Dict[str, int] = {}
         self._ir: List[IRInstruction | IRDirective | IRMacro] = []
         self._pending_equ: List[tuple[str, str, int]] = []  # (name, expr, lineno)
+        # Macro system (user-defined)
+        self._macros: Dict[str, tuple[List[str], List[str]]] = {}  # NAME -> (params, body_lines)
+        self._macro_expansion_id: int = 0
 
     # Public API
     def assemble_path(self, path: Path) -> List[int]:
@@ -63,7 +66,8 @@ class Assembler:
             pass
         self._ir.clear()
         self._pending_equ.clear()
-        self._pass1(source)
+        expanded = self._expand_macros(source)
+        self._pass1(expanded)
         self._resolve_pending_equ()
         return self._pass2()
 
@@ -605,6 +609,173 @@ class Assembler:
         if pend:
             msgs = ", ".join(f"{n} (line {ln})" for n, _, ln in pend)
             raise AsmError(f"Unresolved .equ forward references: {msgs}")
+
+    # ---- Macro preprocessor -------------------------------------------------
+    def _expand_macros(self, source: str) -> str:
+        """Implements a lightweight macro preprocessor with:
+        - .macro NAME [arg1[,arg2..]] ... .endm: define a macro
+        - parameter references inside body using {arg} placeholders
+        - .local name[,name..]: mark labels or symbols as local-per-expansion
+        Macros may be used anywhere after definition. Expansion is recursive.
+        """
+        self._macros.clear()
+
+        lines = source.splitlines()
+
+        # First pass: collect all macro definitions and strip them out
+        i = 0
+        kept_lines: List[str] = []
+        while i < len(lines):
+            raw = lines[i]
+            line = self._strip_comment(raw)
+            if line.lower().startswith('.macro'):
+                # Parse: .macro NAME [args...]
+                head = line[len('.macro'):].strip()
+                if not head:
+                    raise AsmError(f".macro missing name at line {i+1}")
+                parts = head.split(None, 1)
+                name = parts[0].strip()
+                rest = parts[1] if len(parts) > 1 else ''
+                # Args may be comma or whitespace separated; normalize by comma first
+                params: List[str] = []
+                if rest:
+                    # If whitespace separated, allow both. Split by comma then by whitespace.
+                    tmp = []
+                    for seg in rest.split(','):
+                        seg = seg.strip()
+                        if not seg:
+                            continue
+                        tmp.extend([t for t in seg.split() if t])
+                    params = [p.strip() for p in tmp if p.strip()]
+                body: List[str] = []
+                i += 1
+                found_end = False
+                while i < len(lines):
+                    raw_body = lines[i]
+                    s = self._strip_comment(raw_body)
+                    if s.lower().startswith('.endm') or s.lower().startswith('.endmacro'):
+                        found_end = True
+                        break
+                    body.append(raw_body)
+                    i += 1
+                if not found_end:
+                    raise AsmError(f".macro '{name}' missing .endm at EOF")
+                # Register macro (uppercase name for case-insensitive match)
+                key = name.strip().upper()
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+                    raise AsmError(f"Invalid macro name '{name}' at line {i+1}")
+                if key in self._macros:
+                    raise AsmError(f"Redefinition of macro '{name}'")
+                self._macros[key] = (params, body)
+                # Skip the .endm line
+                i += 1
+                continue
+            else:
+                kept_lines.append(raw)
+                i += 1
+
+        # Second pass: expand macro invocations recursively
+        expanded_lines = self._expand_lines_recursive(kept_lines)
+        return "\n".join(expanded_lines)
+
+    def _expand_lines_recursive(self, lines: List[str], depth: int = 0) -> List[str]:
+        if depth > 100:
+            raise AsmError("Macro expansion too deep (possible recursion)")
+        out: List[str] = []
+        i = 0
+        while i < len(lines):
+            raw = lines[i]
+            s = self._strip_comment(raw)
+            if not s:
+                out.append(raw)
+                i += 1
+                continue
+            label, rest = self._split_label(s)
+            probe = rest if rest is not None else s
+            if probe.startswith('.'):
+                # Directives pass through unchanged
+                out.append(raw)
+                i += 1
+                continue
+            # Determine mnemonic token
+            parts = probe.split(None, 1)
+            if not parts:
+                out.append(raw)
+                i += 1
+                continue
+            mnem = parts[0].strip().upper()
+            if mnem in self._macros:
+                arg_str = parts[1] if len(parts) > 1 else ''
+                args = [a.strip() for a in arg_str.split(',')] if arg_str else []
+                # Expand and replace this line with expansion
+                exp_lines = self._expand_one_macro(mnem, args, call_label=label)
+                # Process recursively to allow nested macros
+                exp_lines = self._expand_lines_recursive(exp_lines, depth + 1)
+                out.extend(exp_lines)
+                i += 1
+                continue
+            # Not a macro: keep original raw (preserve comments/spacing)
+            out.append(raw)
+            i += 1
+        return out
+
+    def _expand_one_macro(self, name: str, args: List[str], call_label: Optional[str]) -> List[str]:
+        params, body = self._macros[name]
+        if len(args) != len(params):
+            raise AsmError(
+                f"Macro {name} expects {len(params)} arg(s), got {len(args)}"
+            )
+        # Build param map (case-insensitive keys)
+        pmap: Dict[str, str] = {p.strip().upper(): a for p, a in zip(params, args)}
+        # Prepare local label mapping for this expansion
+        self._macro_expansion_id += 1
+        uid = f"__{name}_{self._macro_expansion_id}"
+        local_map: Dict[str, str] = {}
+
+        # First pass body scan to collect .local and filter them out
+        filtered_body: List[str] = []
+        for raw in body:
+            line = self._strip_comment(raw)
+            if line.lower().startswith('.local'):
+                rest = line[len('.local'):].strip()
+                # Accept comma or space separated
+                items: List[str] = []
+                for seg in rest.split(','):
+                    seg = seg.strip()
+                    if not seg:
+                        continue
+                    items.extend([t for t in seg.split() if t])
+                for nm in items:
+                    nm_u = nm.strip()
+                    if not nm_u:
+                        continue
+                    local_map[nm_u] = f"{nm_u}{uid}"
+                continue  # do not keep .local in output
+            filtered_body.append(raw)
+
+        # Now perform substitution on filtered body
+        out: List[str] = []
+        for raw in filtered_body:
+            line = raw
+            # Param substitution: {param}
+            def sub_param(m: re.Match[str]) -> str:
+                key = m.group(1).strip().upper()
+                if key not in pmap:
+                    raise AsmError(f"Unknown macro parameter '{{{m.group(1)}}}' in {name}")
+                return pmap[key]
+
+            line = re.sub(r"\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}", sub_param, line)
+
+            # Local symbol substitution as whole words
+            for k, v in local_map.items():
+                line = re.sub(rf"\b{re.escape(k)}\b", v, line)
+
+            out.append(line)
+
+        # Attach call-site label by prefixing a separate label line
+        if call_label:
+            out.insert(0, f"{call_label}:")
+        return out
 
 
 def assemble_file(path: Path, origin: int = 0) -> bytes:

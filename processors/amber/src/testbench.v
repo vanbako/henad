@@ -19,7 +19,11 @@ module testbench;
         .iw_clk(r_clk),
         .iw_rst(r_rst)
     );
-    // Tiny ROM program to exercise flags + branch:
+    // Tiny ROM program to exercise flags + branch (used when no external
+    // MEM_HEX_FILE is provided). If MEM_HEX_FILE is defined at compile time
+    // the instruction memory is preloaded via $readmemh in mem.v and this
+    // block is disabled.
+`ifndef MEM_HEX_FILE
     // 0: MOVsi #0, DR1         ; set Z=1
     // 1: JCCui EQ, #3          ; jump to 3 if Z==1
     // 2: MOVsi #1, DR2         ; should be skipped
@@ -34,6 +38,7 @@ module testbench;
         u_amber.u_imem.r_mem[3] = 24'h303002; // MOVsi #2, DR3
         u_amber.u_imem.r_mem[4] = 24'hA00000; // SRHLT
     end
+`endif
     initial r_clk = 1'b0;
     always #5 r_clk = ~r_clk;
     initial begin
