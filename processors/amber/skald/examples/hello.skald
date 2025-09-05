@@ -1,0 +1,12 @@
+// Minimal Skald example (skeleton)
+
+let GLOBAL_U: u24 = 1;
+let GLOBAL_P: addr = 0; // placeholder 48-bit slot
+
+fn main() -> u24 out DR0 {
+    let a: u24 = 1;
+    let b: u24 = 2;
+    let c: u24 = a + b;
+    return c;
+}
+
