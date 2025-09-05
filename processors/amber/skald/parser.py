@@ -117,6 +117,12 @@ class Parser:
             return self.parse_local_let()
         if t.kind == "if":
             return self.parse_if()
+        if t.kind == "while":
+            return self.parse_while()
+        if t.kind == "break":
+            return self.parse_break()
+        if t.kind == "continue":
+            return self.parse_continue()
         if t.kind == "return":
             return self.parse_return()
         if t.kind == "IDENT":
@@ -149,6 +155,24 @@ class Parser:
             # Only support else { ... } for now
             else_body = self.parse_block()
         return A.If(kw.line, kw.col, cond, then_body, else_body)
+
+    def parse_while(self) -> A.While:
+        kw = self._eat("while")
+        self._eat("LPAREN")
+        cond = self.parse_expr()
+        self._eat("RPAREN")
+        body = self.parse_block()
+        return A.While(kw.line, kw.col, cond, body)
+
+    def parse_break(self) -> A.Break:
+        kw = self._eat("break")
+        self._eat("SEMI")
+        return A.Break(kw.line, kw.col)
+
+    def parse_continue(self) -> A.Continue:
+        kw = self._eat("continue")
+        self._eat("SEMI")
+        return A.Continue(kw.line, kw.col)
 
     def parse_local_let(self) -> A.VarDecl:
         kw = self._eat("let")

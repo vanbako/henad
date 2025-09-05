@@ -1,0 +1,10 @@
+fn main() -> u24 out DR0 {
+    let i: u24 = 0;
+    let acc: u24 = 0;
+    while (i < 5) {
+        acc += i;
+        i += 1;
+    }
+    return acc;
+}
+

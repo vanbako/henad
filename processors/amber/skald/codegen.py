@@ -36,6 +36,8 @@ class CodeGen:
         self._label_counter: int = 0
         self._cur_ret_reg: Optional[Reg] = None
         self._cur_ret_ty: Optional[Type] = None
+        # loop stack: list of (begin_label, end_label)
+        self._loop_stack: List[Tuple[str, str]] = []
 
     def emit(self, s: str) -> None:
         self.lines.append(s)
@@ -174,6 +176,12 @@ class CodeGen:
                 self.gen_expr_stmt(s)
             elif isinstance(s, A.If):
                 self.gen_if(s)
+            elif isinstance(s, A.While):
+                self.gen_while(s)
+            elif isinstance(s, A.Break):
+                self.gen_break(s)
+            elif isinstance(s, A.Continue):
+                self.gen_continue(s)
             else:
                 raise CodegenError("unsupported statement kind")
 
@@ -299,6 +307,12 @@ class CodeGen:
                 self.gen_expr_stmt(s)
             elif isinstance(s, A.If):
                 self.gen_if(s)
+            elif isinstance(s, A.While):
+                self.gen_while(s)
+            elif isinstance(s, A.Break):
+                self.gen_break(s)
+            elif isinstance(s, A.Continue):
+                self.gen_continue(s)
             else:
                 raise CodegenError("unsupported statement in if-body")
         # after then, jump to end if we have else
@@ -318,10 +332,67 @@ class CodeGen:
                     self.gen_expr_stmt(s)
                 elif isinstance(s, A.If):
                     self.gen_if(s)
+                elif isinstance(s, A.While):
+                    self.gen_while(s)
+                elif isinstance(s, A.Break):
+                    self.gen_break(s)
+                elif isinstance(s, A.Continue):
+                    self.gen_continue(s)
                 else:
                     raise CodegenError("unsupported statement in else-body")
         # end label
         self.emit(f"{lbl_end}:")
+
+    def gen_while(self, node: A.While) -> None:
+        # while (cond) { body }
+        lbl_begin = self._new_label("while")
+        lbl_end = self._new_label("endwhile")
+        # begin label
+        self.emit(f"{lbl_begin}:")
+        # push loop context
+        self._loop_stack.append((lbl_begin, lbl_end))
+        # Evaluate condition as data; zero => false => branch to end
+        cond = self.gen_eval_data_any(node.cond)
+        self.emit(f"    TSTUR {cond.name}")
+        self.emit(f"    BCCso EQ, {lbl_end}")
+        # body
+        for s in node.body:
+            if isinstance(s, A.VarDecl):
+                self.gen_local_let(s)
+            elif isinstance(s, A.Return):
+                self.gen_return(s, self._cur_ret_reg, self._cur_ret_ty)
+            elif isinstance(s, A.Assign):
+                self.gen_assign(s)
+            elif isinstance(s, A.ExprStmt):
+                self.gen_expr_stmt(s)
+            elif isinstance(s, A.If):
+                self.gen_if(s)
+            elif isinstance(s, A.While):
+                self.gen_while(s)
+            elif isinstance(s, A.Break):
+                self.gen_break(s)
+            elif isinstance(s, A.Continue):
+                self.gen_continue(s)
+            else:
+                raise CodegenError("unsupported statement in while-body")
+        # jump back to begin
+        self.emit(f"    BALso {lbl_begin}")
+        # end label
+        self.emit(f"{lbl_end}:")
+        # pop loop context
+        self._loop_stack.pop()
+
+    def gen_break(self, node: A.Break) -> None:
+        if not self._loop_stack:
+            raise CodegenError("'break' used outside of loop")
+        _, end_label = self._loop_stack[-1]
+        self.emit(f"    BALso {end_label}")
+
+    def gen_continue(self, node: A.Continue) -> None:
+        if not self._loop_stack:
+            raise CodegenError("'continue' used outside of loop")
+        begin_label, _ = self._loop_stack[-1]
+        self.emit(f"    BALso {begin_label}")
 
     def gen_return(self, r: A.Return, ret_reg: Optional[Reg], ret_ty: Optional[Type]) -> None:
         if ret_ty is None:

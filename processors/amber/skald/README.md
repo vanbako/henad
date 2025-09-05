@@ -13,7 +13,7 @@ Status: skeleton only
   convention described below.
 - Declspec: parameters can be constrained to a specific register via `in DRx`
   or `in ARx`. Return can be constrained with `out DRx` or `out ARx`.
-- Statements: `let`, `return`, `if (expr) { ... } else { ... }`.
+- Statements: `let`, `return`, `if (expr) { ... } else { ... }`, `while (expr) { ... }`, `break;`, `continue;`.
 - Expressions: integer literals, identifiers, arithmetic and bitwise ops with
   precedence; relational/equality operators (`==`, `!=`, `<`, `<=`, `>`, `>=`);
   assignment (including compound assignment) and calls.

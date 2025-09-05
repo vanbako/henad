@@ -69,6 +69,19 @@ class If(Stmt):
     then_body: List["Stmt"]
     else_body: Optional[List["Stmt"]] = None
 
+@dataclass
+class While(Stmt):
+    cond: "Expr"
+    body: List["Stmt"]
+
+@dataclass
+class Break(Stmt):
+    pass
+
+@dataclass
+class Continue(Stmt):
+    pass
+
 
 # Expressions
 class Expr(Node):
