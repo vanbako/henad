@@ -54,6 +54,13 @@ class Assembler:
 
     def assemble(self, source: str) -> List[int]:
         self.symbols.clear()
+        # Preload built-in symbols (CSR indices, math constants)
+        try:
+            from .builtins import BUILTIN_SYMBOLS  # local import to avoid import cycles during tooling
+            self.symbols.update(BUILTIN_SYMBOLS)
+        except Exception:
+            # Builtins are optional; continue if unavailable
+            pass
         self._ir.clear()
         self._pending_equ.clear()
         self._pass1(source)
@@ -136,6 +143,38 @@ class Assembler:
                 # Macro placeholder; expands to 4 instructions in pass2
                 self._ir.append(IRMacro(pc, mnem, ops, raw, lineno))
                 pc += 4
+            elif mnem in (
+                # Async int24 math convenience macros
+                "MULU24", "MULS24",
+                "DIVU24", "DIVS24",
+                "MODU24", "MODS24",
+                "SQRTU24",
+                "ABS_S24",
+                "MIN_U24", "MAX_U24", "MIN_S24", "MAX_S24",
+                "CLAMP_U24", "CLAMP_S24",
+            ):
+                # Estimate expansion size to advance PC correctly
+                k = mnem
+                def need_b() -> bool:
+                    return k not in ("SQRTU24", "ABS_S24")
+                def need_c() -> bool:
+                    return k.startswith("CLAMP_")
+                def res1_needed() -> bool:
+                    return k in ("MULU24", "MULS24", "DIVU24", "DIVS24")
+                base = 0
+                base += 1  # OPA write
+                if need_b():
+                    base += 1  # OPB write
+                if need_c():
+                    base += 1  # OPC write
+                base += 1  # MOVui ctrl
+                base += 1  # CSRWR ctrl
+                base += 3  # poll: CSRRD/ANDui/BCCso
+                base += 1  # RES0 read
+                if res1_needed():
+                    base += 1  # RES1 read
+                self._ir.append(IRMacro(pc, mnem, ops, raw, lineno))
+                pc += base
             else:
                 self._ir.append(IRInstruction(pc, mnem, ops, raw, lineno))
                 pc += 1
@@ -215,6 +254,139 @@ class Assembler:
                         words.append(w & 0xFFFFFF)
                     w = swi.encode([f"#{imm48 & 0xFFF}"], resolve_expr=self._resolve_expr, pc=item.addr)
                     words.append(w & 0xFFFFFF)
+                elif item.kind in (
+                    "MULU24", "MULS24",
+                    "DIVU24", "DIVS24",
+                    "MODU24", "MODS24",
+                    "SQRTU24",
+                    "ABS_S24",
+                    "MIN_U24", "MAX_U24", "MIN_S24", "MAX_S24",
+                    "CLAMP_U24", "CLAMP_S24",
+                ):
+                    # Expand async int24 math macro into CSR writes + poll + reads
+                    k = item.kind
+                    ops = item.operands
+                    pc_here = item.addr
+
+                    # Helper to encode with advancing PC
+                    def emit(mn: str, operands: List[str]) -> None:
+                        nonlocal pc_here
+                        spec = get_spec(mn)
+                        if not spec:
+                            raise AsmError(f"Missing spec for '{mn}' (expanding {k})")
+                        w = spec.encode(operands, resolve_expr=self._resolve_expr, pc=pc_here)
+                        words.append(w & 0xFFFFFF)
+                        pc_here += 1
+
+                    # Validate operands per macro
+                    def expect(n: int) -> None:
+                        if len(ops) != n:
+                            raise AsmError(f"{k} expects {n} operands at line {item.lineno}")
+
+                    # Map macro -> op constant symbol
+                    OP_SYM = {
+                        "MULU24": "MATH_OP_MULU",
+                        "MULS24": "MATH_OP_MULS",
+                        "DIVU24": "MATH_OP_DIVU",
+                        "DIVS24": "MATH_OP_DIVS",
+                        "MODU24": "MATH_OP_MODU",
+                        "MODS24": "MATH_OP_MODS",
+                        "SQRTU24": "MATH_OP_SQRTU",
+                        "ABS_S24": "MATH_OP_ABS_S",
+                        "MIN_U24": "MATH_OP_MIN_U",
+                        "MAX_U24": "MATH_OP_MAX_U",
+                        "MIN_S24": "MATH_OP_MIN_S",
+                        "MAX_S24": "MATH_OP_MAX_S",
+                        "CLAMP_U24": "MATH_OP_CLAMP_U",
+                        "CLAMP_S24": "MATH_OP_CLAMP_S",
+                    }
+                    op_sym = OP_SYM[k]
+
+                    # Expand per macro
+                    if k in ("MULU24", "MULS24"):
+                        expect(5)
+                        a, b, d_lo, d_hi, tmp = ops
+                        # Write operands
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        # Start
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        # Poll ready
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # loop until READY!=0
+                        # Read results
+                        emit("CSRRD", ["#MATH_RES0", d_lo])
+                        emit("CSRRD", ["#MATH_RES1", d_hi])
+                    elif k in ("DIVU24", "DIVS24"):
+                        expect(5)
+                        a, b, d_q, d_r, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_q])
+                        emit("CSRRD", ["#MATH_RES1", d_r])
+                    elif k in ("MODU24", "MODS24"):
+                        expect(4)
+                        a, b, d_r, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_r])
+                    elif k == "SQRTU24":
+                        expect(3)
+                        a, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k == "ABS_S24":
+                        expect(3)
+                        a, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("MIN_U24", "MAX_U24", "MIN_S24", "MAX_S24"):
+                        expect(4)
+                        a, b, d_res, tmp = ops
+                        emit("CSRWR", [a, "#MATH_OPA"])   # OPA := a
+                        emit("CSRWR", [b, "#MATH_OPB"])   # OPB := b
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])  # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])  # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    elif k in ("CLAMP_U24", "CLAMP_S24"):
+                        expect(5)
+                        a, d_min, d_max, d_res, tmp = ops
+                        emit("CSRWR", [a,     "#MATH_OPA"])  # OPA := a
+                        emit("CSRWR", [d_max, "#MATH_OPB"])  # OPB := max
+                        emit("CSRWR", [d_min, "#MATH_OPC"])  # OPC := min
+                        emit("MOVUI", [f"#MATH_CTRL_START + {op_sym}", tmp])
+                        emit("CSRWR", [tmp, "#MATH_CTRL"])   # kick
+                        emit("CSRRD", ["#MATH_STATUS", tmp])
+                        emit("ANDUI", ["#MATH_STATUS_READY", tmp])
+                        emit("BCCSO", ["EQ", ".-2"])       # wait
+                        emit("CSRRD", ["#MATH_RES0", d_res])
+                    else:
+                        raise AsmError(f"Unknown math macro '{k}' at line {item.lineno}")
                 else:
                     raise AsmError(f"Unknown macro '{item.kind}' at line {item.lineno}")
                 continue
@@ -322,6 +494,17 @@ class Assembler:
                     ops.append(expr)
                     continue
                 ops.append(tok)
+        # CSR operand order normalization for friendlier syntax
+        # Allow: CSRWR CSR_NAME, DRs  -> canonical: CSRWR DRs, CSR_NAME
+        # Allow: CSRRD DRt, CSR_NAME  -> canonical: CSRRD CSR_NAME, DRt
+        if mnem.upper() == "CSRWR" and len(ops) == 2:
+            lhs, rhs = ops[0], ops[1]
+            if re.match(r"^DR\d+$", rhs.strip(), re.IGNORECASE) and not re.match(r"^DR\d+$", lhs.strip(), re.IGNORECASE):
+                ops = [rhs.upper(), lhs]
+        if mnem.upper() == "CSRRD" and len(ops) == 2:
+            lhs, rhs = ops[0], ops[1]
+            if re.match(r"^DR\d+$", lhs.strip(), re.IGNORECASE) and not re.match(r"^DR\d+$", rhs.strip(), re.IGNORECASE):
+                ops = [rhs, lhs.upper()]
         return mnem, ops
 
     @staticmethod

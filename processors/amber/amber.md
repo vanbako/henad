@@ -72,6 +72,18 @@ Notes
 - SQRT returns floor(sqrt(OPA)) in `RES0` (12‑bit significant).
 - Values are int24; ops are unsigned or signed per opcode.
 
+Assembler integration
+- The Amber assembler provides built-in CSR aliases and math constants: `MATH_CTRL`, `MATH_STATUS`, `MATH_OPA`, `MATH_OPB`, `MATH_OPC`, `MATH_RES0`, `MATH_RES1`, `MATH_CTRL_START`, `MATH_STATUS_READY`, and pre-shifted `MATH_OP_*` codes.
+- Convenience macros expand to full CSR sequences (write operands, kick, poll `READY`, read results):
+  - `MULU24/MULS24 DRa, DRb, DRlo, DRhi, DRtmp`
+  - `DIVU24/DIVS24 DRa, DRb, DRq, DRr, DRtmp`
+  - `MODU24/MODS24 DRa, DRb, DRr, DRtmp`
+  - `SQRTU24 DRa, DRres, DRtmp`
+  - `ABS_S24 DRa, DRres, DRtmp`
+  - `MIN_U24/MAX_U24/MIN_S24/MAX_S24 DRa, DRb, DRres, DRtmp`
+  - `CLAMP_U24/CLAMP_S24 DRa, DRmin, DRmax, DRres, DRtmp`
+- Example (unsigned divide): `DIVU24 DR1, DR2, DR3, DR4, DR0`  ; DR3=quot, DR4=rem, DR0 scratch
+
 ## Testbench
 
 - File: `processors/amber/src/math24_async_tb.v`

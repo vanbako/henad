@@ -40,6 +40,10 @@ Supported mnemonics (subset):
   - Also `BCCsr CC, PC+DRt` for register-relative branches.
 - OP6 (address-register ops subset): `ADDaur`, `SUBaur`, `ADDAsr`, `SUBAsr`, `ADDAsi`, `SUBAsi`, `LEAso`, `ADRAso`, `CMPAur`, `TSTAur`, `MOVAur DRs, ARt, H|L`, `MOVDur ARs, DRt, H|L` (bit 9: H=1, L=0).
 - OP9 (CSR): `CSRRD #csr8, DRt`, `CSRWR DRs, #csr8`.
+  - Built-in CSR aliases include: `STATUS`, `CAUSE`, `EPC_LO`, `EPC_HI`, `CYCLE_L`, `CYCLE_H`, `INSTRET_L`, `INSTRET_H`.
+  - Async Int24 Math CSR aliases: `MATH_CTRL`, `MATH_STATUS`, `MATH_OPA`, `MATH_OPB`, `MATH_OPC`, `MATH_RES0`, `MATH_RES1`.
+  - Math control constants: `MATH_CTRL_START` and pre-shifted `MATH_OP_*` (e.g. `MATH_OP_DIVU`, `MATH_OP_MULS`, `MATH_OP_SQRTU`, `MATH_OP_CLAMP_S`).
+  - Math status bits: `MATH_STATUS_READY`, `MATH_STATUS_BUSY`, `MATH_STATUS_DIV0`.
 - OPA (privileged): `SRHLT`, `SETSSP ARs`, `SWI #imm12`.
   - Macro: `SWIui abs_expr` expands like `JSRui`: `LUIui #2,#expr[47:36]; LUIui #1,#expr[35:24]; LUIui #0,#expr[23:12]; SWI #expr[11:0]`.
 
@@ -57,3 +61,38 @@ Immediates and expressions:
 
 Directives:
 - `.equ NAME, expr`: defines a symbol; supports forward references (resolved after pass 1). `.equ` can reference labels and earlier `.equ`s.
+
+Async Int24 Math macros
+- `MULU24 DRa, DRb, DRlo, DRhi, DRtmp`
+- `MULS24 DRa, DRb, DRlo, DRhi, DRtmp`
+- `DIVU24 DRa, DRb, DRq, DRr, DRtmp`
+- `DIVS24 DRa, DRb, DRq, DRr, DRtmp`
+- `MODU24 DRa, DRb, DRr, DRtmp`
+- `MODS24 DRa, DRb, DRr, DRtmp`
+- `SQRTU24 DRa, DRres, DRtmp`
+- `ABS_S24 DRa, DRres, DRtmp`
+- `MIN_U24 DRa, DRb, DRres, DRtmp`
+- `MAX_U24 DRa, DRb, DRres, DRtmp`
+- `MIN_S24 DRa, DRb, DRres, DRtmp`
+- `MAX_S24 DRa, DRb, DRres, DRtmp`
+- `CLAMP_U24 DRa, DRmin, DRmax, DRres, DRtmp`
+- `CLAMP_S24 DRa, DRmin, DRmax, DRres, DRtmp`
+
+Semantics:
+- Macros issue CSR writes to `MATH_OP*`, kick the operation via `MATH_CTRL`, poll `MATH_STATUS` until `READY`, and read results (`RES0`, and `RES1` when applicable).
+- `DRtmp` is a scratch register used to build control and poll status; it is clobbered.
+- Destination registers receive: MUL -> `DRlo`=RES0, `DRhi`=RES1; DIV -> `DRq`=RES0, `DRr`=RES1; others -> `DRres`=RES0.
+
+Examples:
+- See `processors/amber/asm/examples/math_async.asm` for manual CSR usage.
+- See `processors/amber/asm/examples/math_macros.asm` for macro-based usage.
+
+Async Int24 Math usage
+- Write operands: `CSRWR DRa, MATH_OPA` and `CSRWR DRb, MATH_OPB` (and `CSRWR DRc, MATH_OPC` for clamp min).
+- Start operation: load control into a DR and write `CSRWR DRc, MATH_CTRL`, where `DRc = MATH_CTRL_START + MATH_OP_DIVU` (example for unsigned divide).
+- Poll status: `CSRRD MATH_STATUS, DRt` and test `MATH_STATUS_READY`.
+- Read results: `CSRRD MATH_RES0, DRx` (and `MATH_RES1` for MUL high or DIV remainder).
+
+CSR syntax convenience
+- `CSRWR` accepts either order: `CSRWR DRs, #idx` (canonical) or `CSRWR MATH_OPA, DRs` (assembler rewrites to canonical).
+- `CSRRD` accepts either order: `CSRRD #idx, DRt` (canonical) or `CSRRD DRt, MATH_STATUS` (rewritten).
