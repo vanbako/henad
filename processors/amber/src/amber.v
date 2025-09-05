@@ -7,43 +7,188 @@ module amber(
     input wire iw_clk,
     input wire iw_rst
 );
-    wire                w_imem_we    [0:1];
+    // ----------------------------
+    // Instruction-side cache and backing BRAM
+    // ----------------------------
     wire [`HBIT_ADDR:0] w_imem_addr  [0:1];
-    wire [`HBIT_ADDR:0] w_imem_wdata [0:1]; // unused for I-mem
-    wire                w_imem_is48  [0:1];
     wire [`HBIT_ADDR:0] w_imem_rdata [0:1];
+    // Backing BRAM (mem.v) for I-cache (instance kept as u_imem for TB access)
+    wire                ic_b_we     [0:1];
+    wire [`HBIT_ADDR:0] ic_b_addr_a [0:1];
+    wire [`HBIT_ADDR:0] ic_b_wdata  [0:1];
+    wire                ic_b_is48   [0:1];
+    wire [`HBIT_ADDR:0] ic_b_rdata  [0:1];
 
     mem #(.READ_MEM(1)) u_imem(
         .iw_clk  (iw_clk),
-        .iw_we   (w_imem_we),
-        .iw_addr (w_imem_addr),
-        .iw_wdata(w_imem_wdata),
-        .iw_is48 (w_imem_is48),
-        .or_rdata(w_imem_rdata)
+        .iw_we   (ic_b_we),
+        .iw_addr (ic_b_addr_a),
+        .iw_wdata(ic_b_wdata),
+        .iw_is48 (ic_b_is48),
+        .or_rdata(ic_b_rdata)
     );
+    // I-back BRAM is read-only in normal operation
+    assign ic_b_we[0]    = 1'b0;
+    assign ic_b_we[1]    = 1'b0;
+    assign ic_b_wdata[0] = {(`HBIT_ADDR+1){1'b0}};
+    assign ic_b_wdata[1] = {(`HBIT_ADDR+1){1'b0}};
+    assign ic_b_is48[0]  = 1'b0;
+    assign ic_b_is48[1]  = 1'b0;
 
-    // Instruction memory is read-only 24-bit; tie controls to zero
-    assign w_imem_we[0]    = 1'b0;
-    assign w_imem_we[1]    = 1'b0;
-    assign w_imem_wdata[0] = {(`HBIT_ADDR+1){1'b0}};
-    assign w_imem_wdata[1] = {(`HBIT_ADDR+1){1'b0}};
-    assign w_imem_is48[0]  = 1'b0;
-    assign w_imem_is48[1]  = 1'b0;
+    // I-cache instance
+    wire                w_ic_stall;
+    wire [`HBIT_ADDR:0] ic_f_rdata;
+    wire [`HBIT_ADDR:0] ic_refill_addr;
+    wire                ic_refill_req;
+`ifndef AMBER_USE_GWDDR
+    reg  [`HBIT_ADDR:0] ic_refill_addr_q;
+    reg                 ic_refill_req_q;
+`endif
+    icache_16x16_24 u_icache(
+        .clk     (iw_clk),
+        .rst     (iw_rst),
+        .f_addr  (w_imem_addr[0]),
+        .f_is48  (1'b0),
+        .f_rdata (ic_f_rdata),
+        .ow_stall(w_ic_stall),
+        .b_addr  (ic_refill_addr),
+        .b_req   (ic_refill_req),
+        .b_valid (
+`ifndef AMBER_USE_GWDDR
+            ic_refill_req_q
+`else
+            ic_refill_ic_valid
+`endif
+        ),
+        .b_rdata (ic_b_rdata[0])
+    );
+`ifndef AMBER_USE_GWDDR
+    // 1-cycle handshake to BRAM: capture request and drive address; data valid next cycle
+    always @(posedge iw_clk or posedge iw_rst) begin
+        if (iw_rst) begin
+            ic_refill_req_q  <= 1'b0;
+            ic_refill_addr_q <= {(`HBIT_ADDR+1){1'b0}};
+        end else begin
+            ic_refill_req_q  <= ic_refill_req;
+            if (ic_refill_req)
+                ic_refill_addr_q <= ic_refill_addr;
+        end
+    end
+    // Drive backing BRAM port 0 with refill address; leave port 1 idle
+    assign ic_b_addr_a[0] = ic_refill_addr_q;
+    assign ic_b_addr_a[1] = {(`HBIT_ADDR+1){1'b0}};
+`else
+    // DDR native refill shim: define ic_valid wire; instance later with D-cache
+    wire                ic_refill_ic_valid;
+`endif
+    // Present cache data to IF on port [0]; zero port [1]
+    assign w_imem_rdata[0] = ic_f_rdata;
+    assign w_imem_rdata[1] = {(`HBIT_ADDR+1){1'b0}};
 
+    // ----------------------------
+    // Data-side cache and backing BRAM
+    // ----------------------------
     wire                w_dmem_we    [0:1];
     wire [`HBIT_ADDR:0] w_dmem_addr  [0:1];
     wire [`HBIT_ADDR:0] w_dmem_wdata [0:1];
     wire                w_dmem_is48  [0:1];
     wire [`HBIT_ADDR:0] w_dmem_rdata [0:1];
 
+`ifndef AMBER_USE_GWDDR
+    // Backing BRAM (mem.v) for D-cache (instance kept as u_dmem for TB access)
+    wire [`HBIT_ADDR:0] dc_b_addr;
+    wire                dc_b_req;
+    reg                 dc_b_req_q;
+    reg  [`HBIT_ADDR:0] dc_b_addr_q;
+    wire                dc_b_we;
+    wire [`HBIT_ADDR:0] dc_b_wdata;
+    wire                dc_b_is48;
+    wire [`HBIT_ADDR:0] dc_b_rdata;
+    // Local array wires to connect to mem.v cleanly
+    wire                dmem_we_arr    [0:1];
+    wire [`HBIT_ADDR:0] dmem_addr_arr  [0:1];
+    wire [`HBIT_ADDR:0] dmem_wdata_arr [0:1];
+    wire                dmem_is48_arr  [0:1];
+    wire [`HBIT_ADDR:0] dmem_rdata_arr [0:1];
+
+    assign dmem_we_arr[0]    = 1'b0;
+    assign dmem_we_arr[1]    = dc_b_we;
+    assign dmem_addr_arr[0]  = {(`HBIT_ADDR+1){1'b0}};
+    assign dmem_addr_arr[1]  = dc_b_addr_q;
+    assign dmem_wdata_arr[0] = {(`HBIT_ADDR+1){1'b0}};
+    assign dmem_wdata_arr[1] = dc_b_wdata;
+    assign dmem_is48_arr[0]  = 1'b0;
+    assign dmem_is48_arr[1]  = dc_b_is48;
+    assign dc_b_rdata        = dmem_rdata_arr[1];
+
     mem #(.READ_MEM(0)) u_dmem(
         .iw_clk  (iw_clk),
-        .iw_we   (w_dmem_we),
-        .iw_addr (w_dmem_addr),
-        .iw_wdata(w_dmem_wdata),
-        .iw_is48 (w_dmem_is48),
-        .or_rdata(w_dmem_rdata)
+        .iw_we   (dmem_we_arr),
+        .iw_addr (dmem_addr_arr),
+        .iw_wdata(dmem_wdata_arr),
+        .iw_is48 (dmem_is48_arr),
+        .or_rdata(dmem_rdata_arr)
     );
+`endif
+
+    wire w_dc_stall;
+    dcache_16x16_24 u_dcache(
+        .clk      (iw_clk),
+        .rst      (iw_rst),
+        .f_we     (w_dmem_we),
+        .f_addr   (w_dmem_addr),
+        .f_wdata  (w_dmem_wdata),
+        .f_is48   (w_dmem_is48),
+        .f_rdata  (w_dmem_rdata),
+        .ow_stall (w_dc_stall),
+        .b_addr   (dc_b_addr),
+        .b_req    (dc_b_req),
+        .b_we     (dc_b_we),
+        .b_wdata  (dc_b_wdata),
+        .b_is48   (dc_b_is48),
+        .b_valid  (
+`ifndef AMBER_USE_GWDDR
+            dc_b_req_q
+`else
+            dc_refill_valid
+`endif
+        ),
+        .b_rdata  (dc_b_rdata)
+    );
+`ifndef AMBER_USE_GWDDR
+    // 1-cycle handshake to BRAM for D-cache refills
+    always @(posedge iw_clk or posedge iw_rst) begin
+        if (iw_rst) begin
+            dc_b_req_q  <= 1'b0;
+            dc_b_addr_q <= {(`HBIT_ADDR+1){1'b0}};
+        end else begin
+            dc_b_req_q <= dc_b_req;
+            if (dc_b_req)
+                dc_b_addr_q <= dc_b_addr;
+        end
+    end
+`else
+    wire dc_refill_valid;
+    // Instantiate the combined DDR3-native refill/write-through shim here
+    amber_refill_gwddr u_refill (
+        .clk      (iw_clk),
+        .rst      (iw_rst),
+        // I-cache side
+        .ic_req   (ic_refill_req),
+        .ic_addr  (ic_refill_addr),
+        .ic_valid (ic_refill_ic_valid),
+        .ic_rdata (ic_b_rdata[0]),
+        // D-cache side
+        .dc_req   (dc_b_req),
+        .dc_addr  (dc_b_addr),
+        .dc_valid (dc_refill_valid),
+        .dc_rdata (dc_b_rdata),
+        .dc_we    (dc_b_we),
+        .dc_wdata (dc_b_wdata),
+        .dc_is48  (dc_b_is48)
+        // Native DDR3 UI ports to be wired at board top
+    );
+`endif
 
     wire                w_ia_valid;
     reg  [`HBIT_ADDR:0] r_ia_pc;
@@ -130,6 +275,7 @@ module amber(
     );
 
     wire                w_stall;
+    wire                w_hazard_stall;
     wire                w_bubble;
     wire                w_branch_taken;
     wire [`HBIT_ADDR:0] w_branch_pc;
@@ -424,8 +570,10 @@ module amber(
         .iw_clk           (iw_clk),
         .iw_rst           (iw_rst),
         .iw_idex_opc      (w_opc),
-        .ow_stall         (w_stall)
+        .ow_stall         (w_hazard_stall)
     );
+    // Global stall is OR of hazard and cache refills
+    assign w_stall = w_hazard_stall | w_ic_stall | w_dc_stall;
 
     stg_ex u_stg_ex(
         .iw_clk           (iw_clk),
