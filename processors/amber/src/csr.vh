@@ -11,5 +11,8 @@
 `define CSR_IDX_INSTRET_L 8'h06
 `define CSR_IDX_INSTRET_H 8'h07
 
-`endif
+// CSR[STATUS] bit assignments (low 24-bit data field)
+// [0] MODE: 1=kernel, 0=user
+`define CSR_STATUS_MODE_BIT 0
 
+`endif

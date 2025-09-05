@@ -747,6 +747,7 @@ SWI        #imm12             ; software interrupt to absolute handler
     ; Semantics:
     ;   LR := PC + 1 (return address)
     ;   PC := {UIMM2[47:36], UIMM1[35:24], UIMM0[23:12], imm12[11:0]}
+    ;   Mode: enter kernel mode
     ; Notes:
     ;   - The three upper immediate banks are loaded via prior LUIui #2/#1/#0 instructions.
     ;   - imm12 provides the low 12 bits of the absolute handler address.
@@ -755,6 +756,16 @@ SWI        #imm12             ; software interrupt to absolute handler
     [19-16] subop              ; 0010
     [15-12] RESERVED
     [11- 0] imm12
+    {}
+
+SRET                          ; supervisor return
+    isa                sret
+    ; Semantics:
+    ;   PC := LR (return to address saved by SWI/JSR sequence)
+    ;   Mode: leave kernel mode and resume in user mode
+    [23-20] opclass            ; 1010
+    [19-16] subop              ; 0011
+    [15- 0] RESERVED
     {}
 
 ; opclass 1011 MMU / TLB & Cache management

@@ -1,6 +1,7 @@
 `include "src/sizes.vh"
 `include "src/sr.vh"
 `include "src/opcodes.vh"
+`include "src/csr.vh"
 
 module amber(
     input wire iw_clk,
@@ -300,16 +301,41 @@ module amber(
         .ow_read_data2  (w_csr_read_data2)
     );
 
+    // Privilege mode: 1 = kernel, 0 = user
+    reg r_mode_kernel;
     // Drive CSR read addr from current EX instruction when CSRRD
     assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[7:0] : {(`HBIT_TGT_CSR+1){1'b0}};
     assign w_csr_read_addr2 = {(`HBIT_TGT_CSR+1){1'b0}};
+    // Effective CSR read data: override STATUS to reflect live mode bit
+    wire [`HBIT_DATA:0] w_csr_read_data1_eff =
+        ((w_opc == `OPC_CSRRD) && (w_idex_instr[7:0] == `CSR_IDX_STATUS))
+            ? {23'b0, r_mode_kernel}
+            : w_csr_read_data1;
     // Mux SR source value: for CSRRD feed CSR read data zero-extended
-    wire [`HBIT_ADDR:0] w_src_sr_val_mux = (w_opc == `OPC_CSRRD) ? { {(`SIZE_ADDR-`SIZE_DATA){1'b0}}, w_csr_read_data1 } : w_src_sr_val;
+    wire [`HBIT_ADDR:0] w_src_sr_val_mux = (w_opc == `OPC_CSRRD) ? { {(`SIZE_ADDR-`SIZE_DATA){1'b0}}, w_csr_read_data1_eff } : w_src_sr_val;
 
     // CSR write driven in WB when CSRWR retires
     assign w_csr_write_enable = (w_wb_opc == `OPC_CSRWR);
     assign w_csr_write_addr   = w_wb_instr[7:0];
     assign w_csr_write_data   = w_wb_result;
+
+    // Kernel/User mode state machine
+    always @(posedge iw_clk or posedge iw_rst) begin
+        if (iw_rst) begin
+            // Reset into kernel mode
+            r_mode_kernel <= 1'b1;
+        end else begin
+            // Enter kernel on SWI when it reaches EX/MA boundary
+            if (w_exma_opc == `OPC_SWI)
+                r_mode_kernel <= 1'b1;
+            // Leave kernel on SRET
+            else if (w_exma_opc == `OPC_SRET)
+                r_mode_kernel <= 1'b0;
+            // CSR writes to STATUS allowed only in kernel; update mode bit from bit[0]
+            if (w_csr_write_enable && (w_csr_write_addr == `CSR_IDX_STATUS) && r_mode_kernel)
+                r_mode_kernel <= w_csr_write_data[0];
+        end
+    end
 
     forward u_forward(
         .iw_tgt_gp        (w_tgt_gp),

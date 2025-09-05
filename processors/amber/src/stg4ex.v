@@ -138,6 +138,12 @@ module stg_ex(
                 // Absolute branch target assembled from uimm banks + imm12
                 r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
             end
+            `OPC_SRET: begin
+                // Supervisor return: branch to LR (saved by SWI as PC+1)
+                // No SR write needed here; target SR read path carries LR value
+                r_branch_taken = 1'b1;
+                r_branch_pc    = iw_tgt_sr_val;
+            end
             `OPC_LUIui: begin
                 // r_ui_latch updated in sequential block
             end

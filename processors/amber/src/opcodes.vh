@@ -212,6 +212,8 @@
 `define OPC_SETSSP {`OPCLASS_A, `SUBOP_SETSSP}
 `define SUBOP_SWI    4'b0010 // isa (software interrupt)
 `define OPC_SWI    {`OPCLASS_A, `SUBOP_SWI}
+`define SUBOP_SRET   4'b0011 // isa (supervisor return)
+`define OPC_SRET   {`OPCLASS_A, `SUBOP_SRET}
 
 // OPCLASS_B
 
@@ -333,6 +335,7 @@ function automatic [79:0] opc2str;
             `OPC_SRHLT:   opc2str = "SRHLT";
             `OPC_SETSSP:  opc2str = "SETSSP";
             `OPC_SWI:     opc2str = "SWI";
+            `OPC_SRET:    opc2str = "SRET";
 // OPCLASS_B
 // OPCLASS_C
 // OPCLASS_D

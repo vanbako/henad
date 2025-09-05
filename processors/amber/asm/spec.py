@@ -415,33 +415,41 @@ SPECS.update({
     "SETSSP": InstructionSpec("SETSSP", 0xA, 0x1, ["ARs"], {"ARs": (15, 14)}),
     # Software interrupt: jumps to absolute handler address formed via LUIui banks + IMM12
     "SWI": InstructionSpec("SWI", 0xA, 0x2, ["IMM12"], {"IMM12": (11, 0)}),
+    # Supervisor return: return to LR+1 and drop to user mode
+    "SRET": InstructionSpec("SRET", 0xA, 0x3, [], {}),
 })
 
 # OPCLASS F: SR ops
+# Note: OPCLASS_F contains micro-ops only (no standalone ISA mnemonics).
+# The assembler intentionally does not expose those.
+
+# Additional ISA control-flow and stack ops (OPCLASS_7 and OPCLASS_8)
 SPECS.update({
-    "SRMOVUR": InstructionSpec(
-        "SRMOVUR", 0xF, 0x0, ["SRs", "SRt"], {"SRt": (15, 14), "SRs": (13, 12)}
-    ),
-    "SRMOVAUR": InstructionSpec(
-        "SRMOVAUR", 0xF, 0x1, ["ARs", "SRt"], {"SRt": (15, 14), "ARs": (13, 12)}
-    ),
-    "SRJCCSO": InstructionSpec(
-        "SRJCCSO", 0xF, 0x2, ["CC", "SRt", "SIMM10"], {"SRt": (15, 14), "CC": (13, 10), "SIMM10": (9, 0)}
-    ),
-    "SRADDSI": InstructionSpec(
-        "SRADDSI", 0xF, 0x3, ["SIMM14", "SRt"], {"SRt": (15, 14), "SIMM14": (13, 0)}
-    ),
-    "SRSUBSI": InstructionSpec(
-        "SRSUBSI", 0xF, 0x4, ["SIMM14", "SRt"], {"SRt": (15, 14), "SIMM14": (13, 0)}
-    ),
-    # store: SRs, #imm12(SRt)
-    "SRSTSO": InstructionSpec(
-        "SRSTSO", 0xF, 0x5, ["SRs", "SIMM12", "SRt"], {"SRt": (15, 14), "SRs": (13, 12), "SIMM12": (11, 0)}
-    ),
-    # load: #imm12(SRs), SRt
-    "SRLDSO": InstructionSpec(
-        "SRLDSO", 0xF, 0x6, ["SIMM12", "SRs", "SRt"], {"SRt": (15, 14), "SRs": (13, 12), "SIMM12": (11, 0)}
-    ),
+    # Control flow (OPCLASS_7)
+    "BTP": InstructionSpec("BTP", 0x7, 0x0, [], {}),
+    "JCCUR": InstructionSpec("JCCUR", 0x7, 0x1, ["CC", "ARt"], {"ARt": (15, 14), "CC": (13, 10)}),
+    "JCCUI": InstructionSpec("JCCUI", 0x7, 0x2, ["CC", "IMM12"], {"CC": (15, 12), "IMM12": (11, 0)}),
+    "BCCSR": InstructionSpec("BCCSR", 0x7, 0x3, ["CC", "DRt"], {"DRt": (15, 12), "CC": (11, 8)}),
+    "BCCSO": InstructionSpec("BCCSO", 0x7, 0x4, ["CC", "SIMM12"], {"CC": (15, 12), "SIMM12": (11, 0)}),
+    "BALSO": InstructionSpec("BALSO", 0x7, 0x5, ["SIMM16"], {"SIMM16": (15, 0)}),
+    # Calls/returns (JSR/BSR/RET)
+    "JSRUR": InstructionSpec("JSRUR", 0x7, 0x6, ["ARt"], {"ARt": (15, 14)}),
+    "JSRUI": InstructionSpec("JSRUI", 0x7, 0x7, ["IMM12"], {"IMM12": (11, 0)}),
+    "BSRSR": InstructionSpec("BSRSR", 0x7, 0x8, ["DRt"], {"DRt": (15, 12)}),
+    "BSRSO": InstructionSpec("BSRSO", 0x7, 0x9, ["SIMM16"], {"SIMM16": (15, 0)}),
+    "RET":   InstructionSpec("RET",   0x7, 0xA, [], {}),
+})
+
+SPECS.update({
+    # Stack operations (OPCLASS_8)
+    # PUSHUR: DRs -> -(ARt)
+    "PUSHUR":  InstructionSpec("PUSHUR",  0x8, 0x0, ["DRs", "ARt"], {"ARt": (15, 14), "DRs": (13, 10)}),
+    # PUSHAUR: ARs(48b) -> -(ARt)
+    "PUSHAUR": InstructionSpec("PUSHAUR", 0x8, 0x1, ["ARs", "ARt"], {"ARt": (15, 14), "ARs": (13, 12)}),
+    # POPUR:  +(ARs) -> DRt
+    "POPUR":   InstructionSpec("POPUR",   0x8, 0x2, ["ARs", "DRt"], {"DRt": (15, 12), "ARs": (11, 10)}),
+    # POPAUR: +(ARs) -> ARt(48b)
+    "POPAUR":  InstructionSpec("POPAUR",  0x8, 0x3, ["ARs", "ARt"], {"ARt": (15, 14), "ARs": (13, 12)}),
 })
 
 

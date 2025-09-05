@@ -57,4 +57,3 @@ Immediates and expressions:
 
 Directives:
 - `.equ NAME, expr`: defines a symbol; supports forward references (resolved after pass 1). `.equ` can reference labels and earlier `.equ`s.
-- `.align N`: aligns PC to next multiple of N (in words).

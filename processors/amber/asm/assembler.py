@@ -126,19 +126,6 @@ class Assembler:
                 elif dname in ('dw24', 'diad'):
                     self._ir.append(IRDirective(pc, dname, dargs, raw, lineno))
                     pc += len(dargs)
-                elif dname == 'align':
-                    if len(dargs) != 1:
-                        raise AsmError(f".align requires a single power-of-two value at line {lineno}")
-                    try:
-                        n = self._parse_num(dargs[0])
-                    except Exception as e:
-                        raise AsmError(f".align parse error at line {lineno}: {e}")
-                    if n <= 0:
-                        raise AsmError(f".align value must be > 0 at line {lineno}")
-                    aligned = ((pc + n - 1) // n) * n
-                    # Record as an ORG directive so pass2 pads as needed
-                    self._ir.append(IRDirective(aligned, 'org', [str(aligned)], raw, lineno))
-                    pc = aligned
                 else:
                     raise AsmError(f"Unknown directive '.{dname}' at line {lineno}")
                 continue

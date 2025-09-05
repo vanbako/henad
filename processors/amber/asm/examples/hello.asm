@@ -32,9 +32,8 @@ next:
     ADRAso .+2, AR3      ; AR3 = PC + 2 (relative)
     BCCsr AL, PC+DR0     ; Branch via PC + DR0 (encodes CC+DRt)
 
-    ; Alignment and equ example
+    ; Constant example with .equ
     .equ CONST, 0x12
-    .align 4             ; align PC to next multiple of 4 words
     MOVui #CONST, DR0
 
     ; Move with H/L halves

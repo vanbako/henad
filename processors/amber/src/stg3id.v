@@ -200,14 +200,14 @@ module stg_id(
         end
     end
     wire [`HBIT_SRC_GP:0] w_src_gp = r_src_gp_sel;
-    // Target SR: for most ops it comes from [15:14], but SWI targets LR explicitly
+    // Target SR: for most ops it comes from [15:14], but SWI/SRET target LR explicitly
     reg  [`HBIT_TGT_SR:0] r_tgt_sr_sel;
     always @* begin
-        if (w_has_tgt_sr) begin
-            if (w_opc == `OPC_SWI)
-                r_tgt_sr_sel = `SR_IDX_LR;
-            else
-                r_tgt_sr_sel = iw_instr[15:14];
+        if (w_opc == `OPC_SWI || w_opc == `OPC_SRET) begin
+            // Force LR selection for SWI (save return) and SRET (return from LR)
+            r_tgt_sr_sel = `SR_IDX_LR;
+        end else if (w_has_tgt_sr) begin
+            r_tgt_sr_sel = iw_instr[15:14];
         end else begin
             r_tgt_sr_sel = `SIZE_TGT_SR'b0;
         end
