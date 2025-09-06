@@ -3,7 +3,7 @@ fn main() -> u24 out DR0 {
     let x: u24 = 1;
     let y: u24 = 3;
     let s: s24 = 2;
-    let A: addr = 0;
+    let A: addr<u24> = 0;
 
     x <<<= y;   // rotate-left by 3
     x >>>= 1;   // rotate-right by 1

@@ -1,0 +1,19 @@
+struct Point {
+    x: u24;
+    y: u24;
+}
+
+fn main() {
+    let p: Point;
+    let x: u24;
+    p.x = 5;
+    p.y = 7;
+    // via direct field access
+    x = p.x + p.y;
+    // via get_addr/get_content (typed)
+    let ax: addr<u24>;
+    ax = get_addr(p.x);
+    let bx: u24;
+    bx = get_content(get_addr(p.x));
+    x += bx;
+}

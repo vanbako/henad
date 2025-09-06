@@ -1,0 +1,16 @@
+struct S {
+    p: addr<u24>;
+    v: u24;
+}
+
+fn main() {
+    let s: S;
+    let a: addr<u24>;
+    let b: u24;
+    s.v = 3;
+    s.p = get_addr(s.v);
+    a = s.p;
+    // get_content requires an addr produced by get_addr (syntactically)
+    a = get_content(get_addr(s.p));
+    b = get_content(get_addr(s.v));
+}

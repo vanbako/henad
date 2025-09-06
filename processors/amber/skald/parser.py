@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .lexer import Lexer, Token, LexError
 from . import ast as A
-from .typesys import type_from_name, Type
+from .typesys import type_from_name, Type, define_struct, addr_of, array_of
 
 
 class ParseError(Exception):
@@ -49,10 +49,28 @@ class Parser:
                 prog.decls.append(self.parse_global_let())
             elif self._peek().kind == "fn":
                 prog.decls.append(self.parse_fn())
+            elif self._peek().kind == "struct":
+                prog.decls.append(self.parse_struct())
             else:
                 t = self._peek()
                 raise ParseError(f"Unexpected token {t.kind} at {t.line}:{t.col}")
         return prog
+
+    def parse_struct(self) -> A.StructDecl:
+        kw = self._eat("struct")
+        name_tok = self._eat("IDENT")
+        self._eat("LBRACE")
+        fields: List[Tuple[str, Type]] = []
+        while self._peek().kind != "RBRACE":
+            fname = self._eat("IDENT").text
+            self._eat("COLON")
+            fty = self.parse_type()
+            self._eat("SEMI")
+            fields.append((fname, fty))
+        self._eat("RBRACE")
+        # Register the struct type globally for later type lookups
+        define_struct(name_tok.text, fields)
+        return A.StructDecl(kw.line, kw.col, name_tok.text, fields)
 
     def parse_global_let(self) -> A.VarDecl:
         kw = self._eat("let")
@@ -67,12 +85,41 @@ class Parser:
 
     def parse_type(self) -> Type:
         t = self._peek()
-        if t.kind in ("u24", "s24", "addr"):
+        base: Optional[Type] = None
+        if t.kind in ("u24", "s24"):
             self.i += 1
-            ty = type_from_name(t.kind)
-            assert ty is not None
-            return ty
-        raise ParseError(f"Expected type, got {t.kind} at {t.line}:{t.col}")
+            base = type_from_name(t.kind)
+            assert base is not None
+        elif t.kind == "addr":
+            # Require generic parameter: addr<type>
+            self.i += 1
+            if not self._match("LT"):
+                raise ParseError(f"'addr' must be parameterized as addr<type> at {t.line}:{t.col}")
+            inner = self.parse_type()
+            self._eat("GT")
+            base = addr_of(inner)
+        elif t.kind == "IDENT":
+            self.i += 1
+            ty = type_from_name(t.text)
+            if ty is None:
+                raise ParseError(f"Unknown type '{t.text}' at {t.line}:{t.col}")
+            base = ty
+        else:
+            raise ParseError(f"Expected type, got {t.kind} at {t.line}:{t.col}")
+        # Optional one-dimensional array suffix: [NUMBER]
+        if self._peek().kind == "LBRACK":
+            self._eat("LBRACK")
+            n_tok = self._eat("NUMBER")
+            try:
+                length = self._parse_int(n_tok.text)
+            except Exception:
+                raise ParseError(f"invalid array length at {n_tok.line}:{n_tok.col}")
+            self._eat("RBRACK")
+            # Disallow nested array suffixes in MVP
+            if self._peek().kind == "LBRACK":
+                raise ParseError("multi-dimensional arrays are not supported")
+            return array_of(base, length)
+        return base
 
     def parse_fn(self) -> A.FuncDecl:
         kw = self._eat("fn")
@@ -194,7 +241,20 @@ class Parser:
         return A.Return(kw.line, kw.col, val)
 
     def parse_assign(self) -> A.Assign:
+        # Parse lvalue: IDENT ('.' IDENT | '[' expr ']')*
         name = self._eat("IDENT")
+        lhs: A.Expr = A.NameRef(name.line, name.col, name.text)
+        while True:
+            if self._match("DOT"):
+                fld = self._eat("IDENT")
+                lhs = A.FieldAccess(name.line, name.col, lhs, fld.text)
+                continue
+            if self._match("LBRACK"):
+                idx = self.parse_expr()
+                self._eat("RBRACK")
+                lhs = A.ArrayIndex(name.line, name.col, lhs, idx)
+                continue
+            break
         # Check for compound assignment operators
         op_tok = None
         for kind in ("ROLEQ", "ROREQ", "PLUSEQ", "MINUSEQ", "ANDEQ", "OREQ", "XOREQ", "SHLEQ", "SHREQ", "EQ"):
@@ -203,7 +263,7 @@ class Parser:
                 break
         if op_tok is None:
             t = self._peek()
-            raise ParseError(f"Expected assignment operator after identifier at {t.line}:{t.col}")
+            raise ParseError(f"Expected assignment operator after lvalue at {t.line}:{t.col}")
         val = self.parse_expr()
         self._eat("SEMI")
         op_map = {
@@ -219,7 +279,7 @@ class Parser:
             "SHREQ": ">>=",
         }
         op_str = op_map[op_tok]
-        return A.Assign(name.line, name.col, name.text, val, op_str)
+        return A.Assign(name.line, name.col, lhs, val, op_str)
 
     # Expressions with precedence and parentheses
     # Grammar (skeleton):
@@ -345,11 +405,25 @@ class Parser:
         if t.kind == "IDENT":
             # function call or name reference
             tok = self._eat("IDENT")
+            # Handle call, field access, or bare name
             if self._peek().kind == "LPAREN":
-                # put back one? easier: call a helper that assumes current is after ident and sees '(' next
-                # Here _peek() is LPAREN
                 return self._finish_call(tok)
-            return A.NameRef(tok.line, tok.col, tok.text)
+            # Field and/or index access chain: IDENT ('.' IDENT | '[' expr ']')*
+            base: A.Expr = A.NameRef(tok.line, tok.col, tok.text)
+            while True:
+                if self._peek().kind == "DOT":
+                    self._eat("DOT")
+                    fld = self._eat("IDENT")
+                    base = A.FieldAccess(tok.line, tok.col, base, fld.text)
+                    continue
+                if self._peek().kind == "LBRACK":
+                    self._eat("LBRACK")
+                    idx = self.parse_expr()
+                    self._eat("RBRACK")
+                    base = A.ArrayIndex(tok.line, tok.col, base, idx)
+                    continue
+                break
+            return base
         if t.kind == "LPAREN":
             self._eat("LPAREN")
             e = self.parse_expr()
@@ -380,6 +454,18 @@ class Parser:
             from .typesys import S24, U24  # local import to avoid cycles
             tgt = S24 if name_tok.text == "cast_s24" else U24
             return A.Cast(name_tok.line, name_tok.col, tgt, args[0])
+        # Address-of and content built-ins (strongly typed)
+        if name_tok.text == "get_addr":
+            if len(args) != 1:
+                raise ParseError(f"get_addr expects 1 argument at {name_tok.line}:{name_tok.col}")
+            # Accept only NameRef or FieldAccess; reject others here to give better errors
+            if not isinstance(args[0], (A.NameRef, A.FieldAccess)):
+                raise ParseError("get_addr argument must be a variable or field access")
+            return A.AddressOf(name_tok.line, name_tok.col, args[0])
+        if name_tok.text == "get_content":
+            if len(args) != 1:
+                raise ParseError(f"get_content expects 1 argument at {name_tok.line}:{name_tok.col}")
+            return A.Deref(name_tok.line, name_tok.col, args[0])
         return A.Call(name_tok.line, name_tok.col, name_tok.text, args)
 
     @staticmethod

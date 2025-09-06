@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .typesys import Type
 
@@ -15,6 +15,12 @@ class Node:
 @dataclass
 class Program(Node):
     decls: List[Node] = field(default_factory=list)
+
+
+@dataclass
+class StructDecl(Node):
+    name: str
+    fields: List[Tuple[str, Type]]  # (field_name, type)
 
 
 @dataclass
@@ -53,7 +59,8 @@ class Return(Stmt):
 
 @dataclass
 class Assign(Stmt):
-    target: str
+    # target may be a name or a field access expression
+    target: "Expr"  # NameRef or FieldAccess
     value: "Expr"
     op: str = "="  # '=', '+=', '-=', '&=', '|=', '^=', '<<=', '>>='
 
@@ -97,6 +104,28 @@ class IntLiteral(Expr):
 @dataclass
 class NameRef(Expr):
     ident: str
+
+
+@dataclass
+class FieldAccess(Expr):
+    base: Expr  # typically a NameRef
+    field: str
+
+
+@dataclass
+class ArrayIndex(Expr):
+    base: Expr  # typically a NameRef (array variable)
+    index: Expr
+
+
+@dataclass
+class AddressOf(Expr):
+    target: Expr  # NameRef or FieldAccess only
+
+
+@dataclass
+class Deref(Expr):
+    addr_expr: Expr  # AddressOf only (strongly typed)
 
 
 @dataclass

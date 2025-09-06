@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from . import ast as A
-from .typesys import U24, S24, ADDR, Type
+from .typesys import U24, S24, ADDR, Type, StructType, AddressType, addr_of
 
 
 class CodegenError(Exception):
@@ -38,6 +38,10 @@ class CodeGen:
         self._cur_ret_ty: Optional[Type] = None
         # loop stack: list of (begin_label, end_label)
         self._loop_stack: List[Tuple[str, str]] = []
+        # struct frame management
+        self._frame_words: int = 0
+        # name -> (offset_words, areg)
+        self._frame_locals: Dict[str, Tuple[int, Reg]] = {}
 
     def emit(self, s: str) -> None:
         self.lines.append(s)
@@ -65,6 +69,9 @@ class CodeGen:
 
         # Globals: emit storage as .dw24 (u24/s24) or two words for addr (placeholder)
         for d in prog.decls:
+            if isinstance(d, A.StructDecl):
+                # no code emission for type decls
+                continue
             if isinstance(d, A.VarDecl) and d.is_global:
                 self.gen_global(d)
 
@@ -90,6 +97,9 @@ class CodeGen:
 
     def gen_global(self, v: A.VarDecl) -> None:
         label = v.name
+        # MVP: no global struct variables yet
+        if isinstance(v.ty, StructType):
+            raise CodegenError("global struct variables are not supported yet")
         if v.ty.is_addr:
             # Reserve two 24-bit words for a 48-bit value (low then high)
             self.emit(f"{label}:")
@@ -114,6 +124,8 @@ class CodeGen:
         self.next_dr = 1
         self.next_ar = 1  # AR0 is stack pointer
         self._ret_indices = []
+        self._frame_words = 0
+        self._frame_locals.clear()
 
         self.emit(f"{f.name}:")
         # Record insertion point for prologue and bases
@@ -161,6 +173,20 @@ class CodeGen:
         self._dr_base = self.next_dr
         self._ar_base = self.next_ar
 
+        # Pre-scan for struct locals anywhere in the function body; allocate
+        for v in self._collect_struct_locals(f.body):
+            if not isinstance(v.ty, StructType):
+                continue
+            # Allocate address register for the local's base pointer
+            r = self.alloc_reg(v.ty)
+            self.sym_regs[v.name] = r
+            self.sym_types[v.name] = v.ty
+            # Assign frame offset
+            off = self._frame_words
+            self._frame_words += v.ty.size_words
+            self._frame_locals[v.name] = (off, r)
+            self.comment(f"alloc frame for {v.name}:{v.ty} size {v.ty.size_words}w -> {r.name} at +{off}")
+
         # Body
         # Capture return signature for nested returns
         prev_ret_reg, prev_ret_ty = self._cur_ret_reg, self._cur_ret_ty
@@ -196,7 +222,40 @@ class CodeGen:
         self._insert_prologue()
         self._insert_all_epilogues()
 
+    def _collect_struct_locals(self, body: List[A.Stmt]) -> List[A.VarDecl]:
+        out: List[A.VarDecl] = []
+        def visit_stmt(s: A.Stmt) -> None:
+            if isinstance(s, A.VarDecl):
+                if isinstance(s.ty, StructType) and not s.is_global:
+                    out.append(s)
+            elif isinstance(s, A.If):
+                for x in s.then_body:
+                    visit_stmt(x)
+                if s.else_body:
+                    for x in s.else_body:
+                        visit_stmt(x)
+            elif isinstance(s, A.While):
+                for x in s.body:
+                    visit_stmt(x)
+            # other stmts don't declare locals
+        for s in body:
+            visit_stmt(s)
+        return out
+
     def gen_local_let(self, v: A.VarDecl) -> None:
+        # Struct locals are pre-allocated in prologue with a base pointer in an AR
+        if isinstance(v.ty, StructType):
+            r = self.sym_regs.get(v.name)
+            if r is None:
+                # Fallback (shouldn't happen): allocate now
+                r = self.alloc_reg(v.ty)
+                self.sym_regs[v.name] = r
+                self.sym_types[v.name] = v.ty
+            self.comment(f"let {v.name}:{v.ty} -> {r.name} (frame)")
+            if v.init is not None:
+                raise CodegenError("struct initializer not supported; assign fields individually")
+            return
+        # Scalar local in register
         r = self.alloc_reg(v.ty)
         self.sym_regs[v.name] = r
         self.sym_types[v.name] = v.ty
@@ -205,12 +264,180 @@ class CodeGen:
             self.gen_store_expr_into(v.init, v.ty, r)
 
     def gen_assign(self, a: A.Assign) -> None:
-        if a.target not in self.sym_regs:
-            raise CodegenError(f"assignment to unknown variable '{a.target}'")
-        dst = self.sym_regs[a.target]
-        if a.target not in self.sym_types:
-            raise CodegenError(f"internal: missing type for '{a.target}'")
-        ty = self.sym_types[a.target]
+        # LHS can be a variable or a field access
+        if isinstance(a.target, A.NameRef):
+            tname = a.target.ident
+            if tname not in self.sym_regs:
+                raise CodegenError(f"assignment to unknown variable '{tname}'")
+            dst = self.sym_regs[tname]
+            if tname not in self.sym_types:
+                raise CodegenError(f"internal: missing type for '{tname}'")
+            ty = self.sym_types[tname]
+            op = a.op
+            if op == "=":
+                self.gen_store_expr_into(a.value, ty, dst)
+                return
+            # Address arithmetic: only for addr<T>, with DR rhs (u24/s24)
+            if ty.is_addr:
+                if isinstance(ty, StructType):
+                    raise CodegenError("cannot perform arithmetic on struct value; use addr<T> variable")
+                if op not in ("+=", "-="):
+                    raise CodegenError("only '+=' and '-=' supported for 'addr'")
+                # Determine rhs type: name ref or literal only for now
+                rhs_ty: Optional[Type] = None
+                if isinstance(a.value, A.NameRef):
+                    nm = a.value.ident
+                    if nm not in self.sym_types:
+                        raise CodegenError(f"unknown identifier '{nm}' in addr assignment")
+                    st = self.sym_types[nm]
+                    if st.is_addr:
+                        raise CodegenError("cannot use 'addr' value as rhs for addr +=/-=")
+                    rhs_ty = st
+                elif isinstance(a.value, A.IntLiteral):
+                    rhs_ty = U24
+                else:
+                    raise CodegenError("addr +=/-= requires u24/s24 variable or literal (skeleton)")
+                # Evaluate rhs in that type
+                rhs_reg = self.gen_eval_expr(a.value, rhs_ty)
+                if op == "+=":
+                    m = "ADDASR" if rhs_ty.is_signed else "ADDAUR"
+                else:
+                    m = "SUBASR" if rhs_ty.is_signed else "SUBAUR"
+                self.emit(f"    {m} {rhs_reg.name}, {dst.name}")
+                return
+            # Evaluate RHS with appropriate expected type
+            if op in ("<<=", ">>=", "<<<=", ">>>="):
+                rhs = self.gen_eval_data_any(a.value)
+            else:
+                rhs = self.gen_eval_expr(a.value, ty)
+            # Apply op in-place to dst
+            if op == "+=":
+                m = "ADDSR" if ty.is_signed else "ADDUR"
+                self.emit(f"    {m} {rhs.name}, {dst.name}")
+            elif op == "-=":
+                m = "SUBSR" if ty.is_signed else "SUBUR"
+                self.emit(f"    {m} {rhs.name}, {dst.name}")
+            elif op == "&=":
+                self.emit(f"    ANDUR {rhs.name}, {dst.name}")
+            elif op == "|=":
+                self.emit(f"    ORUR {rhs.name}, {dst.name}")
+            elif op == "^=":
+                self.emit(f"    XORUR {rhs.name}, {dst.name}")
+            elif op == "<<=":
+                self.emit(f"    SHLUR {rhs.name}, {dst.name}")
+            elif op == ">>=":
+                m = "SHRSR" if ty.is_signed else "SHRUR"
+                self.emit(f"    {m} {rhs.name}, {dst.name}")
+            elif op == "<<<=":
+                # rotate left
+                self.emit(f"    ROLUR {rhs.name}, {dst.name}")
+            elif op == ">>>=":
+                # rotate right
+                self.emit(f"    RORUR {rhs.name}, {dst.name}")
+            else:
+                raise CodegenError(f"unsupported compound operator '{op}'")
+            return
+        elif isinstance(a.target, A.FieldAccess):
+            # Resolve base variable and struct layout
+            base = a.target.base
+            if not isinstance(base, A.NameRef):
+                raise CodegenError("complex field bases not supported yet")
+            bname = base.ident
+            if bname not in self.sym_types or bname not in self.sym_regs:
+                raise CodegenError(f"unknown struct variable '{bname}'")
+            bty = self.sym_types[bname]
+            if not isinstance(bty, StructType):
+                raise CodegenError("field access on non-struct variable")
+            areg = self.sym_regs[bname]
+            # Lookup field
+            field_ty: Optional[Type] = None
+            field_off = 0
+            for fname, fty, off in bty.fields:
+                if fname == a.target.field:
+                    field_ty = fty
+                    field_off = off
+                    break
+            if field_ty is None:
+                raise CodegenError(f"unknown field '{a.target.field}' on '{bname}'")
+            op = a.op
+            if op == "=":
+                src = self.gen_eval_expr(a.value, field_ty)
+                if field_ty.is_addr:
+                    # store AR src -> #off(AREG)
+                    self.emit(f"    STASO {src.name}, #{field_off}, {areg.name}")
+                else:
+                    self.emit(f"    STSO {src.name}, #{field_off}, {areg.name}")
+                return
+            # Compound assignment: load field, apply, store back
+            if field_ty.is_addr:
+                if op not in ("+=", "-="):
+                    raise CodegenError("only '+=' and '-=' supported for addr fields")
+                # Load current field value into AR temp
+                tmp = self.alloc_reg(ADDR)
+                self.emit(f"    LDASO #{field_off}, {areg.name}, {tmp.name}")
+                # Determine rhs type
+                rhs_ty: Optional[Type] = None
+                if isinstance(a.value, A.NameRef):
+                    nm = a.value.ident
+                    if nm not in self.sym_types:
+                        raise CodegenError(f"unknown identifier '{nm}' in addr field assignment")
+                    st = self.sym_types[nm]
+                    if st.is_addr:
+                        raise CodegenError("cannot use 'addr' value as rhs for addr +=/-=")
+                    rhs_ty = st
+                elif isinstance(a.value, A.IntLiteral):
+                    rhs_ty = U24
+                else:
+                    raise CodegenError("addr field +=/-= requires u24/s24 variable or literal")
+                rhs_reg = self.gen_eval_expr(a.value, rhs_ty)
+                if op == "+=":
+                    m = "ADDASR" if rhs_ty.is_signed else "ADDAUR"
+                else:
+                    m = "SUBASR" if rhs_ty.is_signed else "SUBAUR"
+                self.emit(f"    {m} {rhs_reg.name}, {tmp.name}")
+                self.emit(f"    STASO {tmp.name}, #{field_off}, {areg.name}")
+                return
+            # Data field compound ops
+            # Load field into DR temp (signedness of load doesn't matter for raw value)
+            cur = self.alloc_reg(field_ty)
+            self.emit(f"    LDSO #{field_off}, {areg.name}, {cur.name}")
+            if op == "+=":
+                rhs = self.gen_eval_expr(a.value, field_ty)
+                m = "ADDSR" if field_ty.is_signed else "ADDUR"
+                self.emit(f"    {m} {rhs.name}, {cur.name}")
+            elif op == "-=":
+                rhs = self.gen_eval_expr(a.value, field_ty)
+                m = "SUBSR" if field_ty.is_signed else "SUBUR"
+                self.emit(f"    {m} {rhs.name}, {cur.name}")
+            elif op == "&=":
+                rhs = self.gen_eval_expr(a.value, field_ty)
+                self.emit(f"    ANDUR {rhs.name}, {cur.name}")
+            elif op == "|=":
+                rhs = self.gen_eval_expr(a.value, field_ty)
+                self.emit(f"    ORUR {rhs.name}, {cur.name}")
+            elif op == "^=":
+                rhs = self.gen_eval_expr(a.value, field_ty)
+                self.emit(f"    XORUR {rhs.name}, {cur.name}")
+            elif op == "<<=":
+                rhs = self.gen_eval_data_any(a.value)
+                self.emit(f"    SHLUR {rhs.name}, {cur.name}")
+            elif op == ">>=":
+                rhs = self.gen_eval_data_any(a.value)
+                m = "SHRSR" if field_ty.is_signed else "SHRUR"
+                self.emit(f"    {m} {rhs.name}, {cur.name}")
+            elif op == "<<<=":
+                rhs = self.gen_eval_data_any(a.value)
+                self.emit(f"    ROLUR {rhs.name}, {cur.name}")
+            elif op == ">>>=":
+                rhs = self.gen_eval_data_any(a.value)
+                self.emit(f"    RORUR {rhs.name}, {cur.name}")
+            else:
+                raise CodegenError(f"unsupported compound operator '{op}' for field")
+            # Store back updated value
+            self.emit(f"    STSO {cur.name}, #{field_off}, {areg.name}")
+            return
+        else:
+            raise CodegenError("unsupported assignment target kind")
         op = a.op
         if op == "=":
             self.gen_store_expr_into(a.value, ty, dst)
@@ -406,10 +633,11 @@ class CodeGen:
         tmp = self.gen_eval_expr(r.value, ret_ty)
         if tmp.name != ret_reg.name:
             if ret_reg.is_addr and not tmp.is_addr:
-                # Move DRtmp -> ARret low (placeholder: only low part)
                 self.emit(f"    MOVAur {tmp.name}, {ret_reg.name}, L")
             elif (not ret_reg.is_addr) and tmp.is_addr:
                 self.emit(f"    MOVDur {tmp.name}, {ret_reg.name}, L")
+            elif ret_reg.is_addr and tmp.is_addr:
+                self.emit(f"    LEASO {tmp.name}, #0, {ret_reg.name}")
             else:
                 self.emit(f"    MOVur {tmp.name}, {ret_reg.name}")
         # RET; epilogue will be inserted later
@@ -427,13 +655,18 @@ class CodeGen:
         if (not dst.is_addr) and src.is_addr:
             self.emit(f"    MOVDur {src.name}, {dst.name}, L")
             return dst
-        self.emit(f"    MOVur {src.name}, {dst.name}")
+        if dst.is_addr and src.is_addr:
+            self.emit(f"    LEASO {src.name}, #0, {dst.name}")
+        else:
+            self.emit(f"    MOVur {src.name}, {dst.name}")
         return dst
 
     def gen_eval_expr(self, e: A.Expr, ty: Type) -> Reg:
         if isinstance(e, A.IntLiteral):
-            # Materialize into a DR
-            dr = self.alloc_reg(U24)
+            # Materialize into a DR of the expected data type (strict typing)
+            if ty.is_addr:
+                raise CodegenError("integer literal not allowed in address context")
+            dr = self.alloc_reg(S24 if ty.is_signed else U24)
             imm = e.value & 0xFFF  # skeleton: 12-bit immediates only for now
             self.emit(f"    MOVui #{imm}, {dr.name}")
             return dr
@@ -448,11 +681,26 @@ class CodeGen:
                 raise CodegenError(
                     f"type mismatch: expected {ty}, found {src_ty} for '{e.ident}'"
                 )
-            # Allow implicit reinterpret between u24 <-> s24 (same width, data regs)
+            if ty.is_addr:
+                # Enforce typed address match (addr<T>), not just class
+                if isinstance(ty, AddressType):
+                    if isinstance(src_ty, AddressType):
+                        if ty.pointee != src_ty.pointee:
+                            raise CodegenError(
+                                f"type mismatch: expected {ty}, found {src_ty} for '{e.ident}'"
+                            )
+                    else:
+                        # Using a struct value where an addr<T> is expected
+                        raise CodegenError(
+                            f"type mismatch: expected {ty}, found {src_ty}; use get_addr(...)"
+                        )
+                # For non-parameterized address-like types (e.g., StructType), fall through only
+                # when the expected type is also non-parameterized (not allowed here).
+            # Strict typing: require exact data type match (no implicit u24<->s24)
             if (not ty.is_addr) and (not src_ty.is_addr):
-                if src_ty.bits != ty.bits:
+                if src_ty != ty:
                     raise CodegenError(
-                        f"type width mismatch: expected {ty.bits}, found {src_ty.bits} for '{e.ident}'"
+                        f"type mismatch: expected {ty}, found {src_ty} for '{e.ident}'"
                     )
                 return self.sym_regs[e.ident]
             return self.sym_regs[e.ident]
@@ -472,9 +720,7 @@ class CodeGen:
             if e.op in ("==", "!=", "<", "<=", ">", ">="):
                 if ty.is_addr:
                     raise CodegenError("comparison result cannot be 'addr'")
-                comp_ty = self._infer_data_type(e.lhs, e.rhs) or U24
-                if comp_ty.is_addr:
-                    raise CodegenError("address comparison not supported yet")
+                comp_ty = self._unify_compare_type(e.lhs, e.rhs)
                 lhsr = self.gen_eval_expr(e.lhs, comp_ty)
                 rhsr = self.gen_eval_expr(e.rhs, comp_ty)
                 cmpm = "CMPSR" if comp_ty.is_signed else "CMPUR"
@@ -533,6 +779,103 @@ class CodeGen:
                 raise CodegenError("cast to 'addr' not supported")
             # Evaluate inner with the cast target type, then return it
             return self.gen_eval_expr(e.expr, e.target)
+        if isinstance(e, A.AddressOf):
+            # Expected type must be 'addr'
+            if not ty.is_addr:
+                raise CodegenError("get_addr used in non-address context")
+            # Only allow address-of field of a local struct variable (strongly typed)
+            targ = e.target
+            if isinstance(targ, A.FieldAccess):
+                base = targ.base
+                if not isinstance(base, A.NameRef):
+                    raise CodegenError("complex field bases not supported for get_addr")
+                bname = base.ident
+                if bname not in self.sym_types or bname not in self.sym_regs:
+                    raise CodegenError(f"unknown struct variable '{bname}' in get_addr")
+                bty = self.sym_types[bname]
+                if not isinstance(bty, StructType):
+                    raise CodegenError("get_addr only supports fields on struct locals")
+                areg = self.sym_regs[bname]
+                # Lookup field offset
+                field_ty: Optional[Type] = None
+                field_off = 0
+                for fname, fty, off in bty.fields:
+                    if fname == targ.field:
+                        field_ty = fty
+                        field_off = off
+                        break
+                if field_ty is None:
+                    raise CodegenError(f"unknown field '{targ.field}' on '{bname}'")
+                # Type-check: expected addr<field_ty>
+                if not isinstance(ty, AddressType) or ty.pointee != field_ty:
+                    raise CodegenError("type mismatch: get_addr expected addr<field_type>")
+                # Compute address: ARdst = ARbase + #off
+                dst = self.alloc_reg(ty)
+                self.emit(f"    LEASO {areg.name}, #{field_off}, {dst.name}")
+                return dst
+            elif isinstance(targ, A.NameRef):
+                # Disallow taking address of scalar locals (register-backed)
+                vname = targ.ident
+                if vname in self.sym_types:
+                    vty = self.sym_types[vname]
+                    if isinstance(vty, StructType):
+                        # Address of whole struct: return its base pointer
+                        if not isinstance(ty, AddressType) or ty.pointee != vty:
+                            raise CodegenError("type mismatch: get_addr expected addr<struct_type>")
+                        areg = self.sym_regs[vname]
+                        if not areg.is_addr:
+                            raise CodegenError("internal: struct base is not an address register")
+                        return areg
+                    # Scalar locals are in registers — no addressable storage in MVP
+                    raise CodegenError("cannot take address of register-backed local; use a struct field")
+                # Global variables are not yet supported in expressions
+                raise CodegenError("get_addr on globals not supported yet")
+            else:
+                raise CodegenError("get_addr argument must be a variable or field access")
+        if isinstance(e, A.Deref):
+            # Only allow deref of an AddressOf expression; ensures strong typing
+            if not isinstance(e.addr_expr, A.AddressOf):
+                raise CodegenError("get_content requires an addr<T> produced by get_addr(...) in this MVP")
+            # Determine underlying element type and address register
+            aof = e.addr_expr
+            # Evaluate address value (must yield AR)
+            # Expected address type is addr<ty>
+            ar = self.gen_eval_expr(aof, addr_of(ty))
+            # Determine element type from the AddressOf target
+            elem_ty: Optional[Type] = None
+            targ = aof.target
+            if isinstance(targ, A.FieldAccess):
+                base = targ.base
+                if not isinstance(base, A.NameRef):
+                    raise CodegenError("complex field bases not supported for get_content")
+                bname = base.ident
+                if bname not in self.sym_types:
+                    raise CodegenError(f"unknown struct variable '{bname}' in get_content")
+                bty = self.sym_types[bname]
+                if not isinstance(bty, StructType):
+                    raise CodegenError("get_content only supports fields on struct locals")
+                for fname, fty, off in bty.fields:
+                    if fname == targ.field:
+                        elem_ty = fty
+                        break
+            elif isinstance(targ, A.NameRef):
+                if targ.ident in self.sym_types and isinstance(self.sym_types[targ.ident], StructType):
+                    raise CodegenError("cannot load entire struct with get_content; load individual fields")
+            if elem_ty is None:
+                raise CodegenError("internal: could not determine pointed-to type")
+            # Now load from [ar] into reg of elem_ty
+            dst = self.alloc_reg(elem_ty)
+            if elem_ty.is_addr:
+                self.emit(f"    LDASO #0, {ar.name}, {dst.name}")
+            else:
+                self.emit(f"    LDSO #0, {ar.name}, {dst.name}")
+            # Enforce expected type compatibility
+            if ty.is_addr != elem_ty.is_addr:
+                raise CodegenError("type mismatch in get_content result")
+            if (not ty.is_addr) and (ty.bits != elem_ty.bits):
+                raise CodegenError("bit-width mismatch in get_content result")
+            # For u24<->s24 reinterpret, allow
+            return dst
         if isinstance(e, A.Call):
             if ty is None:
                 raise CodegenError("internal: missing expected type for call")
@@ -541,6 +884,34 @@ class CodeGen:
             if (ty.is_addr and not r.is_addr) or ((not ty.is_addr) and r.is_addr):
                 raise CodegenError("call return type mismatch")
             return r
+        if isinstance(e, A.FieldAccess):
+            # Only support NameRef bases for now
+            if not isinstance(e.base, A.NameRef):
+                raise CodegenError("complex field bases not supported yet")
+            bname = e.base.ident
+            if bname not in self.sym_types or bname not in self.sym_regs:
+                raise CodegenError(f"unknown struct variable '{bname}'")
+            bty = self.sym_types[bname]
+            if not isinstance(bty, StructType):
+                raise CodegenError("field access on non-struct variable")
+            areg = self.sym_regs[bname]
+            # Lookup field
+            field_ty: Optional[Type] = None
+            field_off = 0
+            for fname, fty, off in bty.fields:
+                if fname == e.field:
+                    field_ty = fty
+                    field_off = off
+                    break
+            if field_ty is None:
+                raise CodegenError(f"unknown field '{e.field}' on '{bname}'")
+            # Load value into temp of the field's type
+            dst = self.alloc_reg(field_ty)
+            if field_ty.is_addr:
+                self.emit(f"    LDASO #{field_off}, {areg.name}, {dst.name}")
+            else:
+                self.emit(f"    LDSO #{field_off}, {areg.name}, {dst.name}")
+            return dst
         raise CodegenError("unsupported expression form")
 
     def gen_eval_data_any(self, e: A.Expr) -> Reg:
@@ -562,6 +933,82 @@ class CodeGen:
         # Fallback: evaluate as u24 using existing arithmetic (+/- only for now)
         return self.gen_eval_expr(e, U24)
 
+    # --- Strict type helpers -----------------------------------------------
+    def _expr_exact_type(self, e: A.Expr) -> Optional[Type]:
+        """Best-effort exact type of an expression for strict checks.
+        Returns None if not statically known (e.g., pure literal or complex arith).
+        """
+        if isinstance(e, A.NameRef):
+            return self.sym_types.get(e.ident)
+        if isinstance(e, A.FieldAccess):
+            if isinstance(e.base, A.NameRef):
+                bname = e.base.ident
+                bty = self.sym_types.get(bname)
+                if isinstance(bty, StructType):
+                    for fname, fty, _ in bty.fields:
+                        if fname == e.field:
+                            return fty
+            return None
+        if isinstance(e, A.Cast):
+            return e.target
+        if isinstance(e, A.AddressOf):
+            # Try derive addr<...> for known targets
+            targ = e.target
+            if isinstance(targ, A.FieldAccess) and isinstance(targ.base, A.NameRef):
+                bname = targ.base.ident
+                bty = self.sym_types.get(bname)
+                if isinstance(bty, StructType):
+                    for fname, fty, _ in bty.fields:
+                        if fname == targ.field:
+                            return addr_of(fty)
+            if isinstance(targ, A.NameRef):
+                vty = self.sym_types.get(targ.ident)
+                if isinstance(vty, StructType):
+                    return addr_of(vty)
+            return ADDR
+        if isinstance(e, A.Deref):
+            # Only support Deref(AddressOf(field)) in MVP
+            a = e.addr_expr
+            if isinstance(a, A.AddressOf) and isinstance(a.target, A.FieldAccess):
+                fa = a.target
+                if isinstance(fa.base, A.NameRef):
+                    bty = self.sym_types.get(fa.base.ident)
+                    if isinstance(bty, StructType):
+                        for fname, fty, _ in bty.fields:
+                            if fname == fa.field:
+                                return fty
+            return None
+        if isinstance(e, A.Call):
+            sig = self.fn_sigs.get(e.callee)
+            if sig is None:
+                return None
+            _, ret_ty, _ = sig
+            return ret_ty
+        if isinstance(e, (A.IntLiteral, A.Unary, A.Binary)):
+            return None
+        return None
+
+    def _unify_compare_type(self, a: A.Expr, b: A.Expr) -> Type:
+        """Unify types for comparison under strict rules:
+        - Both operands must be data types (u24 or s24), not addresses.
+        - If both sides have known types, they must be exactly equal.
+        - If only one side has a known data type, use that.
+        - If neither is known, default to u24.
+        """
+        ta = self._expr_exact_type(a)
+        tb = self._expr_exact_type(b)
+        if (ta is not None and ta.is_addr) or (tb is not None and tb.is_addr):
+            raise CodegenError("address comparison is not supported")
+        if ta is not None and tb is not None:
+            if ta != tb:
+                raise CodegenError("operands of comparison must have the same data type; use casts")
+            return ta
+        if ta is not None:
+            return ta if not ta.is_addr else U24
+        if tb is not None:
+            return tb if not tb.is_addr else U24
+        return U24
+
     # --- Type inference helper for comparisons ------------------------------
     def _infer_data_type(self, a: A.Expr, b: A.Expr) -> Optional[Type]:
         def infer_one(x: A.Expr) -> Optional[Type]:
@@ -571,6 +1018,16 @@ class CodeGen:
                     if t.is_addr:
                         return ADDR
                     return S24 if t.is_signed else U24
+                return None
+            if isinstance(x, A.FieldAccess):
+                if isinstance(x.base, A.NameRef):
+                    bname = x.base.ident
+                    if bname in self.sym_types:
+                        bty = self.sym_types[bname]
+                        if isinstance(bty, StructType):
+                            for fname, fty, _ in bty.fields:
+                                if fname == x.field:
+                                    return S24 if fty.is_signed and not fty.is_addr else (ADDR if fty.is_addr else U24)
                 return None
             if isinstance(x, A.IntLiteral):
                 return U24
@@ -592,6 +1049,23 @@ class CodeGen:
                 if x.target.is_addr:
                     return ADDR
                 return S24 if x.target.is_signed else U24
+            if isinstance(x, A.AddressOf):
+                return ADDR
+            if isinstance(x, A.Deref):
+                a = x.addr_expr
+                if isinstance(a, A.AddressOf) and isinstance(a.target, A.FieldAccess):
+                    fa = a.target
+                    if isinstance(fa.base, A.NameRef):
+                        bname = fa.base.ident
+                        if bname in self.sym_types:
+                            bty = self.sym_types[bname]
+                            if isinstance(bty, StructType):
+                                for fname, fty, _ in bty.fields:
+                                    if fname == fa.field:
+                                        if fty.is_addr:
+                                            return ADDR
+                                        return S24 if fty.is_signed else U24
+                return None
             if isinstance(x, A.Call):
                 sig = self.fn_sigs.get(x.callee)
                 if sig is None:
@@ -644,6 +1118,8 @@ class CodeGen:
                 self.emit(f"    MOVAur {src.name}, {treg.name}, L")
             elif (not treg.is_addr) and src.is_addr:
                 self.emit(f"    MOVDur {src.name}, {treg.name}, L")
+            elif treg.is_addr and src.is_addr and src.name != treg.name:
+                self.emit(f"    LEASO {src.name}, #0, {treg.name}")
             elif src.name != treg.name:
                 self.emit(f"    MOVur {src.name}, {treg.name}")
         # Emit call (PC-relative to label)
@@ -674,6 +1150,12 @@ class CodeGen:
         # Save data registers (DR1..), but only those allocated for locals/temps
         for idx in range(self._dr_base, self.next_dr):
             pro.append(f"    PUSHur DR{idx}, AR0")
+        # Allocate stack frame for struct locals, then compute each base pointer
+        if self._frame_words > 0:
+            pro.append(f"    SUBASI #{self._frame_words}, AR0")
+            # Initialize base pointers
+            for name, (off, reg) in self._frame_locals.items():
+                pro.append(f"    LEASO AR0, #{off}, {reg.name}")
         # Insert after the prologue comment line (at _func_start_idx)
         insert_at = self._func_start_idx
         # Replace the comment with itself plus prologue lines for clarity
@@ -686,6 +1168,9 @@ class CodeGen:
     def _insert_all_epilogues(self) -> None:
         # Build epilogue pop sequence based on final allocation
         epi: List[str] = []
+        # Free stack frame for struct locals (before popping saved regs)
+        if self._frame_words > 0:
+            epi.append(f"    ADDASI #{self._frame_words}, AR0")
         for idx in range(self.next_dr - 1, self._dr_base - 1, -1):
             epi.append(f"    POPur AR0, DR{idx}")
         for idx in range(self.next_ar - 1, self._ar_base - 1, -1):
