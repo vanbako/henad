@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from . import ast as A
-from .typesys import U24, S24, ADDR, Type, StructType, AddressType, addr_of
+from .typesys import U24, S24, ADDR, Type, StructType, AddressType, ArrayType, addr_of
 
 
 class CodegenError(Exception):
@@ -173,9 +173,9 @@ class CodeGen:
         self._dr_base = self.next_dr
         self._ar_base = self.next_ar
 
-        # Pre-scan for struct locals anywhere in the function body; allocate
-        for v in self._collect_struct_locals(f.body):
-            if not isinstance(v.ty, StructType):
+        # Pre-scan for aggregate locals (structs/arrays) anywhere in the function body; allocate
+        for v in self._collect_frame_locals(f.body):
+            if not isinstance(v.ty, (StructType, ArrayType)):
                 continue
             # Allocate address register for the local's base pointer
             r = self.alloc_reg(v.ty)
@@ -185,7 +185,9 @@ class CodeGen:
             off = self._frame_words
             self._frame_words += v.ty.size_words
             self._frame_locals[v.name] = (off, r)
-            self.comment(f"alloc frame for {v.name}:{v.ty} size {v.ty.size_words}w -> {r.name} at +{off}")
+            self.comment(
+                f"alloc frame for {v.name}:{v.ty} size {v.ty.size_words}w -> {r.name} at +{off}"
+            )
 
         # Body
         # Capture return signature for nested returns
@@ -222,11 +224,12 @@ class CodeGen:
         self._insert_prologue()
         self._insert_all_epilogues()
 
-    def _collect_struct_locals(self, body: List[A.Stmt]) -> List[A.VarDecl]:
+    def _collect_frame_locals(self, body: List[A.Stmt]) -> List[A.VarDecl]:
         out: List[A.VarDecl] = []
+
         def visit_stmt(s: A.Stmt) -> None:
             if isinstance(s, A.VarDecl):
-                if isinstance(s.ty, StructType) and not s.is_global:
+                if isinstance(s.ty, (StructType, ArrayType)) and not s.is_global:
                     out.append(s)
             elif isinstance(s, A.If):
                 for x in s.then_body:
@@ -238,13 +241,40 @@ class CodeGen:
                 for x in s.body:
                     visit_stmt(x)
             # other stmts don't declare locals
+
         for s in body:
             visit_stmt(s)
         return out
 
+    def _array_elem_addr(self, aname: str, aty: ArrayType, idx_expr: A.Expr) -> Reg:
+        """Compute address of array element `aname[idx_expr]`.
+
+        Returns an address register pointing to the element.
+        """
+        if aname not in self.sym_regs:
+            raise CodegenError(f"unknown array variable '{aname}'")
+        base = self.sym_regs[aname]
+        if not base.is_addr:
+            raise CodegenError("array base is not an address register")
+        # Evaluate index as unsigned data
+        idx = self.gen_eval_data_any(idx_expr)
+        # Scale index by element size in words
+        if aty.elem_words == 1:
+            scaled = idx
+        else:
+            scaled = self.alloc_reg(U24)
+            self.emit(f"    MOVui #0, {scaled.name}")
+            for _ in range(aty.elem_words):
+                self.emit(f"    ADDUR {idx.name}, {scaled.name}")
+        # Compute address: dst = base + scaled
+        dst = self.alloc_reg(addr_of(aty.elem))
+        self.emit(f"    LEASO {base.name}, #0, {dst.name}")
+        self.emit(f"    ADDAUR {scaled.name}, {dst.name}")
+        return dst
+
     def gen_local_let(self, v: A.VarDecl) -> None:
-        # Struct locals are pre-allocated in prologue with a base pointer in an AR
-        if isinstance(v.ty, StructType):
+        # Struct and array locals are pre-allocated in prologue with a base pointer in an AR
+        if isinstance(v.ty, (StructType, ArrayType)):
             r = self.sym_regs.get(v.name)
             if r is None:
                 # Fallback (shouldn't happen): allocate now
@@ -253,7 +283,7 @@ class CodeGen:
                 self.sym_types[v.name] = v.ty
             self.comment(f"let {v.name}:{v.ty} -> {r.name} (frame)")
             if v.init is not None:
-                raise CodegenError("struct initializer not supported; assign fields individually")
+                raise CodegenError("initializer for aggregate not supported; assign elements individually")
             return
         # Scalar local in register
         r = self.alloc_reg(v.ty)
@@ -337,18 +367,115 @@ class CodeGen:
             else:
                 raise CodegenError(f"unsupported compound operator '{op}'")
             return
+        elif isinstance(a.target, A.ArrayIndex):
+            base = a.target.base
+            if not isinstance(base, A.NameRef):
+                raise CodegenError("complex array bases not supported yet")
+            aname = base.ident
+            if aname not in self.sym_types:
+                raise CodegenError(f"unknown array variable '{aname}'")
+            aty = self.sym_types[aname]
+            if not isinstance(aty, ArrayType):
+                raise CodegenError("indexing non-array variable")
+            elem_ty = aty.elem
+            addr = self._array_elem_addr(aname, aty, a.target.index)
+            op = a.op
+            if isinstance(elem_ty, StructType):
+                raise CodegenError("cannot assign whole struct; assign fields individually")
+            if op == "=":
+                src = self.gen_eval_expr(a.value, elem_ty)
+                if elem_ty.is_addr:
+                    self.emit(f"    STASO {src.name}, #0, {addr.name}")
+                else:
+                    self.emit(f"    STSO {src.name}, #0, {addr.name}")
+                return
+            if elem_ty.is_addr:
+                if op not in ("+=", "-="):
+                    raise CodegenError("only '+=' and '-=' supported for addr elements")
+                tmp = self.alloc_reg(ADDR)
+                self.emit(f"    LDASO #0, {addr.name}, {tmp.name}")
+                rhs_ty: Optional[Type] = None
+                if isinstance(a.value, A.NameRef):
+                    nm = a.value.ident
+                    if nm not in self.sym_types:
+                        raise CodegenError(f"unknown identifier '{nm}' in addr array assignment")
+                    st = self.sym_types[nm]
+                    if st.is_addr:
+                        raise CodegenError("cannot use 'addr' value as rhs for addr +=/-=")
+                    rhs_ty = st
+                elif isinstance(a.value, A.IntLiteral):
+                    rhs_ty = U24
+                else:
+                    raise CodegenError("addr +=/-= requires u24/s24 variable or literal")
+                rhs_reg = self.gen_eval_expr(a.value, rhs_ty)
+                if op == "+=":
+                    m = "ADDASR" if rhs_ty.is_signed else "ADDAUR"
+                else:
+                    m = "SUBASR" if rhs_ty.is_signed else "SUBAUR"
+                self.emit(f"    {m} {rhs_reg.name}, {tmp.name}")
+                self.emit(f"    STASO {tmp.name}, #0, {addr.name}")
+                return
+            # Data element compound ops
+            cur = self.alloc_reg(elem_ty)
+            self.emit(f"    LDSO #0, {addr.name}, {cur.name}")
+            if op == "+=":
+                rhs = self.gen_eval_expr(a.value, elem_ty)
+                m = "ADDSR" if elem_ty.is_signed else "ADDUR"
+                self.emit(f"    {m} {rhs.name}, {cur.name}")
+            elif op == "-=":
+                rhs = self.gen_eval_expr(a.value, elem_ty)
+                m = "SUBSR" if elem_ty.is_signed else "SUBUR"
+                self.emit(f"    {m} {rhs.name}, {cur.name}")
+            elif op == "&=":
+                rhs = self.gen_eval_expr(a.value, elem_ty)
+                self.emit(f"    ANDUR {rhs.name}, {cur.name}")
+            elif op == "|=":
+                rhs = self.gen_eval_expr(a.value, elem_ty)
+                self.emit(f"    ORUR {rhs.name}, {cur.name}")
+            elif op == "^=":
+                rhs = self.gen_eval_expr(a.value, elem_ty)
+                self.emit(f"    XORUR {rhs.name}, {cur.name}")
+            elif op == "<<=":
+                rhs = self.gen_eval_data_any(a.value)
+                self.emit(f"    SHLUR {rhs.name}, {cur.name}")
+            elif op == ">>=":
+                rhs = self.gen_eval_data_any(a.value)
+                m = "SHRSR" if elem_ty.is_signed else "SHRUR"
+                self.emit(f"    {m} {rhs.name}, {cur.name}")
+            elif op == "<<<=":
+                rhs = self.gen_eval_data_any(a.value)
+                self.emit(f"    ROLUR {rhs.name}, {cur.name}")
+            elif op == ">>>=":
+                rhs = self.gen_eval_data_any(a.value)
+                self.emit(f"    RORUR {rhs.name}, {cur.name}")
+            else:
+                raise CodegenError(f"unsupported compound operator '{op}' for array element")
+            self.emit(f"    STSO {cur.name}, #0, {addr.name}")
+            return
         elif isinstance(a.target, A.FieldAccess):
             # Resolve base variable and struct layout
             base = a.target.base
-            if not isinstance(base, A.NameRef):
+            if isinstance(base, A.NameRef):
+                bname = base.ident
+                if bname not in self.sym_types or bname not in self.sym_regs:
+                    raise CodegenError(f"unknown struct variable '{bname}'")
+                bty = self.sym_types[bname]
+                if not isinstance(bty, StructType):
+                    raise CodegenError("field access on non-struct variable")
+                areg = self.sym_regs[bname]
+            elif isinstance(base, A.ArrayIndex):
+                if not isinstance(base.base, A.NameRef):
+                    raise CodegenError("complex array bases not supported for field access")
+                aname = base.base.ident
+                if aname not in self.sym_types:
+                    raise CodegenError(f"unknown array variable '{aname}'")
+                aty = self.sym_types[aname]
+                if not isinstance(aty, ArrayType) or not isinstance(aty.elem, StructType):
+                    raise CodegenError("field access on non-struct array element")
+                bty = aty.elem
+                areg = self._array_elem_addr(aname, aty, base.index)
+            else:
                 raise CodegenError("complex field bases not supported yet")
-            bname = base.ident
-            if bname not in self.sym_types or bname not in self.sym_regs:
-                raise CodegenError(f"unknown struct variable '{bname}'")
-            bty = self.sym_types[bname]
-            if not isinstance(bty, StructType):
-                raise CodegenError("field access on non-struct variable")
-            areg = self.sym_regs[bname]
             # Lookup field
             field_ty: Optional[Type] = None
             field_off = 0
@@ -358,7 +485,7 @@ class CodeGen:
                     field_off = off
                     break
             if field_ty is None:
-                raise CodegenError(f"unknown field '{a.target.field}' on '{bname}'")
+                raise CodegenError(f"unknown field '{a.target.field}' on '{bty.name}'")
             op = a.op
             if op == "=":
                 src = self.gen_eval_expr(a.value, field_ty)
@@ -704,6 +831,28 @@ class CodeGen:
                     )
                 return self.sym_regs[e.ident]
             return self.sym_regs[e.ident]
+        if isinstance(e, A.ArrayIndex):
+            if not isinstance(e.base, A.NameRef):
+                raise CodegenError("complex array bases not supported yet")
+            aname = e.base.ident
+            if aname not in self.sym_types:
+                raise CodegenError(f"unknown array variable '{aname}'")
+            aty = self.sym_types[aname]
+            if not isinstance(aty, ArrayType):
+                raise CodegenError("indexing non-array variable")
+            elem_ty = aty.elem
+            addr = self._array_elem_addr(aname, aty, e.index)
+            if isinstance(elem_ty, StructType):
+                # Allow returning addr<Struct> when expected
+                if isinstance(ty, AddressType) and ty.pointee == elem_ty:
+                    return addr
+                raise CodegenError("cannot use struct array element directly; access fields")
+            dst = self.alloc_reg(elem_ty)
+            if elem_ty.is_addr:
+                self.emit(f"    LDASO #0, {addr.name}, {dst.name}")
+            else:
+                self.emit(f"    LDSO #0, {addr.name}, {dst.name}")
+            return dst
         if isinstance(e, A.Unary):
             if e.op != "~":
                 raise CodegenError("unsupported unary operator")
@@ -787,15 +936,27 @@ class CodeGen:
             targ = e.target
             if isinstance(targ, A.FieldAccess):
                 base = targ.base
-                if not isinstance(base, A.NameRef):
+                if isinstance(base, A.NameRef):
+                    bname = base.ident
+                    if bname not in self.sym_types or bname not in self.sym_regs:
+                        raise CodegenError(f"unknown struct variable '{bname}' in get_addr")
+                    bty = self.sym_types[bname]
+                    if not isinstance(bty, StructType):
+                        raise CodegenError("get_addr only supports fields on struct locals")
+                    areg = self.sym_regs[bname]
+                elif isinstance(base, A.ArrayIndex):
+                    if not isinstance(base.base, A.NameRef):
+                        raise CodegenError("complex array bases not supported for get_addr")
+                    aname = base.base.ident
+                    if aname not in self.sym_types:
+                        raise CodegenError(f"unknown array variable '{aname}' in get_addr")
+                    aty = self.sym_types[aname]
+                    if not isinstance(aty, ArrayType) or not isinstance(aty.elem, StructType):
+                        raise CodegenError("get_addr only supports fields on struct array elements")
+                    bty = aty.elem
+                    areg = self._array_elem_addr(aname, aty, base.index)
+                else:
                     raise CodegenError("complex field bases not supported for get_addr")
-                bname = base.ident
-                if bname not in self.sym_types or bname not in self.sym_regs:
-                    raise CodegenError(f"unknown struct variable '{bname}' in get_addr")
-                bty = self.sym_types[bname]
-                if not isinstance(bty, StructType):
-                    raise CodegenError("get_addr only supports fields on struct locals")
-                areg = self.sym_regs[bname]
                 # Lookup field offset
                 field_ty: Optional[Type] = None
                 field_off = 0
@@ -805,11 +966,10 @@ class CodeGen:
                         field_off = off
                         break
                 if field_ty is None:
-                    raise CodegenError(f"unknown field '{targ.field}' on '{bname}'")
+                    raise CodegenError(f"unknown field '{targ.field}' on '{bty.name}'")
                 # Type-check: expected addr<field_ty>
                 if not isinstance(ty, AddressType) or ty.pointee != field_ty:
                     raise CodegenError("type mismatch: get_addr expected addr<field_type>")
-                # Compute address: ARdst = ARbase + #off
                 dst = self.alloc_reg(ty)
                 self.emit(f"    LEASO {areg.name}, #{field_off}, {dst.name}")
                 return dst
@@ -846,14 +1006,25 @@ class CodeGen:
             targ = aof.target
             if isinstance(targ, A.FieldAccess):
                 base = targ.base
-                if not isinstance(base, A.NameRef):
+                if isinstance(base, A.NameRef):
+                    bname = base.ident
+                    if bname not in self.sym_types:
+                        raise CodegenError(f"unknown struct variable '{bname}' in get_content")
+                    bty = self.sym_types[bname]
+                    if not isinstance(bty, StructType):
+                        raise CodegenError("get_content only supports fields on struct locals")
+                elif isinstance(base, A.ArrayIndex):
+                    if not isinstance(base.base, A.NameRef):
+                        raise CodegenError("complex array bases not supported for get_content")
+                    aname = base.base.ident
+                    if aname not in self.sym_types:
+                        raise CodegenError(f"unknown array variable '{aname}' in get_content")
+                    aty = self.sym_types[aname]
+                    if not isinstance(aty, ArrayType) or not isinstance(aty.elem, StructType):
+                        raise CodegenError("get_content only supports fields on struct array elements")
+                    bty = aty.elem
+                else:
                     raise CodegenError("complex field bases not supported for get_content")
-                bname = base.ident
-                if bname not in self.sym_types:
-                    raise CodegenError(f"unknown struct variable '{bname}' in get_content")
-                bty = self.sym_types[bname]
-                if not isinstance(bty, StructType):
-                    raise CodegenError("get_content only supports fields on struct locals")
                 for fname, fty, off in bty.fields:
                     if fname == targ.field:
                         elem_ty = fty
@@ -885,16 +1056,28 @@ class CodeGen:
                 raise CodegenError("call return type mismatch")
             return r
         if isinstance(e, A.FieldAccess):
-            # Only support NameRef bases for now
-            if not isinstance(e.base, A.NameRef):
+            base = e.base
+            if isinstance(base, A.NameRef):
+                bname = base.ident
+                if bname not in self.sym_types or bname not in self.sym_regs:
+                    raise CodegenError(f"unknown struct variable '{bname}'")
+                bty = self.sym_types[bname]
+                if not isinstance(bty, StructType):
+                    raise CodegenError("field access on non-struct variable")
+                areg = self.sym_regs[bname]
+            elif isinstance(base, A.ArrayIndex):
+                if not isinstance(base.base, A.NameRef):
+                    raise CodegenError("complex array bases not supported yet")
+                aname = base.base.ident
+                if aname not in self.sym_types:
+                    raise CodegenError(f"unknown array variable '{aname}'")
+                aty = self.sym_types[aname]
+                if not isinstance(aty, ArrayType) or not isinstance(aty.elem, StructType):
+                    raise CodegenError("field access on non-struct array element")
+                bty = aty.elem
+                areg = self._array_elem_addr(aname, aty, base.index)
+            else:
                 raise CodegenError("complex field bases not supported yet")
-            bname = e.base.ident
-            if bname not in self.sym_types or bname not in self.sym_regs:
-                raise CodegenError(f"unknown struct variable '{bname}'")
-            bty = self.sym_types[bname]
-            if not isinstance(bty, StructType):
-                raise CodegenError("field access on non-struct variable")
-            areg = self.sym_regs[bname]
             # Lookup field
             field_ty: Optional[Type] = None
             field_off = 0
@@ -904,7 +1087,7 @@ class CodeGen:
                     field_off = off
                     break
             if field_ty is None:
-                raise CodegenError(f"unknown field '{e.field}' on '{bname}'")
+                raise CodegenError(f"unknown field '{e.field}' on '{bty.name}'")
             # Load value into temp of the field's type
             dst = self.alloc_reg(field_ty)
             if field_ty.is_addr:
@@ -930,6 +1113,16 @@ class CodeGen:
             imm = e.value & 0xFFF
             self.emit(f"    MOVui #{imm}, {dr.name}")
             return dr
+        if isinstance(e, A.ArrayIndex):
+            if not isinstance(e.base, A.NameRef):
+                raise CodegenError("complex array bases not supported yet")
+            aname = e.base.ident
+            if aname not in self.sym_types:
+                raise CodegenError(f"unknown array variable '{aname}'")
+            aty = self.sym_types[aname]
+            if not isinstance(aty, ArrayType) or aty.elem.is_addr:
+                raise CodegenError("expected data array element")
+            return self.gen_eval_expr(e, aty.elem)
         # Fallback: evaluate as u24 using existing arithmetic (+/- only for now)
         return self.gen_eval_expr(e, U24)
 
@@ -940,6 +1133,12 @@ class CodeGen:
         """
         if isinstance(e, A.NameRef):
             return self.sym_types.get(e.ident)
+        if isinstance(e, A.ArrayIndex):
+            if isinstance(e.base, A.NameRef):
+                at = self.sym_types.get(e.base.ident)
+                if isinstance(at, ArrayType):
+                    return at.elem
+            return None
         if isinstance(e, A.FieldAccess):
             if isinstance(e.base, A.NameRef):
                 bname = e.base.ident
@@ -948,24 +1147,39 @@ class CodeGen:
                     for fname, fty, _ in bty.fields:
                         if fname == e.field:
                             return fty
+            elif isinstance(e.base, A.ArrayIndex):
+                if isinstance(e.base.base, A.NameRef):
+                    at = self.sym_types.get(e.base.base.ident)
+                    if isinstance(at, ArrayType) and isinstance(at.elem, StructType):
+                        for fname, fty, _ in at.elem.fields:
+                            if fname == e.field:
+                                return fty
             return None
         if isinstance(e, A.Cast):
             return e.target
         if isinstance(e, A.AddressOf):
             # Try derive addr<...> for known targets
             targ = e.target
-            if isinstance(targ, A.FieldAccess) and isinstance(targ.base, A.NameRef):
-                bname = targ.base.ident
-                bty = self.sym_types.get(bname)
-                if isinstance(bty, StructType):
-                    for fname, fty, _ in bty.fields:
-                        if fname == targ.field:
-                            return addr_of(fty)
+            if isinstance(targ, A.FieldAccess):
+                if isinstance(targ.base, A.NameRef):
+                    bname = targ.base.ident
+                    bty = self.sym_types.get(bname)
+                    if isinstance(bty, StructType):
+                        for fname, fty, _ in bty.fields:
+                            if fname == targ.field:
+                                return addr_of(fty)
+                elif isinstance(targ.base, A.ArrayIndex):
+                    if isinstance(targ.base.base, A.NameRef):
+                        at = self.sym_types.get(targ.base.base.ident)
+                        if isinstance(at, ArrayType) and isinstance(at.elem, StructType):
+                            for fname, fty, _ in at.elem.fields:
+                                if fname == targ.field:
+                                    return addr_of(fty)
             if isinstance(targ, A.NameRef):
                 vty = self.sym_types.get(targ.ident)
                 if isinstance(vty, StructType):
                     return addr_of(vty)
-            return ADDR
+            return None
         if isinstance(e, A.Deref):
             # Only support Deref(AddressOf(field)) in MVP
             a = e.addr_expr

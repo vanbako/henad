@@ -23,6 +23,13 @@ Status: skeleton only
   - Strict typing: no implicit casts between `u24` and `s24`.
     Use explicit casts where needed. No implicit casts to/from `addr<T>`.
 
+Arrays
+- Declare with `let a: T[N];` where `T` is `u24`, `s24`, any `addr<...>`, or a
+  user-defined `struct`.
+- Arrays are stack-allocated with the variable bound to a base pointer in an
+  address register. Index elements via `a[i]`; struct arrays allow field access
+  such as `a[i].field`.
+
 Structs
 - Declare with `struct Name { field: type; ... }` at top-level.
 - Local `let v: Name;` allocates a stack-backed instance and binds `v` to an

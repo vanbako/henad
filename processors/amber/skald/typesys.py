@@ -102,8 +102,9 @@ def array_of(elem: Type, length: int) -> ArrayType:
     """Create a one-dimensional static array type.
 
     Constraints:
-      - Only primitive data (u24/s24) and address types (addr<...>) are allowed as elements.
-      - Struct element types and nested arrays are not supported in this MVP.
+      - Element type may be primitive data (`u24`/`s24`), any `addr<T>`, or a
+        user defined `struct`.
+      - Nested arrays are not supported in this MVP.
 
     Semantics:
       - Array variables are address-like: a local `let a: T[N];` allocates N*elem_words
@@ -111,12 +112,13 @@ def array_of(elem: Type, length: int) -> ArrayType:
     """
     if length <= 0:
         raise ValueError("array length must be positive")
-    if isinstance(elem, StructType):
-        raise ValueError("arrays of struct are not supported")
     # Disallow nesting: if someone synthesizes ArrayType elem, reject
     if isinstance(elem, ArrayType):
         raise ValueError("nested arrays are not supported")
-    elem_words = 2 if elem.is_addr else 1
+    if isinstance(elem, StructType):
+        elem_words = elem.size_words
+    else:
+        elem_words = 2 if elem.is_addr else 1
     size_words = length * elem_words
     return ArrayType(
         name=f"{elem.name}[{length}]",
