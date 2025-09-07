@@ -13,7 +13,7 @@ and Carry flags.
 
 opclass 0000 Core ALU (reg–reg, unsigned flags)
 
-### NOP
+- ### NOP
 
 | operation    | µop | isa     |
 |--------------|-----|---------|
@@ -25,11 +25,11 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 | [19-16]   | subop       | 0000             |
 | [15- 0]   | reserved    | 0000000000000000 |
 
-| Z | N | C | V |
+| z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
 
-### MOVur DRs, DRt
+- ### MOVur DRs, DRt
 
 | operation | µop | isa         |
 |-----------|-----|-------------|
@@ -43,46 +43,82 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 | [11- 8]   | DRs         |          |
 | [ 7- 0]   | reserved    | 00000000 |
 
-| Z | N | C | V |
+| z | n | c | v |
 |---|---|---|---|
-| X | - | - | - |
+| x | - | - | - |
 
-MCCur    CC, DRs, DRt          ; if (CC) DRt = DRs;
-    µop
-    isa                cond_copy.[cc] ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0010
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 4] CC
-    [ 3- 0] RESERVED
-    {Z}                        ; only if move happens
-ADDur    DRs, DRt              ; unsigned DRt += DRs;
-    µop
-    isa                add.u ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0011
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}
-SUBur    DRs, DRt              ; unsigned DRt -= DRs;
-    µop
-    isa                sub.u ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0100
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}
-NOTur    DRt                   ; DRt ~= DRt;
-    µop
-    isa                not dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0101
-    [15-12] DRt
-    [11- 0] RESERVED
-    {Z}
+- ### MCCur CC, DRs, DRt
+
+| operation         | µop | isa                   |
+|-------------------|-----|-----------------------|
+| if (CC) DRt = DRs | yes | cond_copy.[cc] ds, dt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0000  |
+| [19-16]   | subop       | 0010  |
+| [15-12]   | DRt         |       |
+| [11- 8]   | DRs         |       |
+| [ 7- 4]   | CC          |       |
+| [ 3- 0]   | reserved    | 0000  |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### ADDur DRs, DRt
+
+| operation           | µop | isa          |
+|---------------------|-----|--------------|
+| unsigned DRt += DRs | yes | add.u ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 0011     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### SUBur DRs, DRt
+
+| operation           | µop | isa          |
+|---------------------|-----|--------------|
+| unsigned DRt -= DRs | yes | sub.u ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 0100     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### NOTur DRt
+
+| operation  | µop | isa    |
+|------------|-----|--------|
+| DRt ~= DRt | yes | not dt |
+
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0000         |
+| [19-16]   | subop       | 0100         |
+| [15-12]   | DRt         |              |
+| [11- 0]   | reserved    | 000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
 ANDur    DRs, DRt              ; DRt &= DRs;
     µop
     isa                and ds, dt
