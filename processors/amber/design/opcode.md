@@ -17,7 +17,7 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 | operation    | µop | isa     |
 |--------------|-----|---------|
-| no operation | yes | no_oper |
+| no operation | NOP | no_oper |
 
 | bit range | description | value            |
 |-----------|-------------|------------------|
@@ -31,9 +31,9 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### MOVur DRs, DRt
 
-| operation | µop | isa         |
-|-----------|-----|-------------|
-| DRt = DRs | yes | copy ds, dt |
+| operation | µop            | isa         |
+|-----------|----------------|-------------|
+| DRt = DRs | MOVur DRs, DRt | copy ds, dt |
 
 | bit range | description | value    |
 |-----------|-------------|----------|
@@ -49,9 +49,9 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### MCCur CC, DRs, DRt
 
-| operation         | µop | isa                   |
-|-------------------|-----|-----------------------|
-| if (CC) DRt = DRs | yes | cond_copy.[cc] ds, dt |
+| operation         | µop                | isa                   |
+|-------------------|--------------------|-----------------------|
+| if (CC) DRt = DRs | MCCur CC, DRs, DRt | cond_copy.[cc] ds, dt |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -68,9 +68,9 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### ADDur DRs, DRt
 
-| operation           | µop | isa          |
-|---------------------|-----|--------------|
-| unsigned DRt += DRs | yes | add.u ds, dt |
+| operation           | µop            | isa          |
+|---------------------|----------------|--------------|
+| unsigned DRt += DRs | ADDur DRs, DRt | add.u ds, dt |
 
 | bit range | description | value    |
 |-----------|-------------|----------|
@@ -86,9 +86,9 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### SUBur DRs, DRt
 
-| operation           | µop | isa          |
-|---------------------|-----|--------------|
-| unsigned DRt -= DRs | yes | sub.u ds, dt |
+| operation           | µop            | isa          |
+|---------------------|----------------|--------------|
+| unsigned DRt -= DRs | SUBur DRs, DRt | sub.u ds, dt |
 
 | bit range | description | value    |
 |-----------|-------------|----------|
@@ -104,14 +104,14 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### NOTur DRt
 
-| operation  | µop | isa    |
-|------------|-----|--------|
-| DRt ~= DRt | yes | not dt |
+| operation  | µop       | isa    |
+|------------|-----------|--------|
+| DRt ~= DRt | NOTur DRt | not dt |
 
 | bit range | description | value        |
 |-----------|-------------|--------------|
 | [23-20]   | opclass     | 0000         |
-| [19-16]   | subop       | 0100         |
+| [19-16]   | subop       | 0101         |
 | [15-12]   | DRt         |              |
 | [11- 0]   | reserved    | 000000000000 |
 
@@ -119,86 +119,166 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 |---|---|---|---|
 | x | - | - | - |
 
-ANDur    DRs, DRt              ; DRt &= DRs;
-    µop
-    isa                and ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0110
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z}
-ORur     DRs, DRt              ; DRt |= DRs;
-    µop
-    isa                or ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0111
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z}
-XORur    DRs, DRt              ; DRt ^= DRs;
-    µop
-    isa                xor ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1000
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z}
-SHLur    DRs, DRt              ; DRt <<= DRs[4:0];
-    µop
-    isa                shift_left ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1001
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}                     ; only if DRs is non-zero, otherwise unchanged
-ROLur    DRs, DRt              ; DRt <<<= DRs[4:0];
-    µop
-    isa                rot_left ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1010
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}                     ; only if DRs is non-zero, otherwise unchanged
-SHRur    DRs, DRt              ; unsigned DRt >>= DRs[4:0];
-    µop
-    isa                shift_right ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1011
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}                     ; only if DRs is non-zero, otherwise unchanged
-RORur    DRs, DRt              ; DRt >>>= DRs[4:0];
-    µop
-    isa                rot_right ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1100
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}                     ; only if DRs is non-zero, otherwise unchanged
-CMPur    DRs, DRt              ; unsigned compare DRs, DRt;
-    µop
-    isa                comp.u ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1101
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, C}
-TSTur    DRt                   ; unsigned DRt == 0;
-    µop
-    isa                test.u dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 1110
-    [15-12] DRt
-    [11- 0] RESERVED
-    {Z}
+- ### ANDur DRs, DRt
+
+| operation  | µop            | isa        |
+|------------|----------------|------------|
+| DRt &= DRs | ANDur DRs, DRt | and ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 0110     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### ORur DRs, DRt
+
+| operation  | µop           | isa       |
+|------------|---------------|-----------|
+| DRt |= DRs | ORur DRs, DRt | or ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 0111     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### XORur DRs, DRt
+
+| operation  | µop            | isa        |
+|------------|----------------|------------|
+| DRt ^= DRs | XORur DRs, DRt | xor ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 1000     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### SHLur DRs, DRt
+
+| operation        | µop            | isa               |
+|------------------|----------------|-------------------|
+| DRt <<= DRs[4:0] | SHLur DRs, DRt | shift_left ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 1001     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### ROLur DRs, DRt
+
+| operation         | µop            | isa             |
+|-------------------|----------------|-----------------|
+| DRt <<<= DRs[4:0] | ROLur DRs, DRt | rot_left ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 1010     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### SHRur DRs, DRt
+
+| operation        | µop            | isa                |
+|------------------|----------------|--------------------|
+| DRt >>= DRs[4:0] | SHRur DRs, DRt | shift_right ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 1011     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### RORur DRs, DRt
+
+| operation         | µop            | isa              |
+|-------------------|----------------|------------------|
+| DRt >>>= DRs[4:0] | RORur DRs, DRt | rot_right ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 1100     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### CMPur DRs, DRt
+
+| operation                 | µop            | isa           |
+|---------------------------|----------------|---------------|
+| unsigned compare DRs, DRt | CMPur DRs, DRt | comp.u ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 1101     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### TSTur DRt
+
+| operation         | µop       | isa       |
+|-------------------|-----------|-----------|
+| unsigned DRt == 0 | TSTur DRt | test.u dt |
+
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0000         |
+| [19-16]   | subop       | 1110         |
+| [15-12]   | DRt         |              |
+| [11- 0]   | reserved    | 000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
 
 ; opclass 0001 Core ALU (imm/uimm, unsigned flags)
 
