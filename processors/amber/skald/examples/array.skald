@@ -1,0 +1,14 @@
+struct Pair { a: u24; b: s24; }
+
+fn main() {
+    let data: u24[4];
+    let i: u24;
+    i = 1;
+    data[0] = 5;
+    data[i] = 7;
+    let x: u24;
+    x = data[i];
+    let pairs: Pair[2];
+    pairs[1].a = x;
+    return;
+}
