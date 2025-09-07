@@ -1,11 +1,12 @@
-Skald Language (skeleton)
+# Skald Language (skeleton)
 
 Skald is a tiny, typed language that compiles to Amber assembly. This initial
 drop provides a parser/AST/type skeleton and a simple code generator that emits
 Amber assembly text. The goal is to iterate quickly while keeping the surface
 area small and readable.
 
-Status: skeleton only
+## Status: skeleton only
+
 - Types: `u24`, `s24`, `addr<T>` (48-bit typed address), and user-defined `struct`.
 - Variables: global `let` and local `let` declarations (locals are register
   backed for now).
@@ -23,14 +24,16 @@ Status: skeleton only
   - Strict typing: no implicit casts between `u24` and `s24`.
     Use explicit casts where needed. No implicit casts to/from `addr<T>`.
 
-Arrays
+## Arrays
+
 - Declare with `let a: T[N];` where `T` is `u24`, `s24`, any `addr<...>`, or a
   user-defined `struct`.
 - Arrays are stack-allocated with the variable bound to a base pointer in an
   address register. Index elements via `a[i]`; struct arrays allow field access
   such as `a[i].field`.
 
-Structs
+## Structs
+
 - Declare with `struct Name { field: type; ... }` at top-level.
 - Local `let v: Name;` allocates a stack-backed instance and binds `v` to an
   address-register pointer to that storage. Access fields via `v.field`.
@@ -42,7 +45,8 @@ Structs
   - Compound ops on data fields: `+=, -=, &=, |=, ^=, <<=, >>=, <<<=, >>>=`
   - Address fields support `+=` and `-=` with data RHS.
 
-Pointers (typed address-of/deref)
+## Pointers (typed address-of/deref)
+
 - `get_addr(expr)`: returns an `addr<T>` pointing to a concrete, typed storage location.
   - Allowed: struct field lvalues (e.g., `get_addr(p.x)`).
   - Allowed: whole-struct address (e.g., `get_addr(p)`), yielding `addr<StructName>`.
@@ -52,7 +56,8 @@ Pointers (typed address-of/deref)
   - Returns `u24`/`s24`/`addr<...>` matching the field’s type. Whole‑struct loads are not supported.
   - There is no plain `addr`; you must annotate the pointee: e.g., `let pa: addr<u24>; pa = get_addr(p.x);`
 
-Strict Typing Rules
+## Strict Typing Rules
+
 - Every variable has an explicit type (`let x: u24;`).
 - No implicit `u24`⇄`s24` conversions anywhere (assignments, expressions, comparisons).
 - Comparisons require both operands to have the same data type; cast explicitly if needed.
@@ -61,11 +66,13 @@ Strict Typing Rules
   (e.g., `addr<addr<u24> >`); take care with the lexer and add a space to
   avoid `>>` tokenization when nesting.
 
-CLI
+## CLI
+
 - Compile to Amber assembly: `python -m processors.amber.skald input.skald -o out.asm`.
 - Or compile and assemble: `python -m processors.amber.skald input.skald --assemble --format bin -o out.bin`.
 
-Layout
+## Layout
+
 - `lexer.py`: trivial tokenizer.
 - `ast.py`: nodes and type representations.
 - `parser.py`: hand-rolled recursive descent (skeleton-level coverage).
@@ -74,7 +81,8 @@ Layout
 - `compiler.py`: end-to-end pipeline and CLI helpers.
 - `__main__.py`: command-line entry.
 
-Calling Convention (skeleton)
+## Calling Convention (skeleton)
+
 - Stack pointer: `AR0` is reserved as the stack pointer (SP). Runtime/startup
   must initialize it before calling into Skald code.
 - Parameter passing (defaults, unless `in DRx/ARx` is specified on the param):
@@ -101,7 +109,8 @@ Calling Convention (skeleton)
     callee chooses to use for locals/temporaries (the prologue/epilogue handles
     saving them).
 
-Notes
+## Notes
+
 - This is intentionally minimal. There is no spilling, real register allocator,
   or interprocedural analysis yet. The prologue/epilogue only saves registers
   that the function itself allocates for locals/temporaries; parameter registers
@@ -109,7 +118,8 @@ Notes
 - Global `addr<T>` layout is two 24-bit words (`.dw24 lo; .dw24 hi`). Moves
   between `DRx` and `ARx` use `MOVAur/MOVDur` with `L` (low) lane only for now.
 
-Next steps
+## Next steps
+
 - Flesh out expression parsing with proper precedence and parentheses.
 - Add statements: if/while, assignment, calls.
 - Globals layout for `addr<T>` (48-bit) using `.diad` and `MOVAur/MOVDur` helpers.

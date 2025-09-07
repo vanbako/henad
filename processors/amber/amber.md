@@ -55,6 +55,7 @@ Amber exposes a tiny asynchronous 24‑bit integer math unit through CSRs. The c
   - Read: `CSRRD MATH_RES0 -> Dx` (and `MATH_RES1` if needed)
 
 Notes
+
 - Ops (bits[4:1] `OP`)
   - `0x0 MULU` unsigned: RES0=product[23:0], RES1=product[47:24]
   - `0x1 DIVU` unsigned: RES0=quotient, RES1=remainder; sets `DIV0` when OPB=0
@@ -73,6 +74,7 @@ Notes
 - Values are int24; ops are unsigned or signed per opcode.
 
 Assembler integration
+
 - The Amber assembler provides built-in CSR aliases and math constants: `MATH_CTRL`, `MATH_STATUS`, `MATH_OPA`, `MATH_OPB`, `MATH_OPC`, `MATH_RES0`, `MATH_RES1`, `MATH_CTRL_START`, `MATH_STATUS_READY`, and pre-shifted `MATH_OP_*` codes.
 - Convenience macros expand to full CSR sequences (write operands, kick, poll `READY`, read results):
   - `MULU24/MULS24 DRa, DRb, DRlo, DRhi, DRtmp`

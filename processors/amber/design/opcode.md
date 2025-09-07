@@ -13,22 +13,40 @@ and Carry flags.
 
 opclass 0000 Core ALU (reg–reg, unsigned flags)
 
-NOP                            ; no operation
-    µop
-    isa                no_oper
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0000
-    [15- 0] RESERVED
-    {}
-MOVur    DRs, DRt              ; DRt = DRs;
-    µop
-    isa                copy ds, dt
-    [23-20] opclass            ; 0000
-    [19-16] subop              ; 0001
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z}
+### NOP
+
+| operation    | µop | isa     |
+|--------------|-----|---------|
+| no operation | yes | no_oper |
+
+| bit range | description | value            |
+|-----------|-------------|------------------|
+| [23-20]   | opclass     | 0000             |
+| [19-16]   | subop       | 0000             |
+| [15- 0]   | reserved    | 0000000000000000 |
+
+| Z | N | C | V |
+|---|---|---|---|
+| - | - | - | - |
+
+### MOVur DRs, DRt
+
+| operation | µop | isa         |
+|-----------|-----|-------------|
+| DRt = DRs | yes | copy ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0000     |
+| [19-16]   | subop       | 0001     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| Z | N | C | V |
+|---|---|---|---|
+| X | - | - | - |
+
 MCCur    CC, DRs, DRt          ; if (CC) DRt = DRs;
     µop
     isa                cond_copy.[cc] ds, dt
