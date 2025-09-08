@@ -11,7 +11,7 @@ Suffixes such as t and s denote target and source respectively.
 Braces list flags affected by the instruction, e.g. {Z, C} updates the Zero
 and Carry flags.
 
-opclass 0000 Core ALU (reg–reg, unsigned flags)
+## opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### NOP
 
@@ -139,9 +139,9 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 
 - ### ORur DRs, DRt
 
-| operation  | µop           | isa       |
-|------------|---------------|-----------|
-| DRt |= DRs | ORur DRs, DRt | or ds, dt |
+| operation   | µop           | isa       |
+|-------------|---------------|-----------|
+| DRt \|= DRs | ORur DRs, DRt | or ds, dt |
 
 | bit range | description | value    |
 |-----------|-------------|----------|
@@ -280,212 +280,442 @@ opclass 0000 Core ALU (reg–reg, unsigned flags)
 |---|---|---|---|
 | x | - | - | - |
 
-; opclass 0001 Core ALU (imm/uimm, unsigned flags)
+## opclass 0001 Core ALU (imm/uimm, unsigned flags)
 
-; LUIui ; [OPC]ui sequences must be made atomic
-; A [OPC]ui without previous LUIui is undefined behaviour for now (I should implement an exception for this)
+"LUIui ; [OPC]ui" sequences must be made atomic  
+A "[OPC]ui" without previous LUIui is undefined behaviour for now (I should implement an exception for this)
 
-LUIui    #x, #imm12            ; case (x); 0: uimm[11-0] = imm12; 1: uimm[23-12] = imm12; 2: uimm[35-24] = imm12; endcase;
-    µop
-    isa                load_upper_imm x, imm12
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 0000
-    [15-14] x
-    [13-12] RESERVED
-    [11- 0] imm12
-    {}
-MOVui    #imm12, DRt           ; DRt = {uimm[11-0], imm12};
-    µop
-    isa                copy imm24, dt (macro: LUIui #0, #imm24[23-12]; MOVui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 0001
-    [15-12] DRt
-    [11- 0] imm12
-    {Z}
-ADDui    #imm12, DRt           ; unsigned DRt += {uimm[11-0], imm12};
-    µop
-    isa                add.u imm24, dt (macro: LUIui #0, #imm24[23-12]; ADDui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 0011
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, C}
-SUBui    #imm12, DRt           ; unsigned DRt -= {uimm[11-0], imm12};
-    µop
-    isa                sub.u imm24, dt (macro: LUIui #0, #imm24[23-12]; SUBui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 0100
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, C}
-ANDui    #imm12, DRt           ; DRt &= {uimm[11-0], imm12};
-    µop
-    isa                and imm24, dt (macro: LUIui #0, #imm24[23-12]; ANDui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 0110
-    [15-12] DRt
-    [11- 0] imm12
-    {Z}
-ORui     #imm12, DRt           ; DRt |= {uimm[11-0], imm12};
-    µop
-    isa                or imm24, dt (macro: LUIui #0, #imm24[23-12]; ORui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 0111
-    [15-12] DRt
-    [11- 0] imm12
-    {Z}
-XORui    #imm12, DRt           ; DRt ^= {uimm[11-0], imm12};
-    µop
-    isa                xor imm24, dt (macro: LUIui #0, #imm24[23-12]; XORui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 1000
-    [15-12] DRt
-    [11- 0] imm12
-    {Z}
-SHLui    #imm5, DRt            ; DRt <<= imm5;
-    µop
-    isa                shift_left imm5, dt
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 1001
-    [15-12] DRt
-    [11- 5] RESERVED
-    [ 4- 0] imm5
-    {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
-ROLui    #imm5, DRt            ; DRt <<<= imm5;
-    µop
-    isa                rot_left imm5, dt
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 1010
-    [15-12] DRt
-    [11- 5] RESERVED
-    [ 4- 0] imm5
-    {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
-SHRui    #imm5, DRt            ; unsigned DRt >>= imm5;
-    µop
-    isa                shift_right imm5, dt
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 1011
-    [15-12] DRt
-    [11- 5] RESERVED
-    [ 4- 0] imm5
-    {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
-RORui    #imm5, DRt            ; DRt >>>= imm5;
-    µop
-    isa                rot_right imm5, dt
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 1100
-    [15-12] DRt
-    [11- 5] RESERVED
-    [ 4- 0] imm5
-    {Z, C}                     ; only if imm5 is non-zero, otherwise unchanged
-CMPui    #imm12, DRt           ; unsigned compare {uimm[11-0], imm12}, DRt;
-    µop
-    isa                comp.u imm24, dt (macro: LUIui #0, #imm24[23-12]; CMPui #imm24[11-0], DRt)
-    [23-20] opclass            ; 0001
-    [19-16] subop              ; 1101
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, C}
+- ### LUIui #x, #imm12
 
-; opclass 0010 Core ALU (reg–reg, signed flags)
+| operation                | µop              | isa                     |
+|--------------------------|------------------|-------------------------|
+| case (x)                 | LUIui #x, #imm12 | load_upper_imm x, imm12 |
+|   0: uimm[11- 0] = imm12 |                  |                         |
+|   1: uimm[23-12] = imm12 |                  |                         |
+|   2: uimm[35-24] = imm12 |                  |                         |
+| endcase                  |                  |                         |
 
-ADDsr    DRs, DRt              ; signed DRt += DRs;
-    µop
-    isa                add.s ds, dt
-    [23-20] opclass            ; 0010
-    [19-16] subop              ; 0011
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, N, V}
-SUBsr    DRs, DRt              ; signed DRt -= DRs;
-    µop
-    isa                sub.s ds, dt
-    [23-20] opclass            ; 0010
-    [19-16] subop              ; 0100
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, N, V}
-NEGsr    DRt                   ; signed DRt = -DRt;
-    µop
-    isa                neg dt
-    [23-20] opclass            ; 0010
-    [19-16] subop              ; 0101
-    [15-12] DRt
-    [11- 0] RESERVED
-    {Z, N, V}
-SHRsr    DRs, DRt              ; signed DRt >>= DRs[4:0];
-    µop
-    isa                shift_right.s ds, dt
-    [23-20] opclass            ; 0010
-    [19-16] subop              ; 1011
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, N, C}                  ; only if DRs is non-zero, otherwise unchanged
-CMPsr    DRs, DRt              ; signed compare DRs, DRt;
-    µop
-    isa                comp.s ds, dt
-    [23-20] opclass            ; 0010
-    [19-16] subop              ; 1101
-    [15-12] DRt
-    [11- 8] DRs
-    [ 7- 0] RESERVED
-    {Z, N, V}
-TSTsr    DRt                   ; signed DRt test;
-    µop
-    isa                test.s dt
-    [23-20] opclass            ; 0010
-    [19-16] subop              ; 1110
-    [15-12] DRt
-    [11- 0] RESERVED
-    {Z, N}
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 0000  |
+| [15-14]   | x           |       |
+| [13-12]   | reserved    | 00    |
+| [11- 0]   | imm12       |       |
 
-; opclass 0011 Core ALU (imm, signed flags / PC-rel)
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
 
-MOVsi    #imm12, DRt           ; signed DRt = sext(imm12);
-    µop
-    isa                copy.s imm12, dt
-    [23-20] opclass            ; 0011
-    [19-16] subop              ; 0000
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, N}
-MCCsi    CC, #imm8, DRt        ; if (CC) DRt = sext(imm8);
-    µop
-    isa               cond_copy.s.[cc] imm8, dt
-    [23-20] opclass            ; 0011
-    [19-16] subop              ; 0001
-    [15-12] DRt
-    [11- 8] CC
-    [ 7- 0] imm8
-    {Z}                        ; only if move happens
-ADDsi    #imm12, DRt           ; signed DRt += sext(imm12);
-    µop
-    isa                add.s imm12, dt
-    [23-20] opclass            ; 0011
-    [19-16] subop              ; 0011
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, N, V}
-SUBsi    #imm12, DRt           ; signed DRt -= sext(imm12);
-    µop
-    isa                sub.s imm12, dt
-    [23-20] opclass            ; 0011
-    [19-16] subop              ; 0100
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, N, V}
-SHRsi    #imm5, DRt            ; signed DRt >>= imm5;
-    µop
-    isa                shift_right.s imm5, dt
-    [23-20] opclass            ; 0011
-    [19-16] subop              ; 1011
-    [15-12] DRt
-    [11- 5] RESERVED
-    [ 4- 0] imm5
-    {Z, N, C}                  ; only if imm5 is non-zero, otherwise unchanged
+- ### MOVui #imm12, DRt
+
+| operation                 | µop               | isa                       |
+|---------------------------|-------------------|---------------------------|
+| DRt = {uimm[11-0], imm12} | MOVui #imm12, DRt | copy.u imm24, dt          |
+|                           |                   | macro                     |
+|                           |                   |   LUIui #0, #imm24[23-12] |
+|                           |                   |   MOVui #imm24[11-0], DRt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 0001  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### ADDui #imm12, DRt
+
+| operation                           | µop               | isa                       |
+|-------------------------------------|-------------------|---------------------------|
+| unsigned DRt += {uimm[11-0], imm12} | ADDui #imm12, DRt | add.u imm24, dt           |
+|                                     |                   | macro                     |
+|                                     |                   |   LUIui #0, #imm24[23-12] |
+|                                     |                   |   ADDui #imm24[11-0], DRt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 0011  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### SUBui #imm12, DRt
+
+| operation                           | µop               | isa                       |
+|-------------------------------------|-------------------|---------------------------|
+| unsigned DRt -= {uimm[11-0], imm12} | SUBui #imm12, DRt | sub.u imm24, dt           |
+|                                     |                   | macro                     |
+|                                     |                   |   LUIui #0, #imm24[23-12] |
+|                                     |                   |   SUBui #imm24[11-0], DRt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 0100  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### ANDui #imm12, DRt
+
+| operation                  | µop               | isa                       |
+|----------------------------|-------------------|---------------------------|
+| DRt &= {uimm[11-0], imm12} | ANDui #imm12, DRt | and imm24, dt             |
+|                            |                   | macro                     |
+|                            |                   |   LUIui #0, #imm24[23-12] |
+|                            |                   |   ANDui #imm24[11-0], DRt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 0110  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### ORui #imm12, DRt
+
+| operation                   | µop              | isa                       |
+|-----------------------------|------------------|---------------------------|
+| DRt \|= {uimm[11-0], imm12} | ORui #imm12, DRt | or imm24, dt              |
+|                             |                  | macro                     |
+|                             |                  |   LUIui #0, #imm24[23-12] |
+|                             |                  |   ORui #imm24[11-0], DRt  |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 0111  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### XORui #imm12, DRt
+
+| operation                  | µop               | isa                       |
+|----------------------------|-------------------|---------------------------|
+| DRt ^= {uimm[11-0], imm12} | XORui #imm12, DRt | xor imm24, dt             |
+|                            |                   | macro                     |
+|                            |                   |   LUIui #0, #imm24[23-12] |
+|                            |                   |   XORui #imm24[11-0], DRt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 1000  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ### SHLui #imm5, DRt
+
+| operation    | µop              | isa                 |
+|--------------|------------------|---------------------|
+| DRt <<= imm5 | SHLui #imm5, DRt | shift_left imm5, dt |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1001    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### ROLui #imm5, DRt
+
+| operation     | µop              | isa               |
+|---------------|------------------|-------------------|
+| DRt <<<= imm5 | ROLui #imm5, DRt | rot_left imm5, dt |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1010    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### SHRui #imm5, DRt
+
+| operation    | µop              | isa                  |
+|--------------|------------------|----------------------|
+| DRt >>= imm5 | SHRui #imm5, DRt | shift_right imm5, dt |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1011    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### RORui #imm5, DRt
+
+| operation     | µop              | isa                |
+|---------------|------------------|--------------------|
+| DRt >>>= imm5 | RORui #imm5, DRt | rot_right imm5, dt |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1100    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ### CMPui #imm12, DRt
+
+| operation                                 | µop               | isa                       |
+|-------------------------------------------|-------------------|---------------------------|
+| unsigned compare {uimm[11-0], imm12}, DRt | CMPui #imm12, DRt | comp.u imm24, dt          |
+|                                           |                   | macro                     |
+|                                           |                   |   LUIui #0, #imm24[23-12] |
+|                                           |                   |   CMPui #imm24[11-0], DRt |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1101    |
+| [15-12]   | DRt         |         |
+| [11- 0]   | imm12       |         |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+## opclass 0010 Core ALU (reg–reg, signed flags)
+
+- ### ADDsr DRs, DRt
+
+| operation         | µop            | isa          |
+|-------------------|----------------|--------------|
+| signed DRt += DRs | ADDsr DRs, DRt | add.s ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0010     |
+| [19-16]   | subop       | 0011     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### SUBsr DRs, DRt
+
+| operation         | µop            | isa          |
+|-------------------|----------------|--------------|
+| signed DRt -= DRs | SUBsr DRs, DRt | sub.s ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0010     |
+| [19-16]   | subop       | 0100     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### NEGsr DRt
+
+| operation         | µop       | isa    |
+|-------------------|-----------|--------|
+| signed DRt = -DRt | NEGsr DRt | neg dt |
+
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0010         |
+| [19-16]   | subop       | 0101         |
+| [15-12]   | DRt         |              |
+| [11- 0]   | reserved    | 000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### SHRsr DRs, DRt
+
+| operation               | µop            | isa                       |
+|-------------------------|----------------|---------------------------|
+| signed DRt >>= DRs[4:0] | SHRsr DRs, DRt | arithm_shift_right ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0010     |
+| [19-16]   | subop       | 1011     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### CMPsr DRs, DRt
+
+| operation               | µop            | isa           |
+|-------------------------|----------------|---------------|
+| signed compare DRs, DRt | CMPsr DRs, DRt | comp.s ds, dt |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0010     |
+| [19-16]   | subop       | 1101     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### TSTsr DRt
+
+| operation       | µop       | isa       |
+|-----------------|-----------|-----------|
+| signed DRt test | TSTsr DRt | test.s dt |
+
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0010         |
+| [19-16]   | subop       | 1110         |
+| [15-12]   | DRt         |              |
+| [11- 0]   | reserved    | 000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | - |
+
+## opclass 0011 Core ALU (imm, signed flags / PC-rel)
+
+- ### MOVsi #imm12, DRt
+
+| operation                | µop               | isa              |
+|--------------------------|-------------------|------------------|
+| DRt = sign_extend(imm12) | MOVsi #imm12, DRt | copy.s imm12, dt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 0001  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | - |
+
+- ### MCCsi CC, #imm8, DRt
+
+| operation                       | µop                  | isa                       |
+|---------------------------------|----------------------|---------------------------|
+| if (CC) DRt = sign_extend(imm8) | MCCsi CC, #imm8, DRt | cond_copy.s.[cc] imm8, dt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 0010  |
+| [15-12]   | DRt         |       |
+| [11- 8]   | CC          |       |
+| [ 7- 0]   | imm8        |       |
+
+| z | n | c | v | comment              |
+|---|---|---|---|----------------------|
+| x | - | - | - | only if move happens |
+
+- ### ADDsi #imm12, DRt
+
+| operation                        | µop               | isa             |
+|----------------------------------|-------------------|-----------------|
+| signed DRt += sign_extend(imm12) | ADDsi #imm12, DRt | add.s imm12, dt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 0011  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### SUBsi #imm12, DRt
+
+| operation                        | µop               | isa             |
+|----------------------------------|-------------------|-----------------|
+| signed DRt -= sign_extend(imm12) | SUBsi #imm12, DRt | sub.s imm12, dt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 0100  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
+
+- ### SHRsi #imm5, DRt
+
+| operation           | µop              | isa                         |
+|---------------------|------------------|-----------------------------|
+| signed DRt >>= imm5 | SHRsi #imm5, DRt | arithm_shift_right imm5, dt |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0011    |
+| [19-16]   | subop       | 1011    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v | comment                                       |
+|---|---|---|---|-----------------------------------------------|
+| x | x | - | x | only if imm5 is non-zero, otherwise unchanged |
+
 CMPsi    #imm12, DRt           ; signed compare sext(imm12), DRt;
     µop
     isa               comp.s imm12, dt
