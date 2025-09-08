@@ -40,90 +40,201 @@
 |---|---|---|---|
 | x | - | - | - |
 
-ADDAur      DRs, ARt           ; unsigned ARt += zext(DRs);
-    µop
-    isa                add.u ds, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0011
-    [15-14] ARt
-    [13-10] DRs
-    [ 9- 0] RESERVED
-    {}
-SUBAur      DRs, ARt           ; unsigned ARt -= zext(DRs);
-    µop
-    isa                sub.u ds, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0100
-    [15-14] ARt
-    [13-10] DRs
-    [ 9- 0] RESERVED
-    {}
-ADDAsr      DRs, ARt           ; signed ARt += sext(DRs);
-    µop
-    isa                add.s ds, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0101
-    [15-14] ARt
-    [13-10] DRs
-    [ 9- 0] RESERVED
-    {}
-SUBAsr      DRs, ARt           ; signed ARt -= sext(DRs);
-    µop
-    isa                sub.s ds, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0110
-    [15-14] ARt
-    [13-10] DRs
-    [ 9- 0] RESERVED
-    {}
-ADDAsi      #imm12, ARt        ; signed ARt += sext(imm12);
-    µop
-    isa                add.s imm12, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0111
-    [15-14] ARt
-    [11- 0] imm12
-    {}
-SUBAsi      #imm12, ARt        ; signed ARt -= sext(imm12);
-    µop
-    isa                sub.s imm12, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 1000
-    [15-14] ARt
-    [11- 0] imm12
-    {}
-LEAso       ARs+#imm12, ARt    ; ARt = ARs + sext(imm12); (signed + operation)
-    µop
-    isa                copy_offset imm12, as, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 1001
-    [15-14] ARt
-    [13-12] ARs
-    [11- 0] imm12
-    {}
-ADRAso      PC+#imm14, ARt     ; ARt = PC + sext(imm14); (signed + operation)
-    µop
-    isa                copy_from_pc_offset imm14, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 1010
-    [15-14] ARt
-    [13- 0] imm14
-    {}
-; TODO: MOVAui (#imm48[47-36]; LUIui #1, #imm48[35-24]; LUIui #0, #imm48[23-12]; MOVAui #imm48[11-0], ARt)
-CMPAur      ARs, ARt           ; unsigned compare ARs, ARt;
-    µop
-    isa                comp.u as, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 1101
-    [15-14] ARt
-    [13-12] ARs
-    [11- 0] RESERVED
-    {Z, C}
-TSTAur      ARt                ; unsigned ARt == 0;
-    µop
-    isa                test.u at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 1110
-    [15-14] ARt
-    [13- 0] RESERVED
-    {Z}
+- ## ADDAur DRs, ARt
+
+| operation               | µop             | isa          |
+|-------------------------|-----------------|--------------|
+| ARt += zero_extend(DRs) | ADDAur DRs, ARt | add.u ds, at |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0110       |
+| [19-16]   | subop       | 0011       |
+| [15-14]   | ARt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## SUBAur DRs, ARt
+
+| operation               | µop             | isa          |
+|-------------------------|-----------------|--------------|
+| ARt -= zero_extend(DRs) | SUBAur DRs, ARt | sub.u ds, at |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0110       |
+| [19-16]   | subop       | 0100       |
+| [15-14]   | ARt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## ADDAsr DRs, ARt
+
+| operation               | µop             | isa          |
+|-------------------------|-----------------|--------------|
+| ARt += sign_extend(DRs) | ADDAsr DRs, ARt | add.s ds, at |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0110       |
+| [19-16]   | subop       | 0101       |
+| [15-14]   | ARt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## SUBAsr DRs, ARt
+
+| operation               | µop             | isa          |
+|-------------------------|-----------------|--------------|
+| ARt -= sign_extend(DRs) | SUBAsr DRs, ARt | sub.s ds, at |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0110       |
+| [19-16]   | subop       | 0110       |
+| [15-14]   | ARt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## ADDAsi #imm14, ARt
+
+| operation                 | µop                | isa             |
+|---------------------------|--------------------|-----------------|
+| ARt += sign_extend(imm14) | ADDAsi #imm14, ARt | add.s imm14, at |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0110  |
+| [19-16]   | subop       | 0111  |
+| [15-14]   | ARt         |       |
+| [13- 0]   | imm14       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## SUBAsi #imm14, ARt
+
+| operation                 | µop                | isa             |
+|---------------------------|--------------------|-----------------|
+| ARt -= sign_extend(imm14) | SUBAsi #imm14, ARt | sub.s imm14, at |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0110  |
+| [19-16]   | subop       | 1000  |
+| [15-14]   | ARt         |       |
+| [13- 0]   | imm14       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## LEAso ARs+#imm12, ARt
+
+| operation                      | µop                   | isa                       |
+|--------------------------------|-----------------------|---------------------------|
+| ARt = ARs + sign_extend(imm12) | LEAso ARs+#imm12, ARt | copy_offset imm12, as, at |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0110  |
+| [19-16]   | subop       | 1001  |
+| [15-14]   | ARt         |       |
+| [13-12]   | ARs         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## ADRAso PC+#imm14, ARt
+
+| operation                     | µop                   | isa                       |
+|-------------------------------|-----------------------|---------------------------|
+| ARt = PC + sign_extend(imm14) | ADRAso PC+#imm14, ARt | copy_offset imm14, pc, at |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0110  |
+| [19-16]   | subop       | 1010  |
+| [15-14]   | ARt         |       |
+| [13- 0]   | imm14       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## MOVAui #imm12, ARt
+
+| operation                                           | µop                | isa                        |
+|-----------------------------------------------------|--------------------|----------------------------|
+| ARt = {uimm[35-24], uimm[23-12], uimm[11-0], imm12} | MOVAui #imm12, ARt | copy.u imm48, at           |
+|                                                     |                    | macro                      |
+|                                                     |                    |   LUIui  #2, #imm48[47-36] |
+|                                                     |                    |   LUIui  #1, #imm48[35-24] |
+|                                                     |                    |   LUIui  #0, #imm48[23-12] |
+|                                                     |                    |   MOVAui #imm48[11-0], ARt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0110  |
+| [19-16]   | subop       | 1011  |
+| [15-14]   | ARt         |       |
+| [13-12]   | reserved    | 00    |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## CMPAur ARs, ARt
+
+| operation                 | µop             | isa           |
+|---------------------------|-----------------|---------------|
+| unsigned compare ARs, ARt | CMPAur ARs, ARt | comp.u as, at |
+
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0110         |
+| [19-16]   | subop       | 1101         |
+| [15-14]   | ARt         |              |
+| [13-12]   | ARs         |              |
+| [11- 0]   | reserved    | 000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | x | - |
+
+- ## TSTAur ARt
+
+| operation | µop        | isa       |
+|-----------|------------|-----------|
+| ARt == 0  | TSTAur ARt | test.u at |
+
+| bit range | description | value          |
+|-----------|-------------|----------------|
+| [23-20]   | opclass     | 0110           |
+| [19-16]   | subop       | 1110           |
+| [15-14]   | ARt         |                |
+| [13- 0]   | reserved    | 00000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
