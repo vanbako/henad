@@ -394,7 +394,7 @@ A "[OPC]ui" without previous LUIui is undefined behaviour for now (I should impl
 | DRt \|= {uimm[11-0], imm12} | ORui #imm12, DRt | or imm24, dt              |
 |                             |                  | macro                     |
 |                             |                  |   LUIui #0, #imm24[23-12] |
-|                             |                  |   ORui #imm24[11-0], DRt  |
+|                             |                  |   ORui  #imm24[11-0], DRt |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -716,114 +716,184 @@ A "[OPC]ui" without previous LUIui is undefined behaviour for now (I should impl
 |---|---|---|---|-----------------------------------------------|
 | x | x | - | x | only if imm5 is non-zero, otherwise unchanged |
 
-CMPsi    #imm12, DRt           ; signed compare sext(imm12), DRt;
-    µop
-    isa               comp.s imm12, dt
-    [23-20] opclass            ; 0011
-    [19-16] subop              ; 1101
-    [15-12] DRt
-    [11- 0] imm12
-    {Z, N, V}
+- ### CMPsi #imm12, DRt
 
-; opclass 0100 Loads/Stores (base only)
-LDur     (ARs), DRt            ; DRt = (ARs);
-    µop
-    isa                load (as), dt
-    [23-20] opclass            ; 0100
-    [19-16] subop              ; 0000
-    [15-12] DRt
-    [11-10] ARs
-    [ 9- 0] RESERVED
-    {}
-STur     DRs, (ARt)            ; (ARt) = DRs;
-    µop
-    isa                store ds, (at)
-    [23-20] opclass            ; 0100
-    [19-16] subop              ; 0001
-    [15-14] ARt
-    [13-10] DRs
-    [ 9- 0] RESERVED
-    {}
-STui     #imm12, (ARt)         ; (ARt) = {uimm[11-0], imm12};
-    µop
-    isa                store imm24, (at) (macro: LUIui #0, #imm24[23-12]; STui #imm24[11-0], (ARt))
-    [23-20] opclass            ; 0100
-    [19-16] subop              ; 0010
-    [15-14] ARt
-    [13-12] RESERVED
-    [11- 0] imm12
-    {}
-STsi     #imm14, (ARt)         ; (ARt) = sext(imm14);
-    µop
-    isa                store.s imm14, (at)
-    [23-20] opclass            ; 0100
-    [19-16] subop              ; 0011
-    [15-14] ARt
-    [13- 0] imm14
-    {}
+| operation                              | µop               | isa              |
+|----------------------------------------|-------------------|------------------|
+| signed compare sign_extend(imm12), DRt | CMPsi #imm12, DRt | comp.s imm12, dt |
 
-; opclass 0101 Loads/Stores (base + signed offset)
-; don't need the .s suffix as offsets are always signed
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 1101  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
 
-LDso     #imm10(ARs), DRt      ; DRt = (ARs + sext(imm10));
-    µop
-    isa                load imm10(as), dt
-    [23-20] opclass            ; 0101
-    [19-16] subop              ; 0000
-    [15-12] DRt
-    [11-10] ARs
-    [ 9- 0] imm10
-    {}
-STso     DRs, #imm10(ARt)      ; (ARt + sext(imm10)) = DRs;
-    µop
-    isa                store ds, imm10(at)
-    [23-20] opclass            ; 0101
-    [19-16] subop              ; 0001
-    [15-14] ARt
-    [13-10] DRs
-    [ 9- 0] imm10
-    {}
-LDAso       #imm12(ARs), ARt   ; ARt = (ARs + sext(imm12)); (signed + operation)
-    µop
-    isa                load imm12(as), at
-    [23-20] opclass            ; 0101
-    [19-16] subop              ; 0010
-    [15-14] ARt
-    [13-12] ARs
-    [11- 0] imm12
-    {}
-STAso       ARs, #imm12(ARt)   ; (ARt + sext(imm12)) = ARs; (signed + operation)
-    µop
-    isa                store as, imm12(at)
-    [23-20] opclass            ; 0101
-    [19-16] subop              ; 0011
-    [15-14] ARt
-    [13-12] ARs
-    [11- 0] imm12
-    {}
+| z | n | c | v |
+|---|---|---|---|
+| x | x | - | x |
 
-; opclass 0110 Address-register ALU & moves (reg)
+## opclass 0100 Loads/Stores
 
-MOVAur      DRs, ARt, H|L      ; if (L) ARt[23:0] = DRs; else ARt[47:24] = DRs;
-    µop
-    isa                copy.[h|l] ds, at
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0001
-    [15-14] ARt
-    [13-10] DRs
-    [ 9   ] H|L                ; H=1, L=0
-    [ 8- 0] RESERVED
-    {}
-MOVDur     ARs, DRt, H|L       ; if (L) DRt = ARs[23:0]; else DRt = ARs[47:24];
-    µop
-    isa                copy.[h|l] as, dt
-    [23-20] opclass            ; 0110
-    [19-16] subop              ; 0010
-    [15-12] DRt
-    [11-10] ARs
-    [ 9   ] H|L                ; H=1, L=0
-    [ 8- 0] RESERVED
-    {Z}
+offsets are always signed
+
+- ### LDso #imm10(ARs), DRt
+
+| operation                        | µop                   | isa                |
+|----------------------------------|-----------------------|--------------------|
+| DRt = (ARs + sign_extend(imm10)) | LDso #imm10(ARs), DRt | load imm10(as), dt |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0000  |
+| [15-12]   | DRt         |       |
+| [11-10]   | ARs         |       |
+| [ 9- 0]   | imm10       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ### STso DRs, #imm10(ARt)
+
+| operation                        | µop                   | isa                 |
+|----------------------------------|-----------------------|---------------------|
+| (ARt + sign_extend(imm10)) = DRs | STso DRs, #imm10(ARt) | store ds, imm10(at) |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0001  |
+| [15-14]   | ARt         |       |
+| [13-10]   | DRs         |       |
+| [ 9- 0]   | imm10       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ### STui #imm12, (ARt)
+
+| operation                   | µop                | isa                         |
+|-----------------------------|--------------------|-----------------------------|
+| (ARt) = {uimm[11-0], imm12} | STui #imm12, (ARt) | store imm24, (at)           |
+|                             |                    | macro                       |
+|                             |                    |   LUIui #0, #imm24[23-12]   |
+|                             |                    |   STui  #imm24[11-0], (ARt) |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0010  |
+| [15-14]   | ARt         |       |
+| [13-12]   | reserved    | 00    |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ### STsi #imm12, (ARt)
+
+| operation                  | µop                | isa                 |
+|----------------------------|--------------------|---------------------|
+| (ARt) = sign_extend(imm12) | STsi #imm12, (ARt) | store.s imm12, (at) |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0011  |
+| [15-14]   | ARt         |       |
+| [13-12]   | reserved    | 00    |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ### LDAso #imm12(ARs), ARt
+
+| operation                        | µop                    | isa                |
+|----------------------------------|------------------------|--------------------|
+| ARt = (ARs + sign_extend(imm12)) | LDAso #imm12(ARs), ARt | load imm12(as), at |
+| comment: signed + operation      |                        |                    |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0100  |
+| [15-14]   | ARt         |       |
+| [13-12]   | ARs         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ### STAso ARs, #imm12(ARt)
+
+| operation                        | µop                    | isa                 |
+|----------------------------------|------------------------|---------------------|
+| (ARt + sign_extend(imm12)) = ARs | STAso ARs, #imm12(ARt) | store as, imm12(at) |
+| comment: signed + operation      |                        |                     |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0101  |
+| [15-14]   | ARt         |       |
+| [13-12]   | ARs         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+## opclass 0101 reserved
+
+## opclass 0110 Address-register ALU & moves (reg)
+
+- ### MOVAur DRs, ARt, H|L
+
+| operation               | µop                   | isa                |
+|-------------------------|-----------------------|--------------------|
+| if (L) ARt[23: 0] = DRs | MOVAur DRs, ARt, H\|L | copy.[h\|l] ds, at |
+| if (H) ARt[47:24] = DRs |                       |                    |
+
+| bit range | description | value     | comment  |
+|-----------|-------------|-----------|----------|
+| [23-20]   | opclass     | 0110      |          |
+| [19-16]   | subop       | 0001      |          |
+| [15-14]   | ARt         |           |          |
+| [13-10]   | DRs         |           |          |
+| [ 9   ]   | H\|L        |           | H=1, L=0 |
+| [ 8- 0]   | reserved    | 000000000 |          |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ### MOVDur ARs, DRt, H|L
+
+| operation               | µop                   | isa                |
+|-------------------------|-----------------------|--------------------|
+| if (L) DRt = ARs[23: 0] | MOVDur ARs, DRt, H\|L | copy.[h\|l] as, dt |
+| if (H) DRt = ARs[47:24] |                       |                    |
+
+| bit range | description | value     | comment  |
+|-----------|-------------|-----------|----------|
+| [23-20]   | opclass     | 0110      |          |
+| [19-16]   | subop       | 0010      |          |
+| [15-12]   | DRt         |           |          |
+| [11-10]   | ARs         |           |          |
+| [ 9   ]   | H\|L        |           | H=1, L=0 |
+| [ 8- 0]   | reserved    | 000000000 |          |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
 ADDAur      DRs, ARt           ; unsigned ARt += zext(DRs);
     µop
     isa                add.u ds, at
@@ -1031,7 +1101,7 @@ PUSHur      DRs, (ARt)         ; --1(ARt) = DRs;
     {}
     µops
         SUBAsi      #1, ARt
-        STur        DRs, (ARt)
+        STso        DRs, #0(ARt)
 PUSHAur     ARs, (ARt)         ; --2(ARt) = ARs;
     isa                push as, (at)
     [23-20] opclass            ; 1000
