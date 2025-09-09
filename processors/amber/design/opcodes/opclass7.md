@@ -127,48 +127,81 @@
 |---|---|---|---|
 | - | - | - | - |
 
-JSRui       #imm12             ; call {uimm[35-0], imm12};
-    isa                jump_sub imm48 (macro: LUIui #2, #imm48[47-36]; LUIui #1, #imm48[35-24]; LUIui #0, #imm48[23-12]; JSRui #imm48[11-0])
-    [23-20] opclass            ; 0111
-    [19-16] subop              ; 0111
-    [15-12] RESERVED
-    [11- 0] imm12
-    {}
-    µops
-        SRSUBsi     #2, SSP
-        SRSTso      LR, #0(SSP)
-        SRMOVur     PC, LR
-        JCCui       AL, #imm12
-BSRsr       PC+DRt             ; call PC + sext(DRt);
-    isa                branch_sub dt
-    [23-20] opclass            ; 0111
-    [19-16] subop              ; 1000
-    [15-12] DRt
-    [11- 0] RESERVED
-    {}
-    µops
-        SRSUBsi     #2, SSP
-        SRSTso      LR, #0(SSP)
-        SRMOVur     PC, LR
-        BCCsr       AL, PC+DRt
-BSRso       PC+#imm16          ; call PC + sext(imm16); (signed + operation)
-    isa                branch_sub imm16
-    [23-20] opclass            ; 0111
-    [19-16] subop              ; 1001
-    [15- 0] imm16
-    {}
-    µops
-        SRSUBsi     #2, SSP
-        SRSTso      LR, #0(SSP)
-        SRMOVur     PC, LR
-        BALso       PC+#imm16
-RET                            ; return
-    isa                return
-    [23-20] opclass            ; 0111
-    [19-16] subop              ; 1010
-    [15- 0] RESERVED
-    {}
-    µops
-        SRADDsi     #2, SSP
-        SRLDso      #-2(SSP), LR
-        SRJCCso     AL, LR+#1
+- ## JSRui #imm12
+
+| operation                | µop                 | isa                       |
+|--------------------------|---------------------|---------------------------|
+| call {uimm[35-0], imm12} | SRSUBsi #2, SSP     | jump_sub imm48            |
+|                          | SRSTso  LR, #0(SSP) | macro                     |
+|                          | SRMOVur PC, LR      |   LUIui #2, #imm48[47-36] |
+|                          | JCCui   AL, #imm12  |   LUIui #1, #imm48[35-24] |
+|                          |                     |   LUIui #0, #imm48[23-12] |
+|                          |                     |   JSRui #imm48[11-0]      |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0111  |
+| [19-16]   | subop       | 0111  |
+| [15-12]   | reserved    | 0000  |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## BSRsr PC+DRt
+
+| operation                  | µop                 | isa           |
+|----------------------------|---------------------|---------------|
+| call PC + sign_extend(DRt) | SRSUBsi #2, SSP     | branch_sub dt |
+|                            | SRSTso  LR, #0(SSP) |               |
+|                            | SRMOVur PC, LR      |               |
+|                            | BCCsr   AL, PC+DRt  |               |
+
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0111         |
+| [19-16]   | subop       | 1000         |
+| [15-12]   | DRt         |              |
+| [11- 0]   | reserved    | 000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## BSRso PC+#imm16
+
+| operation                    | µop                 | isa              |
+|------------------------------|---------------------|------------------|
+| call PC + sign_extend(imm16) | SRSUBsi #2, SSP     | branch_sub imm16 |
+|                              | SRSTso  LR, #0(SSP) |                  |
+|                              | SRMOVur PC, LR      |                  |
+|                              | BALso   PC+#imm16   |                  |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0111  |
+| [19-16]   | subop       | 1001  |
+| [15- 0]   | imm16       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## RET
+
+| operation        | µop                  | isa    |
+|------------------|----------------------|--------|
+| return from call | SRADDsi #2, SSP      | return |
+|                  | SRLDso  #-2(SSP), LR |        |
+|                  | SRJCCso AL, LR+#1    |        |
+
+| bit range | description | value            |
+|-----------|-------------|------------------|
+| [23-20]   | opclass     | 0111             |
+| [19-16]   | subop       | 1010             |
+| [15- 0]   | reserved    | 0000000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
