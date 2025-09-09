@@ -19,21 +19,21 @@ Suffixes such as t and s denote target and source respectively.
 
 ## [opclass 0100](opcodes/opclass4.md) Loads/Stores
 
-## opclass 0101 Reserved
+## [opclass 0101](opcodes/opclass5.md) Address-register ALU & moves
 
-## [opclass 0110](opcodes/opclass6.md) Address-register ALU & moves
+## [opclass 0110](opcodes/opclass6.md) Control flow (absolute via AR / long immediates) & linkage
 
-## [opclass 0111](opcodes/opclass7.md) Control flow (absolute via AR / long immediates) & linkage
+## [opclass 0111](opcodes/opclass7.md) Stack helpers
 
-## [opclass 1000](opcodes/opclass8.md) Stack helpers
+## [opclass 1000](opcodes/opclass8.md) CSR access
 
-## [opclass 1001](opcodes/opclass9.md) CSR access
+## [opclass 1001](opcodes/opclass9.md) privileged / kernel-only
 
-## [opclass 1010](opcodes/opclassa.md) privileged / kernel-only
+## opclass 1010 MMU / TLB & Cache management
 
-## opclass 1011 MMU / TLB & Cache management
+## opclass 1011 Atomics & SMP
 
-## opclass 1100 Atomics & SMP
+## opclass 1100 Reserved
 
 ## opclass 1101 Reserved
 
