@@ -97,16 +97,16 @@
 `define SUBOP_CMPsr 4'b1101 // µop & isa
 `define SUBOP_TSTsr 4'b1110 // µop & isa
 
-`define OPC_NEGsr {`OPCLASS_2, `SUBOP_NEGsr}
 `define OPC_ADDsr {`OPCLASS_2, `SUBOP_ADDsr}
 `define OPC_SUBsr {`OPCLASS_2, `SUBOP_SUBsr}
+`define OPC_NEGsr {`OPCLASS_2, `SUBOP_NEGsr}
 `define OPC_SHRsr {`OPCLASS_2, `SUBOP_SHRsr}
 `define OPC_CMPsr {`OPCLASS_2, `SUBOP_CMPsr}
 `define OPC_TSTsr {`OPCLASS_2, `SUBOP_TSTsr}
 
 // OPCLASS_3
-`define SUBOP_MOVsi 4'b0000 // µop & isa
-`define SUBOP_MCCsi 4'b0001 // µop & isa
+`define SUBOP_MOVsi 4'b0001 // µop & isa
+`define SUBOP_MCCsi 4'b0010 // µop & isa
 `define SUBOP_ADDsi 4'b0011 // µop & isa
 `define SUBOP_SUBsi 4'b0100 // µop & isa
 `define SUBOP_SHRsi 4'b1011 // µop & isa
@@ -120,28 +120,21 @@
 `define OPC_CMPsi {`OPCLASS_3, `SUBOP_CMPsi}
 
 // OPCLASS_4
-`define SUBOP_LDur 4'b0000 // µop & isa
-`define SUBOP_STur 4'b0001 // µop & isa
-`define SUBOP_STui 4'b0010 // µop & isa
-`define SUBOP_STsi 4'b0011 // µop & isa
-
-`define OPC_LDur {`OPCLASS_4, `SUBOP_LDur}
-`define OPC_STur {`OPCLASS_4, `SUBOP_STur}
-`define OPC_STui {`OPCLASS_4, `SUBOP_STui}
-`define OPC_STsi {`OPCLASS_4, `SUBOP_STsi}
-
-// OPCLASS_5
 `define SUBOP_LDso  4'b0000 // µop & isa
 `define SUBOP_STso  4'b0001 // µop & isa
-`define SUBOP_LDAso 4'b0010 // µop & isa
-`define SUBOP_STAso 4'b0011 // µop & isa
+`define SUBOP_STui  4'b0010 // µop & isa
+`define SUBOP_STsi  4'b0011 // µop & isa
+`define SUBOP_LDAso 4'b0100 // µop & isa
+`define SUBOP_STAso 4'b0101 // µop & isa
 
-`define OPC_LDso  {`OPCLASS_5, `SUBOP_LDso}
-`define OPC_STso  {`OPCLASS_5, `SUBOP_STso}
-`define OPC_LDAso {`OPCLASS_5, `SUBOP_LDAso}
-`define OPC_STAso {`OPCLASS_5, `SUBOP_STAso}
+`define OPC_LDso  {`OPCLASS_4, `SUBOP_LDso}
+`define OPC_STso  {`OPCLASS_4, `SUBOP_STso}
+`define OPC_STui  {`OPCLASS_4, `SUBOP_STui}
+`define OPC_STsi  {`OPCLASS_4, `SUBOP_STsi}
+`define OPC_LDAso {`OPCLASS_4, `SUBOP_LDAso}
+`define OPC_STAso {`OPCLASS_4, `SUBOP_STAso}
 
-// OPCLASS_6
+// OPCLASS_5
 `define SUBOP_MOVAur 4'b0001 // µop & isa
 `define SUBOP_MOVDur 4'b0010 // µop & isa
 `define SUBOP_ADDAur 4'b0011 // µop & isa
@@ -152,23 +145,25 @@
 `define SUBOP_SUBAsi 4'b1000 // µop & isa
 `define SUBOP_LEAso  4'b1001 // µop & isa
 `define SUBOP_ADRAso 4'b1010 // µop & isa
+`define SUBOP_MOVAui 4'b1011 // µop & isa
 `define SUBOP_CMPAur 4'b1101 // µop & isa
 `define SUBOP_TSTAur 4'b1110 // µop & isa
 
-`define OPC_MOVAur {`OPCLASS_6, `SUBOP_MOVAur}
-`define OPC_MOVDur {`OPCLASS_6, `SUBOP_MOVDur}
-`define OPC_ADDAur {`OPCLASS_6, `SUBOP_ADDAur}
-`define OPC_SUBAur {`OPCLASS_6, `SUBOP_SUBAur}
-`define OPC_ADDAsr {`OPCLASS_6, `SUBOP_ADDAsr}
-`define OPC_SUBAsr {`OPCLASS_6, `SUBOP_SUBAsr}
-`define OPC_ADDAsi {`OPCLASS_6, `SUBOP_ADDAsi}
-`define OPC_SUBAsi {`OPCLASS_6, `SUBOP_SUBAsi}
-`define OPC_LEAso  {`OPCLASS_6, `SUBOP_LEAso}
-`define OPC_ADRAso {`OPCLASS_6, `SUBOP_ADRAso}
-`define OPC_CMPAur {`OPCLASS_6, `SUBOP_CMPAur}
-`define OPC_TSTAur {`OPCLASS_6, `SUBOP_TSTAur}
+`define OPC_MOVAur {`OPCLASS_5, `SUBOP_MOVAur}
+`define OPC_MOVDur {`OPCLASS_5, `SUBOP_MOVDur}
+`define OPC_ADDAur {`OPCLASS_5, `SUBOP_ADDAur}
+`define OPC_SUBAur {`OPCLASS_5, `SUBOP_SUBAur}
+`define OPC_ADDAsr {`OPCLASS_5, `SUBOP_ADDAsr}
+`define OPC_SUBAsr {`OPCLASS_5, `SUBOP_SUBAsr}
+`define OPC_ADDAsi {`OPCLASS_5, `SUBOP_ADDAsi}
+`define OPC_SUBAsi {`OPCLASS_5, `SUBOP_SUBAsi}
+`define OPC_LEAso  {`OPCLASS_5, `SUBOP_LEAso}
+`define OPC_ADRAso {`OPCLASS_5, `SUBOP_ADRAso}
+`define OPC_MOVAui {`OPCLASS_5, `SUBOP_MOVAui}
+`define OPC_CMPAur {`OPCLASS_5, `SUBOP_CMPAur}
+`define OPC_TSTAur {`OPCLASS_5, `SUBOP_TSTAur}
 
-// OPCLASS_7
+// OPCLASS_6
 `define SUBOP_BTP   4'b0000 // isa
 `define SUBOP_JCCur 4'b0001 // µop & isa
 `define SUBOP_JCCui 4'b0010 // µop & isa
@@ -181,47 +176,49 @@
 `define SUBOP_BSRso 4'b1001 // isa
 `define SUBOP_RET   4'b1010 // isa
 
-`define OPC_BTP   {`OPCLASS_7, `SUBOP_BTP}
-`define OPC_JCCur {`OPCLASS_7, `SUBOP_JCCur}
-`define OPC_JCCui {`OPCLASS_7, `SUBOP_JCCui}
-`define OPC_BCCsr {`OPCLASS_7, `SUBOP_BCCsr}
-`define OPC_BCCso {`OPCLASS_7, `SUBOP_BCCso}
-`define OPC_BALso {`OPCLASS_7, `SUBOP_BALso}
-`define OPC_JSRur {`OPCLASS_7, `SUBOP_JSRur}
-`define OPC_JSRui {`OPCLASS_7, `SUBOP_JSRui}
-`define OPC_BSRsr {`OPCLASS_7, `SUBOP_BSRsr}
-`define OPC_BSRso {`OPCLASS_7, `SUBOP_BSRso}
-`define OPC_RET   {`OPCLASS_7, `SUBOP_RET}
+`define OPC_BTP   {`OPCLASS_6, `SUBOP_BTP}
+`define OPC_JCCur {`OPCLASS_6, `SUBOP_JCCur}
+`define OPC_JCCui {`OPCLASS_6, `SUBOP_JCCui}
+`define OPC_BCCsr {`OPCLASS_6, `SUBOP_BCCsr}
+`define OPC_BCCso {`OPCLASS_6, `SUBOP_BCCso}
+`define OPC_BALso {`OPCLASS_6, `SUBOP_BALso}
+`define OPC_JSRur {`OPCLASS_6, `SUBOP_JSRur}
+`define OPC_JSRui {`OPCLASS_6, `SUBOP_JSRui}
+`define OPC_BSRsr {`OPCLASS_6, `SUBOP_BSRsr}
+`define OPC_BSRso {`OPCLASS_6, `SUBOP_BSRso}
+`define OPC_RET   {`OPCLASS_6, `SUBOP_RET}
 
-// OPCLASS_8
+// OPCLASS_7
 `define SUBOP_PUSHur  4'b0000 // isa
 `define SUBOP_PUSHAur 4'b0001 // isa
 `define SUBOP_POPur   4'b0010 // isa
 `define SUBOP_POPAur  4'b0011 // isa
 
-`define OPC_PUSHur  {`OPCLASS_8, `SUBOP_PUSHur}
-`define OPC_PUSHAur {`OPCLASS_8, `SUBOP_PUSHAur}
-`define OPC_POPur   {`OPCLASS_8, `SUBOP_POPur}
-`define OPC_POPAur  {`OPCLASS_8, `SUBOP_POPAur}
+`define OPC_PUSHur  {`OPCLASS_7, `SUBOP_PUSHur}
+`define OPC_PUSHAur {`OPCLASS_7, `SUBOP_PUSHAur}
+`define OPC_POPur   {`OPCLASS_7, `SUBOP_POPur}
+`define OPC_POPAur  {`OPCLASS_7, `SUBOP_POPAur}
 
-// OPCLASS_9
+// OPCLASS_8
 `define SUBOP_CSRRD 4'b0000 // isa
 `define SUBOP_CSRWR 4'b0001 // isa
 
-`define OPC_CSRRD {`OPCLASS_9, `SUBOP_CSRRD}
-`define OPC_CSRWR {`OPCLASS_9, `SUBOP_CSRWR}
+`define OPC_CSRRD {`OPCLASS_8, `SUBOP_CSRRD}
+`define OPC_CSRWR {`OPCLASS_8, `SUBOP_CSRWR}
 
-// OPCLASS_A
+// OPCLASS_9
 
 `define SUBOP_SRHLT  4'b0000 // µop & isa
 `define SUBOP_SETSSP 4'b0001 // isa
+`define SUBOP_SWI    4'b0010 // isa
+`define SUBOP_SRET   4'b0011 // isa
 
-`define OPC_SRHLT  {`OPCLASS_A, `SUBOP_SRHLT}
-`define OPC_SETSSP {`OPCLASS_A, `SUBOP_SETSSP}
-`define SUBOP_SWI    4'b0010 // isa (software interrupt)
-`define OPC_SWI    {`OPCLASS_A, `SUBOP_SWI}
-`define SUBOP_SRET   4'b0011 // isa (supervisor return)
-`define OPC_SRET   {`OPCLASS_A, `SUBOP_SRET}
+`define OPC_SRHLT  {`OPCLASS_9, `SUBOP_SRHLT}
+`define OPC_SETSSP {`OPCLASS_9, `SUBOP_SETSSP}
+`define OPC_SWI    {`OPCLASS_9, `SUBOP_SWI}
+`define OPC_SRET   {`OPCLASS_9, `SUBOP_SRET}
+
+// OPCLASS_A
 
 // OPCLASS_B
 
@@ -233,21 +230,21 @@
 
 // OPCLASS_F
 
-`define SUBOP_SRMOVur  4'b0000 // µop
-`define SUBOP_SRMOVAur 4'b0001 // µop
-`define SUBOP_SRJCCso  4'b0010 // µop
+`define SUBOP_SRJCCso  4'b0000 // µop
+`define SUBOP_SRMOVur  4'b0001 // µop
+`define SUBOP_SRMOVAur 4'b0010 // µop
 `define SUBOP_SRADDsi  4'b0011 // µop
 `define SUBOP_SRSUBsi  4'b0100 // µop
-`define SUBOP_SRSTso   4'b0101 // µop
-`define SUBOP_SRLDso   4'b0110 // µop
+`define SUBOP_SRLDso   4'b0101 // µop
+`define SUBOP_SRSTso   4'b0110 // µop
 
-`define OPC_SRMOVur {`OPCLASS_F, `SUBOP_SRMOVur}
+`define OPC_SRJCCso  {`OPCLASS_F, `SUBOP_SRJCCso}
+`define OPC_SRMOVur  {`OPCLASS_F, `SUBOP_SRMOVur}
 `define OPC_SRMOVAur {`OPCLASS_F, `SUBOP_SRMOVAur}
-`define OPC_SRJCCso {`OPCLASS_F, `SUBOP_SRJCCso}
-`define OPC_SRADDsi {`OPCLASS_F, `SUBOP_SRADDsi}
-`define OPC_SRSUBsi {`OPCLASS_F, `SUBOP_SRSUBsi}
-`define OPC_SRSTso  {`OPCLASS_F, `SUBOP_SRSTso}
-`define OPC_SRLDso  {`OPCLASS_F, `SUBOP_SRLDso}
+`define OPC_SRADDsi  {`OPCLASS_F, `SUBOP_SRADDsi}
+`define OPC_SRSUBsi  {`OPCLASS_F, `SUBOP_SRSUBsi}
+`define OPC_SRLDso   {`OPCLASS_F, `SUBOP_SRLDso}
+`define OPC_SRSTso   {`OPCLASS_F, `SUBOP_SRSTso}
 
 function automatic [79:0] opc2str;
     input [`HBIT_OPC:0] opc;

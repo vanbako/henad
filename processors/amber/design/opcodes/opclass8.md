@@ -1,20 +1,35 @@
 # opclass 1000 CSR access
 
-CSRRD     #csr8, DRt          ; DRt = CSR[csr8] (24-bit)
-    isa                csr_read csr8, dt
-    [23-20] opclass            ; 1000
-    [19-16] subop              ; 0000
-    [15-12] DRt
-    [11- 8] RESERVED
-    [ 7- 0] csr8
-    {Z}
+- ## CSRRD #csr12, DRt
 
-CSRWR     DRs, #csr8          ; CSR[csr8] = DRs (24-bit)
-    isa                csr_write ds, csr8
-    [23-20] opclass            ; 1000
-    [19-16] subop              ; 0001
-    [15-14] RESERVED
-    [13-10] DRs
-    [ 9- 8] RESERVED
-    [ 7- 0] csr8
-    {}
+| operation        | µop               | isa                |
+|------------------|-------------------|--------------------|
+| DRt = CSR[csr12] | CSRRD #csr12, DRt | csr_read csr12, dt |
+
+| bit range | description | value            |
+|-----------|-------------|------------------|
+| [23-20]   | opclass     | 1000             |
+| [19-16]   | subop       | 0000             |
+| [15-12]   | DRt         |                  |
+| [11- 0]   | csr12       |                  |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ## CSRWR DRs, #csr12
+
+| operation        | µop               | isa                 |
+|------------------|-------------------|---------------------|
+| CSR[csr12] = DRs | CSRWR DRs, #csr12 | csr_write ds, csr12 |
+
+| bit range | description | value            |
+|-----------|-------------|------------------|
+| [23-20]   | opclass     | 1000             |
+| [19-16]   | subop       | 0001             |
+| [15-12]   | DRs         |                  |
+| [11- 0]   | csr12       |                  |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
