@@ -58,7 +58,7 @@ module stg_id(
 
     // Branch classification
     wire w_is_branch =
-        (w_opc == `OPC_JCCur)     || (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCsr)     ||
+        (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCsr)     ||
         (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     || (w_opc == `OPC_SRJCCso);
     // Consumers of FLAGS (use SR[FL] as implicit source)
     wire w_uses_flags = w_is_branch || (w_opc == `OPC_MCCur) || (w_opc == `OPC_MCCsi);
@@ -173,7 +173,6 @@ module stg_id(
     always @* begin
         r_cc = {(`HBIT_CC+1){1'b0}};
         case (w_opc)
-            `OPC_JCCur: r_cc = iw_instr[13:10];
             `OPC_JCCui: r_cc = iw_instr[15:12];
             `OPC_BCCsr: r_cc = iw_instr[11:8];
             `OPC_BCCso: r_cc = iw_instr[15:12];
@@ -241,7 +240,7 @@ module stg_id(
             `OPC_CMPAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             `OPC_TSTAur: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             // OPCLASS_7 control flow
-            `OPC_JCCur: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            // `OPC_JCCur` (deprecated) removed
             // OPCLASS_F SR/AR µops
             `OPC_SRMOVAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; end
         endcase

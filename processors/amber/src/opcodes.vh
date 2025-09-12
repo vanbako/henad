@@ -126,6 +126,8 @@
 `define SUBOP_STsi  4'b0011 // µop & isa
 `define SUBOP_LDAso 4'b0100 // µop & isa
 `define SUBOP_STAso 4'b0101 // µop & isa
+`define SUBOP_LDur  4'b0110 // µop & isa
+`define SUBOP_STur  4'b0111 // µop & isa
 
 `define OPC_LDso  {`OPCLASS_4, `SUBOP_LDso}
 `define OPC_STso  {`OPCLASS_4, `SUBOP_STso}
@@ -133,6 +135,8 @@
 `define OPC_STsi  {`OPCLASS_4, `SUBOP_STsi}
 `define OPC_LDAso {`OPCLASS_4, `SUBOP_LDAso}
 `define OPC_STAso {`OPCLASS_4, `SUBOP_STAso}
+`define OPC_LDur  {`OPCLASS_4, `SUBOP_LDur}
+`define OPC_STur  {`OPCLASS_4, `SUBOP_STur}
 
 // OPCLASS_5
 `define SUBOP_MOVAur 4'b0001 // µop & isa
@@ -163,26 +167,22 @@
 `define OPC_CMPAur {`OPCLASS_5, `SUBOP_CMPAur}
 `define OPC_TSTAur {`OPCLASS_5, `SUBOP_TSTAur}
 
-// OPCLASS_6
+// OPCLASS_6 — Control Flow (per updated docs)
 `define SUBOP_BTP   4'b0000 // isa
-`define SUBOP_JCCur 4'b0001 // µop & isa
 `define SUBOP_JCCui 4'b0010 // µop & isa
 `define SUBOP_BCCsr 4'b0011 // µop & isa
 `define SUBOP_BCCso 4'b0100 // µop & isa
 `define SUBOP_BALso 4'b0101 // µop & isa
-`define SUBOP_JSRur 4'b0110 // isa
 `define SUBOP_JSRui 4'b0111 // isa
 `define SUBOP_BSRsr 4'b1000 // isa
 `define SUBOP_BSRso 4'b1001 // isa
 `define SUBOP_RET   4'b1010 // isa
 
 `define OPC_BTP   {`OPCLASS_6, `SUBOP_BTP}
-`define OPC_JCCur {`OPCLASS_6, `SUBOP_JCCur}
 `define OPC_JCCui {`OPCLASS_6, `SUBOP_JCCui}
 `define OPC_BCCsr {`OPCLASS_6, `SUBOP_BCCsr}
 `define OPC_BCCso {`OPCLASS_6, `SUBOP_BCCso}
 `define OPC_BALso {`OPCLASS_6, `SUBOP_BALso}
-`define OPC_JSRur {`OPCLASS_6, `SUBOP_JSRur}
 `define OPC_JSRui {`OPCLASS_6, `SUBOP_JSRui}
 `define OPC_BSRsr {`OPCLASS_6, `SUBOP_BSRsr}
 `define OPC_BSRso {`OPCLASS_6, `SUBOP_BSRso}
@@ -230,21 +230,22 @@
 
 // OPCLASS_F
 
-`define SUBOP_SRJCCso  4'b0000 // µop
-`define SUBOP_SRMOVur  4'b0001 // µop
-`define SUBOP_SRMOVAur 4'b0010 // µop
+// OPCLASS_F — Micro-ops (match opclassf.md)
+`define SUBOP_SRMOVur  4'b0000 // µop
+`define SUBOP_SRMOVAur 4'b0001 // µop
+`define SUBOP_SRJCCso  4'b0010 // µop
 `define SUBOP_SRADDsi  4'b0011 // µop
 `define SUBOP_SRSUBsi  4'b0100 // µop
-`define SUBOP_SRLDso   4'b0101 // µop
-`define SUBOP_SRSTso   4'b0110 // µop
+`define SUBOP_SRSTso   4'b0101 // µop
+`define SUBOP_SRLDso   4'b0110 // µop
 
-`define OPC_SRJCCso  {`OPCLASS_F, `SUBOP_SRJCCso}
 `define OPC_SRMOVur  {`OPCLASS_F, `SUBOP_SRMOVur}
 `define OPC_SRMOVAur {`OPCLASS_F, `SUBOP_SRMOVAur}
+`define OPC_SRJCCso  {`OPCLASS_F, `SUBOP_SRJCCso}
 `define OPC_SRADDsi  {`OPCLASS_F, `SUBOP_SRADDsi}
 `define OPC_SRSUBsi  {`OPCLASS_F, `SUBOP_SRSUBsi}
-`define OPC_SRLDso   {`OPCLASS_F, `SUBOP_SRLDso}
 `define OPC_SRSTso   {`OPCLASS_F, `SUBOP_SRSTso}
+`define OPC_SRLDso   {`OPCLASS_F, `SUBOP_SRLDso}
 
 function automatic [79:0] opc2str;
     input [`HBIT_OPC:0] opc;
@@ -298,12 +299,12 @@ function automatic [79:0] opc2str;
             `OPC_STur:    opc2str = "STur";
             `OPC_STui:    opc2str = "STui";
             `OPC_STsi:    opc2str = "STsi";
-// OPCLASS_5
             `OPC_LDso:    opc2str = "LDso";
             `OPC_STso:    opc2str = "STso";
             `OPC_LDAso:   opc2str = "LDAso";
             `OPC_STAso:   opc2str = "STAso";
-// OPCLASS_6
+// OPCLASS_5 (legacy AR ops)
+// OPCLASS_5 (legacy AR ops)
             `OPC_MOVAur:  opc2str = "MOVAur";
             `OPC_MOVDur:  opc2str = "MOVDur";
             `OPC_ADDAur:  opc2str = "ADDAur";
@@ -316,14 +317,12 @@ function automatic [79:0] opc2str;
             `OPC_ADRAso:  opc2str = "ADRAso";
             `OPC_CMPAur:  opc2str = "CMPAur";
             `OPC_TSTAur:  opc2str = "TSTAur";
-// OPCLASS_7
+// OPCLASS_6 (control flow)
             `OPC_BTP:     opc2str = "BTP";
-            `OPC_JCCur:   opc2str = "JCCur";
             `OPC_JCCui:   opc2str = "JCCui";
             `OPC_BCCsr:   opc2str = "BCCsr";
             `OPC_BCCso:   opc2str = "BCCso";
             `OPC_BALso:   opc2str = "BALso";
-            `OPC_JSRur:   opc2str = "JSRur";
             `OPC_JSRui:   opc2str = "JSRui";
             `OPC_BSRsr:   opc2str = "BSRsr";
             `OPC_BSRso:   opc2str = "BSRso";
@@ -346,13 +345,13 @@ function automatic [79:0] opc2str;
 // OPCLASS_D
 // OPCLASS_E
 // OPCLASS_F
-            `OPC_SRMOVur: opc2str = "SRMOVur";
-            `OPC_SRMOVAur:opc2str = "SRMOVAur";
-            `OPC_SRJCCso: opc2str = "SRJCCso";
-            `OPC_SRADDsi: opc2str = "SRADDsi";
-            `OPC_SRSUBsi: opc2str = "SRSUBsi";
-            `OPC_SRSTso:  opc2str = "SRSTso";
-            `OPC_SRLDso:  opc2str = "SRLDso";
+            `OPC_SRMOVur:  opc2str = "SRMOVur";
+            `OPC_SRMOVAur: opc2str = "SRMOVAur";
+            `OPC_SRJCCso:  opc2str = "SRJCCso";
+            `OPC_SRADDsi:  opc2str = "SRADDsi";
+            `OPC_SRSUBsi:  opc2str = "SRSUBsi";
+            `OPC_SRSTso:   opc2str = "SRSTso";
+            `OPC_SRLDso:   opc2str = "SRLDso";
 // DEFAULT
             default:      opc2str = "UNKNOWN";
         endcase

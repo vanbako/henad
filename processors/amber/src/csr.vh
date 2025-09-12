@@ -43,3 +43,36 @@
 `define CSR_STATUS_MODE_BIT 0
 
 `endif
+// Default Capability Windows (addresses per design/csr.md)
+// DDC window: 0x020–0x028
+`define CSR_IDX_DDC_BASE_LO 8'h20
+`define CSR_IDX_DDC_BASE_HI 8'h21
+`define CSR_IDX_DDC_LEN_LO  8'h22
+`define CSR_IDX_DDC_LEN_HI  8'h23
+`define CSR_IDX_DDC_CUR_LO  8'h24
+`define CSR_IDX_DDC_CUR_HI  8'h25
+`define CSR_IDX_DDC_PERMS   8'h26
+`define CSR_IDX_DDC_ATTR    8'h27
+`define CSR_IDX_DDC_TAG     8'h28
+
+// PCC window: 0x030–0x038
+`define CSR_IDX_PCC_BASE_LO 8'h30
+`define CSR_IDX_PCC_BASE_HI 8'h31
+`define CSR_IDX_PCC_LEN_LO  8'h32
+`define CSR_IDX_PCC_LEN_HI  8'h33
+`define CSR_IDX_PCC_CUR_LO  8'h34
+`define CSR_IDX_PCC_CUR_HI  8'h35
+`define CSR_IDX_PCC_PERMS   8'h36
+`define CSR_IDX_PCC_ATTR    8'h37
+`define CSR_IDX_PCC_TAG     8'h38
+
+// SCC window: 0x040–0x048
+`define CSR_IDX_SCC_BASE_LO 8'h40
+`define CSR_IDX_SCC_BASE_HI 8'h41
+`define CSR_IDX_SCC_LEN_LO  8'h42
+`define CSR_IDX_SCC_LEN_HI  8'h43
+`define CSR_IDX_SCC_CUR_LO  8'h44
+`define CSR_IDX_SCC_CUR_HI  8'h45
+`define CSR_IDX_SCC_PERMS   8'h46
+`define CSR_IDX_SCC_ATTR    8'h47
+`define CSR_IDX_SCC_TAG     8'h48

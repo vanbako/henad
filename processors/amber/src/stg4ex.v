@@ -112,7 +112,7 @@ module stg_ex(
         r_se_imm14_val  = {{10{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
         r_se_imm10_val  = {{14{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
         r_se_imm16_val  = {{8{iw_imm16_val[`HBIT_IMM16]}},  iw_imm16_val};
-        if ((iw_opc == `OPC_JCCur  || iw_opc == `OPC_BCCsr  ||
+        if ((iw_opc == `OPC_BCCsr  ||
              iw_opc == `OPC_JCCui  || iw_opc == `OPC_BCCso ||
              iw_opc == `OPC_SRJCCso)) begin
             case (iw_cc)
@@ -581,10 +581,6 @@ module stg_ex(
                 if (r_branch_taken)
                     // Assemble 48-bit absolute from banks and imm12
                     r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
-            end
-            `OPC_JCCur: begin
-                if (r_branch_taken)
-                    r_branch_pc = iw_tgt_ar_val;
             end
             `OPC_MOVsi: begin
                 r_result = r_se_imm12_val;

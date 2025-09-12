@@ -148,14 +148,6 @@ module stg_xt(
         end
     endfunction
 
-    function automatic [`HBIT_DATA:0] pack_jccur;
-        input [1:0]         tgt_ar;
-        input [3:0]         cc;
-        begin
-            pack_jccur = { `OPC_JCCur, tgt_ar, cc, 10'b0 };
-        end
-    endfunction
-
     function automatic [`HBIT_DATA:0] pack_jccui;
         input [3:0]         cc;
         input [11:0]        imm12;
@@ -221,25 +213,18 @@ module stg_xt(
             // Not in a sequence: either pass-through or start one
             case (w_opclass)
                 `OPCLASS_0, `OPCLASS_1, `OPCLASS_2, `OPCLASS_3,
-                `OPCLASS_4, `OPCLASS_5, `OPCLASS_6: begin
+                `OPCLASS_4, `OPCLASS_5: begin
                     r_instr = iw_instr;
                 end
-                `OPCLASS_7: begin
+                // OPCLASS_6: Control flow (per updated documentation)
+                `OPCLASS_6: begin
                     case (w_subop)
                         `SUBOP_BTP: begin
                             r_instr = pack_nop();
                         end
-                        `SUBOP_JCCur, `SUBOP_JCCui, `SUBOP_BCCsr, `SUBOP_BCCso, `SUBOP_BALso: begin
+                        // Pass-through ISA ops for control flow
+                        `SUBOP_JCCui, `SUBOP_BCCsr, `SUBOP_BCCso, `SUBOP_BALso: begin
                             r_instr = iw_instr;
-                        end
-                        `SUBOP_JSRur: begin
-                            w_seq_start   = 1'b1;
-                            w_seq_len     = 3'd4;
-                            w_seq_list[0] = pack_sr_imm14(`OPC_SRSUBsi, `SR_IDX_SSP, 14'd2);
-                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd0);
-                            w_seq_list[2] = pack_sr_sr(`OPC_SRMOVur, `SR_IDX_LR, `SR_IDX_PC);
-                            w_seq_list[3] = pack_jccur(iw_instr[15:14], 4'b0000);
-                            r_instr       = w_seq_list[0];
                         end
                         `SUBOP_JSRui: begin
                             w_seq_start   = 1'b1;
@@ -281,7 +266,8 @@ module stg_xt(
                         end
                     endcase
                 end
-                `OPCLASS_8: begin
+                // OPCLASS_7: Stack helpers (legacy AR-based push/pop kept here until CHERI CR path lands)
+                `OPCLASS_7: begin
                     case (w_subop)
                         `SUBOP_PUSHur: begin
                             w_seq_start   = 1'b1;
@@ -316,7 +302,8 @@ module stg_xt(
                         end
                     endcase
                 end
-                `OPCLASS_A: begin
+                // OPCLASS_9: privileged
+                `OPCLASS_9: begin
                     if (w_subop == `SUBOP_SETSSP) begin
                         r_instr = { `OPC_SRMOVAur, `SR_IDX_SSP, iw_instr[15:14], 12'b0 };
                     end else begin
@@ -401,4 +388,3 @@ module stg_xt(
     assign ow_pc    = r_pc_latch;
     assign ow_instr = r_instr_latch;
 endmodule
-

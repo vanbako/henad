@@ -274,11 +274,74 @@ module amber(
         .ow_read_data2  (w_ar_read_data2)
     );
 
+    // Capability registers (CR0..CR3) — scaffold for CHERI execution
+    // For now, connect read ports to zero to avoid side effects; future stages
+    // will drive read addresses from decoded instructions.
+    wire [`HBIT_TGT_CR:0] w_cr_read_addr1 = {(`HBIT_TGT_CR+1){1'b0}};
+    wire [`HBIT_TGT_CR:0] w_cr_read_addr2 = {(`HBIT_TGT_CR+1){1'b0}};
+    wire [`HBIT_ADDR:0]   w_cr_read_base1;
+    wire [`HBIT_ADDR:0]   w_cr_read_len1;
+    wire [`HBIT_ADDR:0]   w_cr_read_cur1;
+    wire [`HBIT_DATA:0]   w_cr_read_perms1;
+    wire [`HBIT_DATA:0]   w_cr_read_attr1;
+    wire                  w_cr_read_tag1;
+    wire [`HBIT_ADDR:0]   w_cr_read_base2;
+    wire [`HBIT_ADDR:0]   w_cr_read_len2;
+    wire [`HBIT_ADDR:0]   w_cr_read_cur2;
+    wire [`HBIT_DATA:0]   w_cr_read_perms2;
+    wire [`HBIT_DATA:0]   w_cr_read_attr2;
+    wire                  w_cr_read_tag2;
+
+    regcr u_regcr(
+        .iw_clk             (iw_clk),
+        .iw_rst             (iw_rst),
+        .iw_read_addr1      (w_cr_read_addr1),
+        .iw_read_addr2      (w_cr_read_addr2),
+        .ow_read_base1      (w_cr_read_base1),
+        .ow_read_len1       (w_cr_read_len1),
+        .ow_read_cur1       (w_cr_read_cur1),
+        .ow_read_perms1     (w_cr_read_perms1),
+        .ow_read_attr1      (w_cr_read_attr1),
+        .ow_read_tag1       (w_cr_read_tag1),
+        .ow_read_base2      (w_cr_read_base2),
+        .ow_read_len2       (w_cr_read_len2),
+        .ow_read_cur2       (w_cr_read_cur2),
+        .ow_read_perms2     (w_cr_read_perms2),
+        .ow_read_attr2      (w_cr_read_attr2),
+        .ow_read_tag2       (w_cr_read_tag2),
+        .iw_write_addr      ({(`HBIT_TGT_CR+1){1'b0}}),
+        .iw_write_en_base   (1'b0),
+        .iw_write_base      ({(`HBIT_ADDR+1){1'b0}}),
+        .iw_write_en_len    (1'b0),
+        .iw_write_len       ({(`HBIT_ADDR+1){1'b0}}),
+        .iw_write_en_cur    (1'b0),
+        .iw_write_cur       ({(`HBIT_ADDR+1){1'b0}}),
+        .iw_write_en_perms  (1'b0),
+        .iw_write_perms     ({(`HBIT_DATA+1){1'b0}}),
+        .iw_write_en_attr   (1'b0),
+        .iw_write_attr      ({(`HBIT_DATA+1){1'b0}}),
+        .iw_write_en_tag    (1'b0),
+        .iw_write_tag       (1'b0)
+    );
+
     wire                w_stall;
     wire                w_hazard_stall;
     wire                w_bubble;
     wire                w_branch_taken;
     wire [`HBIT_ADDR:0] w_branch_pc;
+
+    // PCC mirror (from CSR window) for fetch gating
+    reg [`HBIT_ADDR:0] r_pcc_base;
+    reg [`HBIT_ADDR:0] r_pcc_len;
+    reg [`HBIT_ADDR:0] r_pcc_cur;
+    reg [`HBIT_DATA:0] r_pcc_perms;
+    reg [`HBIT_DATA:0] r_pcc_attr;
+    reg                r_pcc_tag;
+
+    // Simple PCC-based fetch gating
+    wire w_pcc_x          = r_pcc_perms[2];
+    wire w_pcc_in_bounds  = (r_ia_pc >= r_pcc_base) && (r_ia_pc < (r_pcc_base + r_pcc_len));
+    wire w_pcc_ok         = r_pcc_tag && w_pcc_x && w_pcc_in_bounds;
 
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
@@ -288,7 +351,10 @@ module amber(
         end else if (w_stall) begin
             r_ia_pc <= r_ia_pc;
         end else begin
-            r_ia_pc <= r_ia_pc + `SIZE_ADDR'd1;
+            if (w_pcc_ok)
+                r_ia_pc <= r_ia_pc + `SIZE_ADDR'd1;
+            else
+                r_ia_pc <= r_ia_pc; // Hold on PCC violation (trap path TBD)
         end
     end
 
@@ -482,6 +548,34 @@ module amber(
     assign w_csr_write_enable = (w_wb_opc == `OPC_CSRWR);
     assign w_csr_write_addr   = w_wb_instr[7:0];
     assign w_csr_write_data   = w_wb_result;
+
+    // Mirror PCC window into local registers for fetch gating; keep PCC.cursor synced to PC
+    always @(posedge iw_clk or posedge iw_rst) begin
+        if (iw_rst) begin
+            r_pcc_base  <= {(`HBIT_ADDR+1){1'b0}};
+            r_pcc_len   <= `SIZE_ADDR'd4096; // default 4K BAUs
+            r_pcc_cur   <= {(`HBIT_ADDR+1){1'b0}};
+            r_pcc_perms <= 24'b0000_0000_0000_0000_0000_0100; // X=1
+            r_pcc_attr  <= {(`HBIT_DATA+1){1'b0}};
+            r_pcc_tag   <= 1'b1;
+        end else begin
+            // Track PC in PCC.cursor (synchronize)
+            r_pcc_cur <= r_ia_pc;
+            if (w_csr_write_enable) begin
+                case (w_csr_write_addr)
+                    `CSR_IDX_PCC_BASE_LO: r_pcc_base[23:0]  <= w_csr_write_data;
+                    `CSR_IDX_PCC_BASE_HI: r_pcc_base[47:24] <= w_csr_write_data;
+                    `CSR_IDX_PCC_LEN_LO:  r_pcc_len[23:0]   <= w_csr_write_data;
+                    `CSR_IDX_PCC_LEN_HI:  r_pcc_len[47:24]  <= w_csr_write_data;
+                    `CSR_IDX_PCC_CUR_LO:  r_pcc_cur[23:0]   <= w_csr_write_data;
+                    `CSR_IDX_PCC_CUR_HI:  r_pcc_cur[47:24]  <= w_csr_write_data;
+                    `CSR_IDX_PCC_PERMS:   r_pcc_perms       <= w_csr_write_data;
+                    `CSR_IDX_PCC_ATTR:    r_pcc_attr        <= w_csr_write_data;
+                    `CSR_IDX_PCC_TAG:     r_pcc_tag         <= w_csr_write_data[0];
+                endcase
+            end
+        end
+    end
 
     // Async 24-bit math engine connected via CSR window
     math24_async u_math24_async(
