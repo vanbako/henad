@@ -13,6 +13,13 @@ This document enumerates architectural CSRs, PSTATE fields, capability-default C
 - 0x000 PSTATE_LO (R:U/K, W:K) — PSTATE bits 23:0
 - 0x001 PSTATE_HI (R:U/K, W:K) — PSTATE bits 47:24
 
+- 0x004 LR_LO (R:U/K, W:K)
+- 0x005 LR_HI (R:U/K, W:K)
+- 0x006 SSP_LO (R:U/K, W:K)
+- 0x007 SSP_HI (R:U/K, W:K)
+- 0x008 PC_LO (R:U/K, W:K)
+- 0x009 PC_HI (R:U/K, W:K)
+
 PSTATE layout (48-bit)
 
 - [0] Z: zero flag
@@ -32,6 +39,7 @@ Notes
 
 - User-mode writes to PSTATE are ignored except for flag-affecting instructions; full writes require K-mode.
 - TRAP_CAUSE/INFO are written by hardware on fault/interrupt entry; K-mode clears them after handling.
+- Writes to LR/SSP/PC are K-only (RET/JSR/branch update these architecturally). PC writes through CSR are primarily for debugging; they synchronize with `PCC.cursor`.
 
 ## Async Int24 Math (0x010–0x017)
 
@@ -113,4 +121,3 @@ Encoded into `PSTATE.TRAP_CAUSE` (bits [23:16]). Suggested values:
 - CSRs affecting privilege, capabilities, or control flow are kernel-write-only.
 - User-mode writes to such CSRs raise `CAP_CFG` (or are ignored) per implementation choice.
 - Reads of default capability windows in U-mode are permitted for discoverability but may be masked (e.g., perms masked to user-visible subset).
-

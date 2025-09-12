@@ -88,6 +88,11 @@ Notes
   - `PC`: program counter
 - Capability: `CR0..CR3` (128-bit + tag). Used by loads/stores and capability ops.
 
+SR vs CSR
+
+- `LR`, `SSP`, `PSTATE`, and `PC` are architected 48-bit SRs for fast µop access.
+- Kernel code observes/controls these via CSR mirrors at 0x000–0x009; user writes to these CSRs are ignored.
+
 ## Memory
 
 - Physical 48-bit addressing, BAU=24-bit.

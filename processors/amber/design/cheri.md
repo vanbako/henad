@@ -48,6 +48,15 @@ Performed in MA/MO (memory) and fetch path (via `PCC`):
 - `DDC`: fallback data capability when an instruction does not name a `CRs` (Amber’s ISA names one explicitly in LD/ST).
 - `SCC`: bounds the shadow call stack region; used by call/return micro-ops with `SSP` as the cursor.
 
+PC and PCC
+
+- `PC` (SR, 48-bit) and `PCC.cursor` are kept equal by hardware. Control-flow instructions update both; changing `PCC` via CSR updates the fetch path and synchronizes `PC` at a defined boundary (e.g., after XT). Software should not attempt to desynchronize them.
+
+SR vs. CSR
+
+- `LR`, `SSP`, `PSTATE`, and `PC` exist as architectural Special Registers (SR) for fast access by micro-ops and control flow.
+- CSR provides privileged mirrors of these SRs (see `csr.md` at 0x000–0x009) for inspection and kernel control. User-mode writes are not honored; kernel-mode may write subject to architectural rules.
+
 ## ISA Overview (CHERI-relevant)
 
 - Loads/Stores (opclass 0100): `LDcso #offs(CRs), DRt` and `STcso DRs, #offs(CRt)`.
