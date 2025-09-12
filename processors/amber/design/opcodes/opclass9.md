@@ -50,3 +50,21 @@
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
+
+- ## SYSCALL #imm12
+
+| operation                          | µop              | isa             |
+|------------------------------------|------------------|-----------------|
+| syscall enter at vector `imm12`     | SYSCALL #imm12   | syscall imm12   |
+| (via sealed kernel entry capability)|                  |                 |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 1001  |
+| [19-16]   | subop       | 0010  |
+| [15-12]   | reserved    | 0000  |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |

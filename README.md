@@ -26,7 +26,7 @@ This repository contains documentation split by **processors, units, modules, bo
 
 ### ⚙️ Diad processors
 
-- [diad-amber](processors/amber/amber.md) – control/firmware core
+- [diad-amber](processors/amber/amber.md) – control/firmware core (CHERI-enabled)
 - [diad-ethel](processors/ethel/ethel.md) – main CPU
 - [diad-iris](processors/iris/iris.md) – graphics/display processor
 - [diad-lyra](processors/lyra/lyra.md) – sound processor

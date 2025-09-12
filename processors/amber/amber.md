@@ -2,108 +2,66 @@
 
 ## Overview
 
-- **Role**: Embedded 24-bit RISC-like core for control tasks
-- **BAU**: 24-bit (diad)
-- **Addressing**: 48-bit (tetrad)
-- **Design goal**: Lightweight firmware engine for modules
+- Role: 24-bit BAU RISC-like core with CHERI capabilities
+- BAU: 24-bit (diad)
+- Addressing: 48-bit (tetrad)
+- Goals: simple, in-order, secure-by-default (no BP, no OoO)
+
+## What’s New: CHERI for Amber
+
+- Capability-based memory safety with 24-bit BAU and 48-bit addressing.
+- All loads/stores and indirect control flow are checked against a capability (bounds, perms, tag, seal).
+- No MMU/virt yet; CHERI still enforces spatial safety and coarse CFI.
+- Clean split of ISA vs. micro-ops; checks occur in XT/MA without speculation.
 
 ## Architecture
 
-- ISA: RISC-like, 24-bit instructions (24-bit BAU)
-- Pipeline: fetch, decode, execute, memory, writeback
-- Operations: 24-bit Integer + basic control ops
-- interrupts
+- ISA: 24-bit instructions. Core ALU on 24-bit integers.
+- Pipeline: IA → IF → ID → XT → EX → MA → MO → WB.
+- Core safety: no branch prediction; no out-of-order; no speculation.
+- Privilege: kernel and user mode; syscalls via `SYSCALL #idx` (not SWI).
 
-## Memory
+## Registers
 
-- Data Registers: 24-bit wide
-- SDRAM (via unit-ada)
-- Flash firmware
+- DR: 16 data registers `D0..D15` (24-bit). Encoding uses 4-bit register fields.
+- SR: 4 special registers (48-bit): `LR`, `SSP` (shadow stack pointer), `PSTATE`, `PC`.
+  - `PSTATE` replaces the old `FL`; contains `Z,N,C,V`, mode bit (K/U), interrupt enables, and trap cause.
+- CR: 4 capability registers `CR0..CR3` (128-bit + tag), used as bases for all memory accesses.
+  - Each capability holds: base (48), length (48), perms (at least R/W/X/LC/SC/SB), sealed bit, otype, cursor (48), tag.
+  - Default capabilities (CSR): `PCC` (code), `DDC` (default data), and `SCC` (shadow-call stack).
 
-## Interfaces
+## Memory and CHERI
 
-- enid endpoint
-- local memory bus
+- Address space: 48-bit physical addressing, BAU=24-bit. No I/D caches yet.
+- Checks: a memory op `LD/ST` uses `CRs + offset`; hardware verifies tag, bounds, perms, sealed state.
+- Faults: on tag/perm/OOB/alignment violations, raise a software interrupt (vectored), with cause recorded in `PSTATE`.
+- Control-flow integrity: `BTP` pads plus shadow call stack via `SSP`; `RET` verifies structured returns.
 
-## Prototype 1 Parameters
+## Syscalls and Software Interrupts
 
-- Frequency: 100 MHz
-- FPGA platform: Arora-V
+- `SYSCALL #idx`: enters kernel at a sealed, capability-authenticated entry; not implemented via SWI.
+- Software interrupts are reserved for faults and “trap-on-UB” arithmetic (e.g., overflow). Examples:
+  - Capability faults: OOB, tag clear, permission, sealed/type, exec perms.
+  - Arithmetic faults: signed overflow on `ADD/SUB` trap variants; divide-by-zero.
 
-## Future Extensions
+## Async Int24 Math (CSRs)
 
-- Possible merge with unit-enid
-- Improved debugging support
-
-## Async Int24 Math (MUL/DIV/MOD/SQRT/MIN/MAX/ABS/CLAMP)
-
-Amber exposes a tiny asynchronous 24‑bit integer math unit through CSRs. The core never stalls; firmware triggers an operation and polls a status bit. Results are placed in CSRs when ready.
-
-- CSRs
-  - `CSR[0x10] MATH_CTRL`: bit0 `START`; bits[4:1] `OP`
-  - `CSR[0x11] MATH_STATUS`: bit0 `READY`; bit1 `BUSY`; bit2 `DIV0`
-  - `CSR[0x12] MATH_OPA`: operand A (24‑bit)
-  - `CSR[0x13] MATH_OPB`: operand B (24‑bit)
-  - `CSR[0x16] MATH_OPC`: optional third operand (e.g. clamp min)
-  - `CSR[0x14] MATH_RES0`: result low (MUL: product[23:0], DIV: quotient, MOD/SQRT: result)
-  - `CSR[0x15] MATH_RES1`: result high (MUL: product[47:24], DIV: remainder, else 0)
-
-- Usage (pseudo‑assembly)
-  - `CSRWR MATH_OPA, Ds` and `CSRWR MATH_OPB, Dt`
-  - `CSRWR MATH_CTRL, (START | OP=<...>)`
-  - Poll: `CSRRD MATH_STATUS -> D0`; test `READY`
-  - Read: `CSRRD MATH_RES0 -> Dx` (and `MATH_RES1` if needed)
-
-Notes
-
-- Ops (bits[4:1] `OP`)
-  - `0x0 MULU` unsigned: RES0=product[23:0], RES1=product[47:24]
-  - `0x1 DIVU` unsigned: RES0=quotient, RES1=remainder; sets `DIV0` when OPB=0
-  - `0x2 MODU` unsigned: RES0=remainder
-  - `0x3 SQRTU` unsigned: RES0=floor(sqrt(OPA)) (12‑bit significant)
-  - `0x4 MULS` signed: RES0/RES1 as MULU but signed operands
-  - `0x5 DIVS` signed: RES0=quotient, RES1=remainder (C semantics; trunc toward 0)
-  - `0x6 MODS` signed: RES0=remainder (C semantics)
-  - `0x7 ABS_S` signed: RES0=abs(OPA)
-  - `0x8 MIN_U`, `0x9 MAX_U`: unsigned min/max of A,B → RES0
-  - `0xA MIN_S`, `0xB MAX_S`: signed min/max → RES0
-  - `0xC CLAMP_U` unsigned: clamp A to [`OPC`, `OPB`] → RES0
-  - `0xD CLAMP_S` signed: clamp A to [`OPC`, `OPB`] → RES0
-- Division by zero sets `DIV0` and zeroes results.
-- SQRT returns floor(sqrt(OPA)) in `RES0` (12‑bit significant).
-- Values are int24; ops are unsigned or signed per opcode.
-
-Assembler integration
-
-- The Amber assembler provides built-in CSR aliases and math constants: `MATH_CTRL`, `MATH_STATUS`, `MATH_OPA`, `MATH_OPB`, `MATH_OPC`, `MATH_RES0`, `MATH_RES1`, `MATH_CTRL_START`, `MATH_STATUS_READY`, and pre-shifted `MATH_OP_*` codes.
-- Convenience macros expand to full CSR sequences (write operands, kick, poll `READY`, read results):
-  - `MULU24/MULS24 DRa, DRb, DRlo, DRhi, DRtmp`
-  - `DIVU24/DIVS24 DRa, DRb, DRq, DRr, DRtmp`
-  - `MODU24/MODS24 DRa, DRb, DRr, DRtmp`
-  - `SQRTU24 DRa, DRres, DRtmp`
-  - `ABS_S24 DRa, DRres, DRtmp`
-  - `MIN_U24/MAX_U24/MIN_S24/MAX_S24 DRa, DRb, DRres, DRtmp`
-  - `CLAMP_U24/CLAMP_S24 DRa, DRmin, DRmax, DRres, DRtmp`
-- Example (unsigned divide): `DIVU24 DR1, DR2, DR3, DR4, DR0`  ; DR3=quot, DR4=rem, DR0 scratch
-
-## Testbench
-
-- File: `processors/amber/tb/math24_async_tb.v`
-- Instantiates `regcsr` and `math24_async` together and exercises:
-  - MULU, DIVU (incl. div0), DIVS, MIN_U, MAX_S, ABS_S, CLAMP_U, CLAMP_S, SQRTU
-- Run with Icarus Verilog or your simulator of choice. Passes print `math24_async_tb: PASS`.
+Amber keeps the async 24-bit math CSR block. It is unaffected by CHERI and remains optional firmware acceleration. See CSRs and macros under “Async Int24 Math” in the design docs.
 
 ## Privilege Modes
 
-- Two modes: user (U) and kernel (K).
-- Mode bit lives in CSR\[STATUS\]\[0\]; reset enters K mode.
-- `SWI imm12` traps to an absolute handler address (assembled via three `LUIUI` banks + `imm12`), saves `PC+1` into `LR`, and enters K mode.
-- `SRET` returns to `LR+1` and drops back to U mode.
-- CSR\[STATUS\] is readable via `CSRRD`; writes to CSR\[STATUS\] are only honored in K mode.
+- Modes: user (U) and kernel (K); reset enters K.
+- `SYSCALL #idx`: saves `PC+1` in `LR`, switches to K, and jumps via a kernel entry capability.
+- `KRET`: returns to `LR+1` and drops back to U mode. Control transfers execute through `PCC` and are capability-checked.
+- `PSTATE` holds current mode and last trap cause. CSR writes to control fields are K-only.
+
+## Status and Roadmap
+
+- Done in spec: capability register model; cap-checked loads/stores; syscall separation; CFI with `BTP/LR/SSP`.
+- Not yet: MMU/virt, caches, atomics.
 
 ## Further Documentation
 
-For more detailed information, refer to:
-
-- [Design Documentation](./design/design.md) – Detailed hardware design and pipeline overview.
-- [Opcode Definitions](./design/opcode.md) – Complete opcode and micro‑op specifications.
+- Design: `processors/amber/design/design.md`
+- ISA & opcodes: `processors/amber/design/opcode.md`
+- CHERI details: `processors/amber/design/cheri.md`

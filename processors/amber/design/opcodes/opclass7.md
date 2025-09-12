@@ -1,17 +1,17 @@
-# opclass 0111 Stack helpers
+# opclass 0111 Stack helpers (via CR)
 
-- ## PUSHur DRs, (ARt)
+- ## PUSHur DRs, (CRt)
 
-| operation      | µop                 | isa           |
-|----------------|---------------------|---------------|
-| --1(ARt) = DRs | SUBAsi #1, ARt      | push ds, (at) |
-|                | STso   DRs, #0(ARt) |               |
+| operation       | µop                  | isa            |
+|-----------------|----------------------|----------------|
+| --1(CRt) = DRs  | SUBAsi #1, CRt       | push ds, (ct)  |
+|                 | STcso  DRs, #0(CRt)  |                |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
 | [23-20]   | opclass     | 0111       |
 | [19-16]   | subop       | 0000       |
-| [15-14]   | ARt         |            |
+| [15-14]   | CRt         |            |
 | [13-10]   | DRs         |            |
 | [ 9- 0]   | reserved    | 0000000000 |
 
@@ -19,57 +19,57 @@
 |---|---|---|---|
 | - | - | - | - |
 
-- ## PUSHAur ARs, (ARt)
+- ## PUSHAur CRs, (CRt)
 
-| operation      | µop                 | isa           |
-|----------------|---------------------|---------------|
-| --2(ARt) = ARs | SUBAsi #2, ARt      | push as, (at) |
-|                | STAso  ARs, #0(ARt) |               |
+| operation       | µop                   | isa            |
+|-----------------|-----------------------|----------------|
+| --2(CRt) = CRs  | SUBAsi #2, CRt        | push cs, (ct)  |
+|                 | CSTcso CRs, #0(CRt)   |                |
 
 | bit range | description | value        |
 |-----------|-------------|--------------|
 | [23-20]   | opclass     | 0111         |
 | [19-16]   | subop       | 0001         |
-| [15-14]   | ARt         |              |
-| [13-12]   | ARs         |              |
+| [15-14]   | CRt         |              |
+| [13-12]   | CRs         |              |
 | [11- 0]   | reserved    | 000000000000 |
 
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
 
-- ## POPur (ARs), DRt
+- ## POPur (CRs), DRt
 
-| operation      | µop                  | isa          |
-|----------------|----------------------|--------------|
-| DRt = (ARs)1++ | ADDAsi #1, ARs       | pop (as), dt |
-|                | LDso   #-1(ARs), DRt |              |
+| operation       | µop                   | isa          |
+|-----------------|-----------------------|--------------|
+| DRt = (CRs)1++  | ADDAsi #1, CRs        | pop (cs), dt |
+|                 | LDcso  #-1(CRs), DRt  |              |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
 | [23-20]   | opclass     | 0111       |
 | [19-16]   | subop       | 0010       |
 | [15-12]   | DRt         |            |
-| [11-10]   | ARs         |            |
+| [11-10]   | CRs         |            |
 | [ 9- 0]   | reserved    | 0000000000 |
 
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
 
-- ## POPAur (ARs), ARt
+- ## POPAur (CRs), CRt
 
-| operation      | µop                  | isa          |
-|----------------|----------------------|--------------|
-| ARt = (ARs)2++ | ADDAsi #2, ARs       | pop (as), at |
-|                | LDAso  #-2(ARs), ARt |              |
+| operation       | µop                    | isa          |
+|-----------------|------------------------|--------------|
+| CRt = (CRs)2++  | ADDAsi #2, CRs         | pop (cs), ct |
+|                 | CLDcso #-2(CRs), CRt   |              |
 
 | bit range | description | value        |
 |-----------|-------------|--------------|
 | [23-20]   | opclass     | 0111         |
 | [19-16]   | subop       | 0011         |
-| [15-14]   | ARt         |              |
-| [13-12]   | ARs         |              |
+| [15-14]   | CRt         |              |
+| [13-12]   | CRs         |              |
 | [11- 0]   | reserved    | 000000000000 |
 
 | z | n | c | v |

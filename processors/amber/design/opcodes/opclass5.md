@@ -1,56 +1,34 @@
-# opclass 0101 Address-register ALU & moves
+# opclass 0101 CHERI Capability ops (moves, offset/bounds)
 
-- ## MOVAur DRs, ARt, H|L
+- ## CMOV CRs, CRt
 
-| operation               | µop                   | isa                |
-|-------------------------|-----------------------|--------------------|
-| if (L) ARt[23: 0] = DRs | MOVAur DRs, ARt, H\|L | copy.[h\|l] ds, at |
-| if (H) ARt[47:24] = DRs |                       |                    |
+| operation | µop           | isa        |
+|-----------|---------------|------------|
+| CRt = CRs | CMOV CRs, CRt | cap_move   |
 
-| bit range | description | value     | comment  |
-|-----------|-------------|-----------|----------|
-| [23-20]   | opclass     | 0101      |          |
-| [19-16]   | subop       | 0001      |          |
-| [15-14]   | ARt         |           |          |
-| [13-10]   | DRs         |           |          |
-| [ 9   ]   | H\|L        |           | H=1, L=0 |
-| [ 8- 0]   | reserved    | 000000000 |          |
+| bit range | description | value        |
+|-----------|-------------|--------------|
+| [23-20]   | opclass     | 0101         |
+| [19-16]   | subop       | 0001         |
+| [15-14]   | CRt         |              |
+| [13-12]   | CRs         |              |
+| [11- 0]   | reserved    | 000000000000 |
 
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
 
-- ## MOVDur ARs, DRt, H|L
+- ## CINC DRs, CRt
 
-| operation               | µop                   | isa                |
-|-------------------------|-----------------------|--------------------|
-| if (L) DRt = ARs[23: 0] | MOVDur ARs, DRt, H\|L | copy.[h\|l] as, dt |
-| if (H) DRt = ARs[47:24] |                       |                    |
-
-| bit range | description | value     | comment  |
-|-----------|-------------|-----------|----------|
-| [23-20]   | opclass     | 0101      |          |
-| [19-16]   | subop       | 0010      |          |
-| [15-12]   | DRt         |           |          |
-| [11-10]   | ARs         |           |          |
-| [ 9   ]   | H\|L        |           | H=1, L=0 |
-| [ 8- 0]   | reserved    | 000000000 |          |
-
-| z | n | c | v |
-|---|---|---|---|
-| x | - | - | - |
-
-- ## ADDAur DRs, ARt
-
-| operation               | µop             | isa          |
-|-------------------------|-----------------|--------------|
-| ARt += zero_extend(DRs) | ADDAur DRs, ARt | add.u ds, at |
+| operation                                | µop             | isa             |
+|------------------------------------------|-----------------|-----------------|
+| CRt.cursor += sign_extend(DRs)           | CINC DRs, CRt   | cap_inc ds, ct  |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
 | [23-20]   | opclass     | 0101       |
-| [19-16]   | subop       | 0011       |
-| [15-14]   | ARt         |            |
+| [19-16]   | subop       | 0010       |
+| [15-14]   | CRt         |            |
 | [13-10]   | DRs         |            |
 | [ 9- 0]   | reserved    | 0000000000 |
 
@@ -58,17 +36,34 @@
 |---|---|---|---|
 | - | - | - | - |
 
-- ## SUBAur DRs, ARt
+- ## CINCi #imm14, CRt
 
-| operation               | µop             | isa          |
-|-------------------------|-----------------|--------------|
-| ARt -= zero_extend(DRs) | SUBAur DRs, ARt | sub.u ds, at |
+| operation                                | µop               | isa               |
+|------------------------------------------|-------------------|-------------------|
+| CRt.cursor += sign_extend(imm14)         | CINCi #imm14, CRt | cap_inc imm14, ct |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0101  |
+| [19-16]   | subop       | 0011  |
+| [15-14]   | CRt         |       |
+| [13- 0]   | imm14       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## CSETB DRs, CRt
+
+| operation                           | µop               | isa                 |
+|-------------------------------------|-------------------|---------------------|
+| CRt.length = zero_extend(DRs)       | CSETB DRs, CRt    | cap_setbounds ds, ct |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
 | [23-20]   | opclass     | 0101       |
 | [19-16]   | subop       | 0100       |
-| [15-14]   | ARt         |            |
+| [15-14]   | CRt         |            |
 | [13-10]   | DRs         |            |
 | [ 9- 0]   | reserved    | 0000000000 |
 
@@ -76,165 +71,90 @@
 |---|---|---|---|
 | - | - | - | - |
 
-- ## ADDAsr DRs, ARt
+- ## CSETBi #imm14, CRt
 
-| operation               | µop             | isa          |
-|-------------------------|-----------------|--------------|
-| ARt += sign_extend(DRs) | ADDAsr DRs, ARt | add.s ds, at |
-
-| bit range | description | value      |
-|-----------|-------------|------------|
-| [23-20]   | opclass     | 0101       |
-| [19-16]   | subop       | 0101       |
-| [15-14]   | ARt         |            |
-| [13-10]   | DRs         |            |
-| [ 9- 0]   | reserved    | 0000000000 |
-
-| z | n | c | v |
-|---|---|---|---|
-| - | - | - | - |
-
-- ## SUBAsr DRs, ARt
-
-| operation               | µop             | isa          |
-|-------------------------|-----------------|--------------|
-| ARt -= sign_extend(DRs) | SUBAsr DRs, ARt | sub.s ds, at |
-
-| bit range | description | value      |
-|-----------|-------------|------------|
-| [23-20]   | opclass     | 0101       |
-| [19-16]   | subop       | 0110       |
-| [15-14]   | ARt         |            |
-| [13-10]   | DRs         |            |
-| [ 9- 0]   | reserved    | 0000000000 |
-
-| z | n | c | v |
-|---|---|---|---|
-| - | - | - | - |
-
-- ## ADDAsi #imm14, ARt
-
-| operation                 | µop                | isa             |
-|---------------------------|--------------------|-----------------|
-| ARt += sign_extend(imm14) | ADDAsi #imm14, ARt | add.s imm14, at |
+| operation                     | µop                 | isa                  |
+|-------------------------------|---------------------|----------------------|
+| CRt.length = sign_extend(imm14) | CSETBi #imm14, CRt | cap_setbounds imm14  |
 
 | bit range | description | value |
 |-----------|-------------|-------|
 | [23-20]   | opclass     | 0101  |
-| [19-16]   | subop       | 0111  |
-| [15-14]   | ARt         |       |
+| [19-16]   | subop       | 0101  |
+| [15-14]   | CRt         |       |
 | [13- 0]   | imm14       |       |
 
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
 
-- ## SUBAsi #imm14, ARt
+- ## CGETP CRs, DRt
 
-| operation                 | µop                | isa             |
-|---------------------------|--------------------|-----------------|
-| ARt -= sign_extend(imm14) | SUBAsi #imm14, ARt | sub.s imm14, at |
+| operation                  | µop               | isa           |
+|----------------------------|-------------------|---------------|
+| DRt = perms_mask(CRs)      | CGETP CRs, DRt    | cap_getperm   |
 
-| bit range | description | value |
-|-----------|-------------|-------|
-| [23-20]   | opclass     | 0101  |
-| [19-16]   | subop       | 1000  |
-| [15-14]   | ARt         |       |
-| [13- 0]   | imm14       |       |
-
-| z | n | c | v |
-|---|---|---|---|
-| - | - | - | - |
-
-- ## LEAso ARs+#imm12, ARt
-
-| operation                      | µop                   | isa                       |
-|--------------------------------|-----------------------|---------------------------|
-| ARt = ARs + sign_extend(imm12) | LEAso ARs+#imm12, ARt | copy_offset imm12, as, at |
-
-| bit range | description | value |
-|-----------|-------------|-------|
-| [23-20]   | opclass     | 0101  |
-| [19-16]   | subop       | 1001  |
-| [15-14]   | ARt         |       |
-| [13-12]   | ARs         |       |
-| [11- 0]   | imm12       |       |
-
-| z | n | c | v |
-|---|---|---|---|
-| - | - | - | - |
-
-- ## ADRAso PC+#imm14, ARt
-
-| operation                     | µop                   | isa                       |
-|-------------------------------|-----------------------|---------------------------|
-| ARt = PC + sign_extend(imm14) | ADRAso PC+#imm14, ARt | copy_offset imm14, pc, at |
-
-| bit range | description | value |
-|-----------|-------------|-------|
-| [23-20]   | opclass     | 0101  |
-| [19-16]   | subop       | 1010  |
-| [15-14]   | ARt         |       |
-| [13- 0]   | imm14       |       |
-
-| z | n | c | v |
-|---|---|---|---|
-| - | - | - | - |
-
-- ## MOVAui #imm12, ARt
-
-| operation                                           | µop                | isa                        |
-|-----------------------------------------------------|--------------------|----------------------------|
-| ARt = {uimm[35-24], uimm[23-12], uimm[11-0], imm12} | MOVAui #imm12, ARt | copy.u imm48, at           |
-|                                                     |                    | macro                      |
-|                                                     |                    |   LUIui  #2, #imm48[47-36] |
-|                                                     |                    |   LUIui  #1, #imm48[35-24] |
-|                                                     |                    |   LUIui  #0, #imm48[23-12] |
-|                                                     |                    |   MOVAui #imm48[11-0], ARt |
-
-| bit range | description | value |
-|-----------|-------------|-------|
-| [23-20]   | opclass     | 0101  |
-| [19-16]   | subop       | 1011  |
-| [15-14]   | ARt         |       |
-| [13-12]   | reserved    | 00    |
-| [11- 0]   | imm12       |       |
-
-| z | n | c | v |
-|---|---|---|---|
-| - | - | - | - |
-
-- ## CMPAur ARs, ARt
-
-| operation                 | µop             | isa           |
-|---------------------------|-----------------|---------------|
-| unsigned compare ARs, ARt | CMPAur ARs, ARt | comp.u as, at |
-
-| bit range | description | value        |
-|-----------|-------------|--------------|
-| [23-20]   | opclass     | 0101         |
-| [19-16]   | subop       | 1101         |
-| [15-14]   | ARt         |              |
-| [13-12]   | ARs         |              |
-| [11- 0]   | reserved    | 000000000000 |
-
-| z | n | c | v |
-|---|---|---|---|
-| x | - | x | - |
-
-- ## TSTAur ARt
-
-| operation | µop        | isa       |
-|-----------|------------|-----------|
-| ARt == 0  | TSTAur ARt | test.u at |
-
-| bit range | description | value          |
-|-----------|-------------|----------------|
-| [23-20]   | opclass     | 0101           |
-| [19-16]   | subop       | 1110           |
-| [15-14]   | ARt         |                |
-| [13- 0]   | reserved    | 00000000000000 |
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0101     |
+| [19-16]   | subop       | 0110     |
+| [15-12]   | DRt         |          |
+| [11-10]   | CRs         |          |
+| [ 9- 0]   | reserved    | 00000000 |
 
 | z | n | c | v |
 |---|---|---|---|
 | x | - | - | - |
+
+- ## CANDP DRs, CRt
+
+| operation                  | µop              | isa             |
+|----------------------------|------------------|-----------------|
+| CRt.perms &= DRs           | CANDP DRs, CRt   | cap_andperm     |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0101       |
+| [19-16]   | subop       | 0111       |
+| [15-14]   | CRt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## CGETT CRs, DRt
+
+| operation             | µop               | isa          |
+|-----------------------|-------------------|--------------|
+| DRt = tag(CRs) ? 1:0  | CGETT CRs, DRt    | cap_gettag   |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0101     |
+| [19-16]   | subop       | 1000     |
+| [15-12]   | DRt         |          |
+| [11-10]   | CRs         |          |
+| [ 9- 0]   | reserved    | 00000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| x | - | - | - |
+
+- ## CCLRT CRt
+
+| operation      | µop          | isa            |
+|----------------|--------------|----------------|
+| clear tag CRt  | CCLRT CRt    | cap_cleartag   |
+
+| bit range | description | value          |
+|-----------|-------------|----------------|
+| [23-20]   | opclass     | 0101           |
+| [19-16]   | subop       | 1001           |
+| [15-14]   | CRt         |                |
+| [13- 0]   | reserved    | 00000000000000 |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |

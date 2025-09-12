@@ -52,6 +52,23 @@
 |---|---|---|---|
 | x | x | - | x |
 
+- ## ADDsiv #imm12, DRt (trap on overflow)
+
+| operation                                     | µop                 | isa                    |
+|-----------------------------------------------|---------------------|------------------------|
+| signed DRt += sign_extend(imm12); if V→1 trap | ADDsiv #imm12, DRt  | add.sv imm12, dt (trap) |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 0110  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v | trap condition                  |
+|---|---|---|---|---------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
+
 - ## SUBsi #imm12, DRt
 
 | operation                        | µop               | isa             |
@@ -68,6 +85,23 @@
 | z | n | c | v |
 |---|---|---|---|
 | x | x | - | x |
+
+- ## SUBsiv #imm12, DRt (trap on overflow)
+
+| operation                                     | µop                 | isa                    |
+|-----------------------------------------------|---------------------|------------------------|
+| signed DRt -= sign_extend(imm12); if V→1 trap | SUBsiv #imm12, DRt  | sub.sv imm12, dt (trap) |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0011  |
+| [19-16]   | subop       | 0111  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v | trap condition                  |
+|---|---|---|---|---------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
 
 - ## SHRsi #imm5, DRt
 

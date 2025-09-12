@@ -1,5 +1,7 @@
 # opclass 1000 CSR access
 
+- Note: CHERI default capabilities `PCC`, `DDC`, `SCC` are exposed via CSR indices. Exact map is platform-defined.
+
 - ## CSRRD #csr12, DRt
 
 | operation        | µop               | isa                |

@@ -5,8 +5,8 @@
 Bit-field annotations indicate bit positions in the 24-bit instruction word.
 For example, [23-20] marks the high 4 bits, with the left number the most
 significant bit and the right number the least significant.
-Registers use the following naming:
-  DRx - data registers, ARx - address registers, SRx - special registers.
+Registers naming in the CHERI revision:
+  DRx - data registers (24-bit), CRx - capability registers (128-bit + tag), SRx - special registers (48-bit).
 Suffixes such as t and s denote target and source respectively.
 
 ## [opclass 0000](opcodes/opclass0.md) Core ALU (reg–reg, unsigned flags)
@@ -17,9 +17,9 @@ Suffixes such as t and s denote target and source respectively.
 
 ## [opclass 0011](opcodes/opclass3.md) Core ALU (imm, signed flags / PC-rel)
 
-## [opclass 0100](opcodes/opclass4.md) Loads/Stores
+## [opclass 0100](opcodes/opclass4.md) CHERI Loads/Stores (via CR)
 
-## [opclass 0101](opcodes/opclass5.md) Address-register ALU & moves
+## [opclass 0101](opcodes/opclass5.md) CHERI Capability ops (moves, offset/bounds)
 
 ## [opclass 0110](opcodes/opclass6.md) Control flow (absolute via AR / long immediates) & linkage
 
@@ -29,7 +29,7 @@ Suffixes such as t and s denote target and source respectively.
 
 ## [opclass 1001](opcodes/opclass9.md) privileged / kernel-only
 
-## opclass 1010 MMU / TLB & Cache management
+## opclass 1010 Reserved (future CHERI/VM/Cache)
 
 ## opclass 1011 Atomics & SMP
 
@@ -40,3 +40,5 @@ Suffixes such as t and s denote target and source respectively.
 ## opclass 1110 Reserved
 
 ## [opclass 1111](opcodes/opclassf.md) µop
+
+See also: `processors/amber/design/cheri.md` for capability semantics, fault causes, and default capabilities (`PCC`, `DDC`, `SCC`).

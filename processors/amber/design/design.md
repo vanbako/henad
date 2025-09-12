@@ -2,131 +2,107 @@
 
 ## About
 
-The diad-amber 8-stage microarchitecture core.
-The main goal is to keep the pipeline as simple as possible and to avoid stalls where possible.  
-Toolchain is currently iverilog.
+The diad-amber 8-stage microarchitecture core, with a CHERI capability model adapted to a 24-bit BAU and 48-bit addressing. The core is in-order with no speculation, focusing on simplicity and strong default safety.
 
 ## Details
 
-- **Board:** Board with Arora-V
-- **Instruction, Memories, and GP Registers:** diad (BAU 24-bit) in size
-- **Special Registers (SSP, LR, PC):** tetrad (48 bit) in size
-- **Memory Properties:**
-  - Memories are 24-bit BAU with a 48-bit address space
-  - Integer & floating point math are not needed
-- **Execution:**
-  - No branch prediction (keep spectres away)
-  - No out-of-order or speculative execution (no meltdown)
-  - Interrupts, i-cache, d-cache are for future implementation
-- **Pipeline Implementation:**
-  - Use handshake signals between stages to indicate when new data can be accepted.
-  - ISA instructions can be multi micro-ops (but no multi-cycle micro-ops).
-  - Each stage has its own local hazard or control logic that communicates with adjacent stages.
-  - Built-in synchronous Block RAM (BRAM) is used for both instruction and data memories (will be caches later) with a one-clock delay (fetch & mem stages).
-- **Memory Initialization:** Bootloader at runtime (currently initialized with a memory file for testing)
-- **Branching:** JCC/BCC/BAL resolve in XT; IF/ID are squashed on taken.
+- Board: Arora-V
+- Instruction width and GP data: BAU 24-bit
+- Special registers: 48-bit (tetrad)
+- Memory model:
+  - 24-bit BAU, 48-bit physical addressing
+  - No MMU/virt; no I/D caches (future)
+- Execution:
+  - No branch prediction; no out-of-order; no speculation
+  - Interrupts to be added; CHERI checks integrated in XT/MA
+- Pipeline implementation:
+  - ISA → micro-ops split in XT
+  - Handshake between stages; no multi-cycle µops
+  - BRAMs for I/D memories (1-cycle latency)
+- Boot: bootloader (current benches load memory images)
+- Branching: BCC/JCC/BAL resolve in XT; IF/ID squashed on taken
 
 ## Instruction Format
 
-- BAU 24-bit (diad) total; only necessary bits for the instruction are coded, the rest are RESERVED (should be all zeros, not checked yet)
-- **Condition Code (CC):**
-  - Field is 4-bit with: 0 = AL, 1 = EQ, 2 = NE, 3 = LT, 4 = GT, 5 = LE, 6 = GE, 7 = BT, 8 = AT, 9 = BE, A = AE
-- **Immediates:**
-  - 12 bit when used together with the uimm
-  - Other immediates vary in size to maximize relative jumps and others
+- 24-bit instruction word. Unused bits are reserved (encode as zero).
+- Condition codes (4-bit): `AL=0, EQ=1, NE=2, LT=3, GT=4, LE=5, GE=6, BT=7, AT=8, BE=9, AE=A`.
+- Immediates:
+  - 12-bit immediates (optionally combined with `LUIui` immediate banks)
+  - Other imm sizes maximize branch/jump reach
 
-## Condition Code Table
+Flags consulted
 
-- **AL:** Always – no flags consulted.
-- **EQ:** Equal – true when Zero flag (Z) is set.
-- **NE:** Not Equal – true when Z is clear.
-- **LT:** Less Than (signed) – true when (N ⊕ V) = 1.
-- **GT:** Greater Than (signed) – true when Z is clear and (N ⊕ V) = 0.
-- **LE:** Less or Equal (signed) – true when Z is set or (N ⊕ V) = 1.
-- **GE:** Greater or Equal (signed) – true when (N ⊕ V) = 0.
-- **BT:** Below (unsigned) – true when the Carry flag (C) is set.
-- **AT:** Above (unsigned, strict) – true when C is clear and Z is clear.
-- **BE:** Below or Equal (unsigned) – true when C is set or Z is set.
-- **AE:** Above or Equal (unsigned) – true when C is clear.
+- Signed comparisons: Z, N, V
+- Unsigned comparisons: C (and Z where relevant)
 
-_**Flags Consulted:**_  
+Instruction suffixes
 
-- Signed comparisons: Negative (N), Overflow (V), and Zero (Z) flags  
-- Unsigned comparisons: Carry (C) flag (with Z for strict comparisons)
+- `ur`: unsigned reg–reg
+- `ui`: unsigned immediate
+- `sr`: signed reg–reg
+- `si`: signed immediate
+- `so`: signed offset (PC-relative or base+offset)
 
-## Instruction Suffixes
+Assembly convention: last operand is the target.
 
-- **ur:** unsigned register form (reg–reg ALU, unsigned flags)
-- **ui:** unsigned immediate form (immediate operand; width varies by opcode such as imm5/imm12; for 24‑bit immediates the value is formed using uimm banks + imm12)
-- **sr:** signed register form (reg–reg ALU, signed flags)
-- **si:** signed immediate form (immediate is sign‑extended; widths vary by opcode such as imm8/imm12/imm14)
-- **so:** signed offset form (PC‑relative or base+offset addressing; offset is sign‑extended; widths vary such as imm10/imm12/imm14/imm16)
+Notes
 
-_*Note:*_ In assembly, the last operand is the target; if there are two operands, the previous is source.
+- Moves update Z; address/capability ops generally don’t update arithmetic flags.
+- 48-bit memory transfers are little endian (2×24-bit BAU).
 
-- Move instructions set/clear the Z flag (except for address instructions).
-- Address instructions (including LD/ST) do not modify flags, except for MOVD, compare, and test.
-- All 48-bit memory operations are little endian (2 x 24-bit BAU).
+## CHERI Overview (Amber)
 
-## TODOS
+- Capability registers: 4 × `CR0..CR3` (128-bit + tag), used as bases for all loads/stores.
+- Each capability encodes: base (48), length (48), cursor (48), perms (R/W/X/LC/SC/SB bits minimum), sealed bit, otype, tag.
+- Default capabilities (CSR): `PCC` (code), `DDC` (default data), `SCC` (shadow-call stack region).
+- Memory checks: tag, perms, bounds, seal enforced on MA/MO for data, and via `PCC` for instruction fetch; violations raise a software interrupt and set `PSTATE.cause`.
+- CFI: `BTP` alignment pads; `LR`/`SSP` shadow call stack for returns; no indirect branch prediction.
 
-- µop mov A <-> SR → ISA SETSSP, ...
-- BTP (branch target pad) for control flow integrity
+## Order of Implementation
 
-## Order of Future Implementation
-
-1. Control flow integrity (BTP, check LR, SSP RAM)
-2. CSR
-3. Interrupts
-4. i-cache & d-cache
-5. Atomic operations
+1. CFI (BTP, LR/SSP shadow stack)
+2. CSR (incl. default capabilities)
+3. Software interrupts (faults, trap-on-overflow)
+4. Interrupts
+5. I/D caches
+6. Atomics
 
 ## Pipeline Stages
 
 1. IA: Instruction Address
 2. IF: Instruction Fetch
 3. ID: Instruction Decode
-4. XT: Translate
+4. XT: Translate (µop expansion, CHERI operand prep)
 5. EX: Execute
-6. MA: Memory Address
+6. MA: Memory Address (CHERI check)
 7. MO: Memory Operation
-8. WB: Register Write Back
+8. WB: Write Back
 
 ## Registers
 
-- **Data Registers:** 0-f Dx : data (24-bit)
-- **Address Registers:** 0-3 Ax : address (48 bit)
-- **Special Registers:** 0-3 Sx : address (48 bit)
-  - 0: LR: link register
-  - 1: SSP: shadow stack pointer
-  - 2: FL: flag register
-  - 3: PC: program counter
-- **Flags:**
-  - FL:
-    - 0: Z (zero)
-    - 1: N (negative)
-    - 2: C (carry)
-    - 3: V (overflow)
+- Data: `D0..D15` (16 × 24-bit). Encoding uses 4-bit register fields.
+- Special (48-bit):
+  - `LR`: link register
+  - `SSP`: shadow stack pointer (CFI)
+  - `PSTATE`: mode (K/U), `Z,N,C,V`, interrupt enable, trap cause
+  - `PC`: program counter
+- Capability: `CR0..CR3` (128-bit + tag). Used by loads/stores and capability ops.
 
 ## Memory
 
-- **Data Memory:**  
-  - 36-bit address space
-  - Read-write (BRAM)
+- Physical 48-bit addressing, BAU=24-bit.
+- All loads/stores are of the form `LD/ST #offs(CRs), DRt/DRs` with signed offsets. Hardware validates `CRs`.
+- Shadow call stack uses a dedicated capability (CSR `SCC`) and `SSP` cursor. Calls push return addresses under CHERI bounds; `RET` pops and verifies.
+
+## Software Interrupts and Syscall
+
+- `SYSCALL #idx`: enters kernel mode via a sealed entry capability (not via SWI).
+- Software interrupts are used for faults and trap-on-overflow arithmetic. Fault classes include: OOB, tag clear, perm, sealed/type, exec perm, alignment, div-by-zero, arithmetic overflow.
 
 ## Modules
 
 - testbench
 - amber
-- regdr
-- regar
-- regsr
+- regdr, regsr, regcsr, regcr (capability reg file)
 - mem (instruction and data)
-- stage_ia
-- stage_if
-- stage_xt
-- stage_id
-- stage_ex
-- stage_ma
-- stage_mo
-- stage_wb
+- stage_ia, stage_if, stage_xt, stage_id, stage_ex, stage_ma, stage_mo, stage_wb

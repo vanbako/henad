@@ -18,6 +18,24 @@
 |---|---|---|---|
 | x | x | - | x |
 
+- ## ADDsv DRs, DRt (trap on overflow)
+
+| operation                        | µop             | isa                 |
+|----------------------------------|-----------------|---------------------|
+| signed DRt += DRs; if V→1 then trap | ADDsv DRs, DRt | add.sv ds, dt (trap) |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0010     |
+| [19-16]   | subop       | 0111     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v | trap condition                  |
+|---|---|---|---|---------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
+
 - ## SUBsr DRs, DRt
 
 | operation         | µop            | isa          |
@@ -35,6 +53,24 @@
 | z | n | c | v |
 |---|---|---|---|
 | x | x | - | x |
+
+- ## SUBsv DRs, DRt (trap on overflow)
+
+| operation                        | µop             | isa                 |
+|----------------------------------|-----------------|---------------------|
+| signed DRt -= DRs; if V→1 then trap | SUBsv DRs, DRt | sub.sv ds, dt (trap) |
+
+| bit range | description | value    |
+|-----------|-------------|----------|
+| [23-20]   | opclass     | 0010     |
+| [19-16]   | subop       | 1000     |
+| [15-12]   | DRt         |          |
+| [11- 8]   | DRs         |          |
+| [ 7- 0]   | reserved    | 00000000 |
+
+| z | n | c | v | trap condition                  |
+|---|---|---|---|---------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
 
 - ## NEGsr DRt
 
