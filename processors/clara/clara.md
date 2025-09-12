@@ -3,7 +3,7 @@
 ## Overview
 
 - **Role**: Network processor
-- **Word size**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
 - **Design goal**: Packet processing for online multiplayer
 
 ## Architecture

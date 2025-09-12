@@ -8,7 +8,7 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Assemble Amber asm into 24-bit words (hex or bin)"
+        description="Assemble Amber asm into 24-bit BAU (hex or bin)"
     )
     parser.add_argument("input", type=Path, help="Input assembly file (.asm/.s)")
     parser.add_argument("-o", "--output", type=Path, help="Output file path")

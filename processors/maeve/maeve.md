@@ -3,7 +3,7 @@
 ## Overview
 
 - **Role**: Input controller
-- **Word size**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
 - **Design goal**: Manage controllers, VR/AR input
 
 ## Architecture

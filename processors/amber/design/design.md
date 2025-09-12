@@ -9,10 +9,10 @@ Toolchain is currently iverilog.
 ## Details
 
 - **Board:** Board with Arora-V
-- **Instruction, Memories, and GP Registers:** diad (24 bit) in size
+- **Instruction, Memories, and GP Registers:** diad (BAU 24-bit) in size
 - **Special Registers (SSP, LR, PC):** tetrad (48 bit) in size
 - **Memory Properties:**
-  - Memories are 24 bit word (not byte) with a 48-bit address space
+  - Memories are 24-bit BAU with a 48-bit address space
   - Integer & floating point math are not needed
 - **Execution:**
   - No branch prediction (keep spectres away)
@@ -28,7 +28,7 @@ Toolchain is currently iverilog.
 
 ## Instruction Format
 
-- 24 bit (diad) total; only necessary bits for the instruction are coded, the rest are RESERVED (should be all zeros, not checked yet)
+- BAU 24-bit (diad) total; only necessary bits for the instruction are coded, the rest are RESERVED (should be all zeros, not checked yet)
 - **Condition Code (CC):**
   - Field is 4-bit with: 0 = AL, 1 = EQ, 2 = NE, 3 = LT, 4 = GT, 5 = LE, 6 = GE, 7 = BT, 8 = AT, 9 = BE, A = AE
 - **Immediates:**
@@ -66,7 +66,7 @@ _*Note:*_ In assembly, the last operand is the target; if there are two operands
 
 - Move instructions set/clear the Z flag (except for address instructions).
 - Address instructions (including LD/ST) do not modify flags, except for MOVD, compare, and test.
-- All 48-bit memory operations are little endian (2 x 24 bit).
+- All 48-bit memory operations are little endian (2 x 24-bit BAU).
 
 ## TODOS
 
@@ -94,7 +94,7 @@ _*Note:*_ In assembly, the last operand is the target; if there are two operands
 
 ## Registers
 
-- **Data Registers:** 0-7 Dx : data (24 bit)
+- **Data Registers:** 0-15 Dx : data (24-bit)
 - **Address Registers:** 0-3 Ax : address (48 bit)
 - **Special Registers:** 0-3 Sx : address (48 bit)
   - 0: LR: link register

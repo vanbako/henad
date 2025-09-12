@@ -3,7 +3,7 @@
 ## Overview
 
 - **Role**: Audio processor
-- **Word size**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
 - **Design goal**: Dedicated sound synthesis and output
 
 ## Architecture

@@ -3,7 +3,7 @@
 ## Overview
 
 - **Role**: Mass storage controller
-- **Word size**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
 - **Design goal**: Fast access to large persistent storage
 
 ## Architecture

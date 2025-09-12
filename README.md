@@ -1,7 +1,8 @@
 # Henad Game System Documentation
 
-Henad is a modular **24-bit game system** where all registers and memory are 24-bit wide (diad).  
-Addresses extend to 48-bit (tetrad) when needed.  
+Henad is a modular **24-bit game system** where all registers and memory are 24-bit wide, BAU (Basic Addressable Unit) = 24-bit.  
+Addresses are 48-bit (tetrad).  
+Iris, the gpu will have 12-bit (henad) math where two henads will be packed in one diad (BAU)
 The design is fully modular, with each function (CPU, graphics, sound, input, etc.) implemented as a separate module connected via the **enid interconnect**.
 
 This repository contains documentation split by **processors, units, modules, board, and interfaces**.
@@ -50,7 +51,7 @@ Each module is built around a **unit-ada** and one specialized processor:
 
 ## 📖 Glossary
 
-- **diad** = 24-bit word (data, math, characters, pixels)
+- **diad** = 24-bit BAU (data, math, characters, pixels)
 - **tetrad** = 48-bit (used for addresses)
 - **enid** = full-duplex LVDS interconnect
 - **ada** = base control unit (amber + memory + endpoint)

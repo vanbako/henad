@@ -10,7 +10,7 @@
 ## Features
 
 - 2D/3D rendering and blitter operations
-- Handles 24-bit RGB pixels
+- Handles 24-bit RGB pixels (24-bit BAU)
 - HDMI output for video
 
 ## Architecture

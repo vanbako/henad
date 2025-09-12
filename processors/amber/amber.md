@@ -3,20 +3,20 @@
 ## Overview
 
 - **Role**: Embedded 24-bit RISC-like core for control tasks
-- **Word size**: 24-bit (diad)
-- **Addressing**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
+- **Addressing**: 48-bit (tetrad)
 - **Design goal**: Lightweight firmware engine for modules
 
 ## Architecture
 
-- ISA: RISC-like, 24-bit instructions
+- ISA: RISC-like, 24-bit instructions (24-bit BAU)
 - Pipeline: fetch, decode, execute, memory, writeback
-- Operations: 24 bit Integer + basic control ops
+- Operations: 24-bit Integer + basic control ops
 - interrupts
 
 ## Memory
 
-- Registers: 24-bit wide
+- Data Registers: 24-bit wide
 - SDRAM (via unit-ada)
 - Flash firmware
 

@@ -10,7 +10,7 @@
 ## Features
 
 - Matrix/vector math acceleration
-- 24-bit integer + floating-point ops
+- 24-bit integer + floating-point ops (24-bit BAU)
 - SIMD-style execution
 
 ## Architecture

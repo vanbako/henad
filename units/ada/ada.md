@@ -3,7 +3,7 @@
 ## Overview
 
 - **Role**: Standard base unit inside every module
-- **Core**: [diad-amber](../../processors/amber/amber.md) (embedded 24-bit RISC-like core)
+- **Core**: [diad-amber](../../processors/amber/amber.md) (embedded 24-bit BAU RISC-like core)
 - **Interfaces**: [enid](../../interfaces/enid/enid.md) endpoint
 - **Memory**: SDRAM + Flash (firmware)
 

@@ -3,7 +3,7 @@
 ## Overview
 
 - **Role**: Neural network accelerator
-- **Word size**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
 - **Design goal**: Matrix and vector math for AI workloads
 
 ## Architecture

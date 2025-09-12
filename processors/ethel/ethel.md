@@ -4,7 +4,7 @@
 
 - **Role**: Main CPU of Henad
 - **Cores**: 1-core configuration
-- **Word size**: 24-bit (diad)
+- **BAU**: 24-bit (diad)
 - **Addressing**: 48-bit (tetrad)
 - **Design goal**: Efficient general-purpose processing for games
 
