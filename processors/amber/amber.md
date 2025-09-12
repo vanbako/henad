@@ -96,10 +96,10 @@ Assembler integration
 ## Privilege Modes
 
 - Two modes: user (U) and kernel (K).
-- Mode bit lives in CSR[STATUS][0]; reset enters K mode.
+- Mode bit lives in CSR\[STATUS\]\[0\]; reset enters K mode.
 - `SWI imm12` traps to an absolute handler address (assembled via three `LUIUI` banks + `imm12`), saves `PC+1` into `LR`, and enters K mode.
 - `SRET` returns to `LR+1` and drops back to U mode.
-- CSR[STATUS] is readable via `CSRRD`; writes to CSR[STATUS] are only honored in K mode.
+- CSR\[STATUS\] is readable via `CSRRD`; writes to CSR\[STATUS\] are only honored in K mode.
 
 ## Further Documentation
 

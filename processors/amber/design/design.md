@@ -94,7 +94,7 @@ _*Note:*_ In assembly, the last operand is the target; if there are two operands
 
 ## Registers
 
-- **Data Registers:** 0-15 Dx : data (24-bit)
+- **Data Registers:** 0-f Dx : data (24-bit)
 - **Address Registers:** 0-3 Ax : address (48 bit)
 - **Special Registers:** 0-3 Sx : address (48 bit)
   - 0: LR: link register
