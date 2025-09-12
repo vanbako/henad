@@ -205,3 +205,47 @@
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
+
+- ## KJCCui CC, #imm12
+
+| operation                               | µop               | isa                        |
+|-----------------------------------------|-------------------|----------------------------|
+| if (CC) kernel goto {uimm[35-0], imm12} | KJCCui CC, #imm12 | jump.[cc] imm48            |
+|                                         |                   | macro                      |
+|                                         |                   |   LUIui  #2, #imm48[47-36] |
+|                                         |                   |   LUIui  #1, #imm48[35-24] |
+|                                         |                   |   LUIui  #0, #imm48[23-12] |
+|                                         |                   |   KJCCui CC, #imm48[11- 0] |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0110  |
+| [19-16]   | subop       | 1011  |
+| [15-12]   | CC          |       |
+| [11- 0]   | imm12       |       |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
+
+- ## KJSRui #imm12
+
+| operation                       | µop                 | isa                        |
+|---------------------------------|---------------------|----------------------------|
+| kernel call {uimm[35-0], imm12} | SRSUBsi #2, SSP     | kernel_jump_sub imm48      |
+|                                 | SRSTso  LR, #0(SSP) | macro                      |
+|                                 | SRMOVur PC, LR      |   LUIui  #2, #imm48[47-36] |
+|                                 | KJCCui  AL, #imm12  |   LUIui  #1, #imm48[35-24] |
+|                                 |                     |   LUIui  #0, #imm48[23-12] |
+|                                 |                     |   KJSRui #imm48[11-0]      |
+
+| bit range | description | value            |
+|-----------|-------------|------------------|
+| [23-20]   | opclass     | 0110             |
+| [19-16]   | subop       | 1100             |
+| [15-12]   | reserved    | 0000             |
+| [11- 0]   | imm12       |                  |
+
+| z | n | c | v |
+|---|---|---|---|
+| - | - | - | - |
