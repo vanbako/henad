@@ -1,6 +1,6 @@
 # opclass 1000 CSR access
 
-- Note: CHERI default capabilities `PCC`, `DDC`, `SCC` are exposed via CSR indices. Exact map is platform-defined.
+- See CSR map: `processors/amber/design/csr.md` for indices and field layouts (PSTATE, default capabilities, math unit, trap causes).
 
 - ## CSRRD #csr12, DRt
 

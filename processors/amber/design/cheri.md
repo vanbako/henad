@@ -79,6 +79,8 @@ Performed in MA/MO (memory) and fetch path (via `PCC`):
 - `ARITH_OVF`: signed overflow (trap-on-overflow variants)
 - `DIV_ZERO`: divide-by-zero
 - `EXEC_PERM`: fetch without execute permission in `PCC`
+ - `ARITH_RANGE`: shift count out of range (≥ 24)
+ - `UIMM_STATE`: use of `..ui` instruction without valid `LUIui` bank state
 
 The exact encoding of causes is reported in `PSTATE.cause` and surfaced via the software interrupt vector.
 

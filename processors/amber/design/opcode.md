@@ -9,6 +9,14 @@ Registers naming in the CHERI revision:
   DRx - data registers (24-bit), CRx - capability registers (128-bit + tag), SRx - special registers (48-bit).
 Suffixes such as t and s denote target and source respectively.
 
+Trap variants
+
+- Instructions with potential undefined behaviour have checked forms or semantics:
+  - Signed arithmetic: `ADDsv/SUBsv/NEGsv` and immediate `ADDsiv/SUBsiv` trap on overflow (`ARITH_OVF`).
+  - Shifts: immediate forms `SHLuiv/SHRuiv` and signed `SHRsiv` trap on counts ≥ 24 (`ARITH_RANGE`). Register shift forms raise `ARITH_RANGE` when count ≥ 24.
+  - Capability ops: `CINCv/CINCiv` trap when cursor would leave bounds; `CSETBv/CSETBiv` trap on invalid/overflowed bounds.
+  - UI imm-bank use: all `..ui` forms trap with `UIMM_STATE` if used without a valid `LUIui` bank load in the atomic window.
+
 ## [opclass 0000](opcodes/opclass0.md) Core ALU (reg–reg, unsigned flags)
 
 ## [opclass 0001](opcodes/opclass1.md) Core ALU (imm/uimm, unsigned flags)

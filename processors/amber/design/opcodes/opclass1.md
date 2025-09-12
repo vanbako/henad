@@ -1,7 +1,8 @@
 # opclass 0001 Core ALU (imm/uimm, unsigned flags)
 
-"LUIui ; [OPC]ui" sequences must be made atomic  
-A "[OPC]ui" without previous LUIui is undefined behaviour for now (I should implement an exception for this)
+UI/imm bank safety
+
+- All `..ui` forms consume the current `uimm` banks set by `LUIui`. If the banks are invalid/stale (no prior `LUIui` in the atomic window), the core raises a software interrupt with cause `UIMM_STATE`. This removes the undefined behaviour previously noted and makes `[OPC]ui` checked by default.
 
 - ## LUIui #x, #imm12
 
@@ -163,6 +164,24 @@ A "[OPC]ui" without previous LUIui is undefined behaviour for now (I should impl
 |---|---|---|---|
 | x | - | x | - |
 
+- ## SHLuiv #imm5, DRt (trap on range)
+
+| operation    | µop                | isa                      |
+|--------------|--------------------|--------------------------|
+| DRt <<= imm5 | SHLuiv #imm5, DRt  | shift_left.v imm5, dt    |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1110    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v | trap condition                             |
+|---|---|---|---|--------------------------------------------|
+| x | - | x | - | if imm5 >= 24 → ARITH_RANGE (SWI), no write |
+
 - ## ROLui #imm5, DRt
 
 | operation     | µop              | isa               |
@@ -198,6 +217,24 @@ A "[OPC]ui" without previous LUIui is undefined behaviour for now (I should impl
 | z | n | c | v |
 |---|---|---|---|
 | x | - | x | - |
+
+- ## SHRuiv #imm5, DRt (trap on range)
+
+| operation    | µop                | isa                      |
+|--------------|--------------------|--------------------------|
+| DRt >>= imm5 | SHRuiv #imm5, DRt  | shift_right.v imm5, dt   |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0001    |
+| [19-16]   | subop       | 1111    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v | trap condition                             |
+|---|---|---|---|--------------------------------------------|
+| x | - | x | - | if imm5 >= 24 → ARITH_RANGE (SWI), no write |
 
 - ## RORui #imm5, DRt
 

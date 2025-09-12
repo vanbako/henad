@@ -36,6 +36,7 @@
 - Checks: a memory op `LD/ST` uses `CRs + offset`; hardware verifies tag, bounds, perms, sealed state.
 - Faults: on tag/perm/OOB/alignment violations, raise a software interrupt (vectored), with cause recorded in `PSTATE`.
 - Control-flow integrity: `BTP` pads plus shadow call stack via `SSP`; `RET` verifies structured returns.
+ - Future addressing note: when virtual memory is added, VA remains 24-bit BAU with 48-bit addressability; physical memory decomposes to 6-bit port ID + 42-bit local address.
 
 ## Syscalls and Software Interrupts
 
@@ -65,3 +66,4 @@ Amber keeps the async 24-bit math CSR block. It is unaffected by CHERI and remai
 - Design: `processors/amber/design/design.md`
 - ISA & opcodes: `processors/amber/design/opcode.md`
 - CHERI details: `processors/amber/design/cheri.md`
+ - CSR map: `processors/amber/design/csr.md`

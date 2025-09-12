@@ -93,6 +93,7 @@ Notes
 - Physical 48-bit addressing, BAU=24-bit.
 - All loads/stores are of the form `LD/ST #offs(CRs), DRt/DRs` with signed offsets. Hardware validates `CRs`.
 - Shadow call stack uses a dedicated capability (CSR `SCC`) and `SSP` cursor. Calls push return addresses under CHERI bounds; `RET` pops and verifies.
+ - Future addressing note: when virtual memory is introduced, VA remains BAU=24 with 48-bit addressability. Physical addressing will map to a 6-bit port ID + 42-bit local address.
 
 ## Software Interrupts and Syscall
 

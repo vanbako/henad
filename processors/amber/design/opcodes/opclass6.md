@@ -40,6 +40,10 @@ Note: Absolute jumps via address/capability registers are removed in the CHERI r
 |---|---|---|---|
 | - | - | - | - |
 
+UI/imm bank safety
+
+- Using `JCCui` without a valid `LUIui` bank state triggers a software interrupt with cause `UIMM_STATE`.
+
 - ## BCCsr CC, PC+DRt
 
 | operation                   | µop              | isa            |
@@ -114,6 +118,10 @@ Note: Absolute jumps via address/capability registers are removed in the CHERI r
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
+
+UI/imm bank safety
+
+- Using `JSRui` without a valid `LUIui` bank state triggers a software interrupt with cause `UIMM_STATE`.
 
 - ## BSRsr PC+DRt
 

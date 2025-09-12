@@ -36,6 +36,24 @@
 |---|---|---|---|
 | - | - | - | - |
 
+- ## CINCv DRs, CRt (trap on bounds)
+
+| operation                                | µop              | isa                        |
+|------------------------------------------|------------------|----------------------------|
+| CRt.cursor += sign_extend(DRs)           | CINCv DRs, CRt   | cap_inc.v ds, ct           |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0101       |
+| [19-16]   | subop       | 0012       |
+| [15-14]   | CRt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v | trap condition                                           |
+|---|---|---|---|----------------------------------------------------------|
+| - | - | - | - | if resulting cursor would be outside [base, base+len)    |
+
 - ## CINCi #imm14, CRt
 
 | operation                                | µop               | isa               |
@@ -52,6 +70,23 @@
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
+
+- ## CINCiv #imm14, CRt (trap on bounds)
+
+| operation                                | µop                | isa                         |
+|------------------------------------------|--------------------|-----------------------------|
+| CRt.cursor += sign_extend(imm14)         | CINCiv #imm14, CRt | cap_inc.v imm14, ct         |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0101  |
+| [19-16]   | subop       | 0014  |
+| [15-14]   | CRt         |       |
+| [13- 0]   | imm14       |       |
+
+| z | n | c | v | trap condition                                           |
+|---|---|---|---|----------------------------------------------------------|
+| - | - | - | - | if resulting cursor would be outside [base, base+len)    |
 
 - ## CSETB DRs, CRt
 
@@ -71,6 +106,24 @@
 |---|---|---|---|
 | - | - | - | - |
 
+- ## CSETBv DRs, CRt (trap on invalid bounds)
+
+| operation                           | µop               | isa                           |
+|-------------------------------------|-------------------|-------------------------------|
+| CRt.length = zero_extend(DRs)       | CSETBv DRs, CRt   | cap_setbounds.v ds, ct        |
+
+| bit range | description | value      |
+|-----------|-------------|------------|
+| [23-20]   | opclass     | 0101       |
+| [19-16]   | subop       | 0102       |
+| [15-14]   | CRt         |            |
+| [13-10]   | DRs         |            |
+| [ 9- 0]   | reserved    | 0000000000 |
+
+| z | n | c | v | trap condition                                                   |
+|---|---|---|---|------------------------------------------------------------------|
+| - | - | - | - | zero length, or base+length overflow beyond 48-bit, or sealed   |
+
 - ## CSETBi #imm14, CRt
 
 | operation                     | µop                 | isa                  |
@@ -87,6 +140,23 @@
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
+
+- ## CSETBiv #imm14, CRt (trap on invalid bounds)
+
+| operation                     | µop                 | isa                            |
+|-------------------------------|---------------------|--------------------------------|
+| CRt.length = sign_extend(imm14) | CSETBiv #imm14, CRt | cap_setbounds.v imm14, ct      |
+
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0101  |
+| [19-16]   | subop       | 0103  |
+| [15-14]   | CRt         |       |
+| [13- 0]   | imm14       |       |
+
+| z | n | c | v | trap condition                                                   |
+|---|---|---|---|------------------------------------------------------------------|
+| - | - | - | - | zero length, or base+length overflow beyond 48-bit, or sealed   |
 
 - ## CGETP CRs, DRt
 

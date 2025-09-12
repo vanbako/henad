@@ -121,6 +121,24 @@
 |---|---|---|---|-----------------------------------------------|
 | x | x | - | x | only if imm5 is non-zero, otherwise unchanged |
 
+- ## SHRsiv #imm5, DRt (trap on range)
+
+| operation           | µop                | isa                               |
+|---------------------|--------------------|-----------------------------------|
+| signed DRt >>= imm5 | SHRsiv #imm5, DRt  | arithm_shift_right.v imm5, dt     |
+
+| bit range | description | value   |
+|-----------|-------------|---------|
+| [23-20]   | opclass     | 0011    |
+| [19-16]   | subop       | 1100    |
+| [15-12]   | DRt         |         |
+| [11- 5]   | reserved    | 0000000 |
+| [ 4- 0]   | imm5        |         |
+
+| z | n | c | v | trap condition                             |
+|---|---|---|---|--------------------------------------------|
+| x | x | - | x | if imm5 >= 24 → ARITH_RANGE (SWI), no write |
+
 - ## CMPsi #imm12, DRt
 
 | operation                              | µop               | isa              |

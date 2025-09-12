@@ -178,6 +178,10 @@
 |---|---|---|---|
 | x | - | x | - |
 
+Trap note
+
+- To avoid undefined behaviour from out-of-range shifts, when `DRs[4:0] >= 24` a software interrupt with cause `ARITH_RANGE` is raised and the shift is not performed.
+
 - ## ROLur DRs, DRt
 
 | operation         | µop            | isa             |
@@ -213,6 +217,10 @@
 | z | n | c | v |
 |---|---|---|---|
 | x | - | x | - |
+
+Trap note
+
+- To avoid undefined behaviour from out-of-range shifts, when `DRs[4:0] >= 24` a software interrupt with cause `ARITH_RANGE` is raised and the shift is not performed.
 
 - ## RORur DRs, DRt
 
