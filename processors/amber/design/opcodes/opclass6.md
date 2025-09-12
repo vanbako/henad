@@ -95,8 +95,6 @@ UI/imm bank safety
 |---|---|---|---|
 | - | - | - | - |
 
- 
-
 - ## JSRui #imm12
 
 | operation                | µop                 | isa                       |
@@ -179,5 +177,3 @@ UI/imm bank safety
 | z | n | c | v |
 |---|---|---|---|
 | - | - | - | - |
-
- 
