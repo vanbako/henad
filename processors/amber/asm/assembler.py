@@ -356,13 +356,13 @@ class Assembler:
                         (1, (imm48 >> 24) & 0xFFF),
                         (0, (imm48 >> 12) & 0xFFF),
                     ]
-                    lui = get_spec("LUIUI"); swi = get_spec("SWI")
-                    if not lui or not swi:
-                        raise AsmError("Missing spec for LUIui/SWI")
+                    lui = get_spec("LUIUI"); sysc = get_spec("SYSCALL")
+                    if not lui or not sysc:
+                        raise AsmError("Missing spec for LUIui/SYSCALL")
                     for x, imm12 in parts:
                         w = lui.encode([str(x), f"#{imm12}"], resolve_expr=self._resolve_expr, pc=item.addr)
                         words.append(w & 0xFFFFFF)
-                    w = swi.encode([f"#{imm48 & 0xFFF}"], resolve_expr=self._resolve_expr, pc=item.addr)
+                    w = sysc.encode([f"#{imm48 & 0xFFF}"], resolve_expr=self._resolve_expr, pc=item.addr)
                     words.append(w & 0xFFFFFF)
                 elif item.kind in (
                     "MULU24", "MULS24",

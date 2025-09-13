@@ -69,10 +69,14 @@ module stg_id(
         (w_opc == `OPC_XORur)     || (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)   ||
         (w_opc == `OPC_ROLur)     || (w_opc == `OPC_RORur)     ||
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_NEGsr) ||
+        // trap-on-overflow/range variants still write when no trap
+        (w_opc == `OPC_ADDsv)     || (w_opc == `OPC_SUBsv)     || (w_opc == `OPC_NEGsv)   || (w_opc == `OPC_SHRsrv) ||
         (w_opc == `OPC_MOVui)     || (w_opc == `OPC_ADDui)     || (w_opc == `OPC_SUBui)   ||
         (w_opc == `OPC_ANDui)     || (w_opc == `OPC_ORui)      || (w_opc == `OPC_XORui)   ||
         (w_opc == `OPC_SHLui)     || (w_opc == `OPC_SHRui)     || (w_opc == `OPC_ROLui)   || (w_opc == `OPC_RORui) ||
         (w_opc == `OPC_MOVsi)     || (w_opc == `OPC_ADDsi)     || (w_opc == `OPC_SUBsi)   ||
+        // trap-on-overflow/range immediate variants
+        (w_opc == `OPC_ADDsiv)    || (w_opc == `OPC_SUBsiv)    || (w_opc == `OPC_SHRsiv)  ||
         (w_opc == `OPC_SHRsi)     || (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi)   ||
         // CSR read writes DRt
         (w_opc == `OPC_CSRRD);
@@ -106,6 +110,8 @@ module stg_id(
         (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)     || (w_opc == `OPC_ROLur)   || (w_opc == `OPC_RORur) || (w_opc == `OPC_CMPur)   ||
         // Signed ALU uses
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_CMPsr) ||
+        // trap-on-overflow/range (register) also read DRs
+        (w_opc == `OPC_ADDsv)     || (w_opc == `OPC_SUBsv)     || (w_opc == `OPC_SHRsrv)  ||
         // Conditional move consults DRs
         (w_opc == `OPC_MCCur)     ||
         // CSR write takes DRs as source

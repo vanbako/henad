@@ -68,6 +68,9 @@ module stg_ex(
     reg                  r_tgt_ar_we;
     reg                  r_tgt_sr_we;
     reg                  r_flags_we;
+    // Trap control: request LR write and kill GP write when taking a trap
+    reg                  r_trap_lr_we;
+    reg                  r_kill_gp_we;
     // Current flags come from SR[FL] via SR read port 1 (forwarded)
     wire [`HBIT_FLAG:0]  w_fl_in = iw_src_sr_val[`HBIT_FLAG:0];
     // Latch for upper immediate banks (cleared on reset/flush)
@@ -102,6 +105,8 @@ module stg_ex(
             r_sr_result    = {`SIZE_ADDR{1'b0}};
             r_tgt_ar_we    = 1'b0;
             r_tgt_sr_we    = 1'b0;
+            r_trap_lr_we   = 1'b0;
+            r_kill_gp_we   = 1'b0;
         end
         // By default, clear computed flags each cycle; set only when op defines them
         r_fl             = {`SIZE_FLAG{1'b0}};
@@ -296,6 +301,25 @@ module stg_ex(
                     (iw_src_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
+            // Trap-on-overflow variants (register)
+            `OPC_ADDsv: begin
+                r_result = $signed(iw_src_gp_val) + $signed(iw_tgt_gp_val);
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_fl[`FLAG_N] = ($signed(r_result) < 0);
+                r_fl[`FLAG_V] = ((~(iw_src_gp_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA])) &&
+                                 (iw_src_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA]));
+                // if overflow, raise trap: branch to absolute base from uimm banks (low12=0), save LR=PC+1
+                if (r_fl[`FLAG_V]) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0; // do not write FL when trapping
+                end else begin
+                    r_flags_we = 1'b1;
+                end
+            end
             `OPC_SUBsr: begin
                 r_result = $signed(iw_tgt_gp_val) - $signed(iw_src_gp_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -306,6 +330,23 @@ module stg_ex(
                     (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
+            `OPC_SUBsv: begin
+                r_result = $signed(iw_tgt_gp_val) - $signed(iw_src_gp_val);
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_fl[`FLAG_N] = ($signed(r_result) < 0);
+                r_fl[`FLAG_V] = ((iw_src_gp_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA]) &&
+                                 (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA]));
+                if (r_fl[`FLAG_V]) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
+                end else begin
+                    r_flags_we = 1'b1;
+                end
+            end
             `OPC_NEGsr: begin
                 // Signed negate: r = -dt
                 r_result = $signed(24'd0) - $signed(iw_tgt_gp_val);
@@ -314,6 +355,22 @@ module stg_ex(
                 // Overflow if operand is most negative value
                 r_fl[`FLAG_V] = (iw_tgt_gp_val == 24'h800000);
                 r_flags_we = 1'b1;
+            end
+            `OPC_NEGsv: begin
+                r_result = $signed(24'd0) - $signed(iw_tgt_gp_val);
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_fl[`FLAG_N] = ($signed(r_result) < 0);
+                r_fl[`FLAG_V] = (iw_tgt_gp_val == 24'h800000);
+                if (r_fl[`FLAG_V]) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
+                end else begin
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_SHRsr: begin
                 // Arithmetic right shift by variable amount; flags {Z,N,C} only if amount != 0
@@ -531,6 +588,23 @@ module stg_ex(
                     (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
+            `OPC_ADDsiv: begin
+                r_result = $signed(iw_tgt_gp_val) + $signed(r_se_imm12_val);
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_fl[`FLAG_N] = ($signed(r_result) < 0);
+                r_fl[`FLAG_V] = ((~(iw_tgt_gp_val[`HBIT_DATA-1] ^ r_se_imm12_val[`HBIT_DATA-1])) &&
+                                 (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1]));
+                if (r_fl[`FLAG_V]) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
+                end else begin
+                    r_flags_we = 1'b1;
+                end
+            end
             `OPC_SUBsi: begin
                 r_result = $signed(iw_tgt_gp_val) - $signed(r_se_imm12_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -539,6 +613,23 @@ module stg_ex(
                     ((r_se_imm12_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1]) &&
                     (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
+            end
+            `OPC_SUBsiv: begin
+                r_result = $signed(iw_tgt_gp_val) - $signed(r_se_imm12_val);
+                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                r_fl[`FLAG_N] = ($signed(r_result) < 0);
+                r_fl[`FLAG_V] = ((r_se_imm12_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1]) &&
+                                 (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1]));
+                if (r_fl[`FLAG_V]) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
+                end else begin
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_SHRsi: begin
                 // Arithmetic right shift by immediate imm5; flags {Z,N,C} only if imm5 != 0
@@ -715,9 +806,11 @@ module stg_ex(
             r_instr_latch        <= iw_instr;
             r_opc_latch          <= iw_opc;
             r_tgt_gp_latch       <= iw_tgt_gp;
-            r_tgt_gp_we_latch    <= iw_tgt_gp_we;
-            r_tgt_sr_latch       <= (r_tgt_sr_we ? 2'b10 : iw_tgt_sr);
-            r_tgt_sr_we_latch    <= (iw_tgt_sr_we | r_tgt_sr_we);
+            // Kill GP writeback if a trap is taken in EX
+            r_tgt_gp_we_latch    <= (iw_tgt_gp_we & ~r_kill_gp_we);
+            // SR write target: prefer trap LR write, then FL (flags), else incoming
+            r_tgt_sr_latch       <= (r_trap_lr_we ? `SR_IDX_LR : (r_tgt_sr_we ? `SR_IDX_FL : iw_tgt_sr));
+            r_tgt_sr_we_latch    <= (iw_tgt_sr_we | r_tgt_sr_we | r_trap_lr_we);
             r_tgt_ar_latch       <= iw_tgt_ar;
             r_tgt_ar_we_latch    <= r_tgt_ar_we;
             r_addr_latch         <= r_addr;

@@ -536,11 +536,19 @@ module amber(
     // Drive CSR read addr from current EX instruction when CSRRD
     assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[7:0] : {(`HBIT_TGT_CSR+1){1'b0}};
     assign w_csr_read_addr2 = {(`HBIT_TGT_CSR+1){1'b0}};
-    // Effective CSR read data: override STATUS to reflect live mode bit
+    // Effective CSR read data overrides for dynamic fields:
+    // - STATUS[0] reflects live kernel/user mode bit
+    // - PCC_CUR mirrors live PC (split across LO/HI)
+    wire csr_is_read   = (w_opc == `OPC_CSRRD);
+    wire [7:0] csr_idx = w_idex_instr[7:0];
     wire [`HBIT_DATA:0] w_csr_read_data1_eff =
-        ((w_opc == `OPC_CSRRD) && (w_idex_instr[7:0] == `CSR_IDX_STATUS))
-            ? {23'b0, r_mode_kernel}
-            : w_csr_read_data1;
+        (csr_is_read && (csr_idx == `CSR_IDX_STATUS))
+            ? { w_csr_read_data1[`HBIT_DATA:1], r_mode_kernel }
+        : (csr_is_read && (csr_idx == `CSR_IDX_PCC_CUR_LO))
+            ? r_pcc_cur[23:0]
+        : (csr_is_read && (csr_idx == `CSR_IDX_PCC_CUR_HI))
+            ? r_pcc_cur[47:24]
+        : w_csr_read_data1;
     // Mux SR source value: for CSRRD feed CSR read data zero-extended
     wire [`HBIT_ADDR:0] w_src_sr_val_mux = (w_opc == `OPC_CSRRD) ? { {(`SIZE_ADDR-`SIZE_DATA){1'b0}}, w_csr_read_data1_eff } : w_src_sr_val;
 
@@ -561,7 +569,8 @@ module amber(
         end else begin
             // Track PC in PCC.cursor (synchronize)
             r_pcc_cur <= r_ia_pc;
-            if (w_csr_write_enable) begin
+            // Only allow kernel to modify PCC window via CSR
+            if (w_csr_write_enable && r_mode_kernel) begin
                 case (w_csr_write_addr)
                     `CSR_IDX_PCC_BASE_LO: r_pcc_base[23:0]  <= w_csr_write_data;
                     `CSR_IDX_PCC_BASE_HI: r_pcc_base[47:24] <= w_csr_write_data;

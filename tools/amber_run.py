@@ -31,8 +31,11 @@ def build_source_list() -> list[str]:
     files = [
         "testbench.v",
         "amber.v",
+        "amber_refill_gwddr.v",
+        "cache.v",
         "mem.v",
         "regar.v",
+        "regcr.v",
         "regcsr.v",
         "reggp.v",
         "regsr.v",
