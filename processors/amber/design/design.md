@@ -88,10 +88,24 @@ Notes
   - `PC`: program counter
 - Capability: `CR0..CR3` (128-bit + tag). Used by loads/stores and capability ops.
 
+IR (micro-architectural)
+
+- `uimm` banks: 3 × 12-bit immediate banks loaded by `LUIui` and consumed by `..ui`/long-immediate control-flow forms.
+  - Formation: 24-bit immediates use `{uimm[11:0], imm12}`; 48-bit absolute targets use `{uimm[35:0], imm12}` via three `LUIui` banks + `imm12`.
+  - Lifetime: latched in EX, cleared on reset and on pipeline flush/branch so banks never cross control-flow boundaries; not architecturally visible.
+  - Safety: using a `..ui` without loading the relevant bank(s) is specified to raise `UIMM_STATE` (checked semantics; implementation TBD in trap path).
+
 SR vs CSR
 
 - `LR`, `SSP`, `PSTATE`, and `PC` are architected 48-bit SRs for fast µop access.
 - Kernel code observes/controls these via CSR mirrors at 0x000–0x009; user writes to these CSRs are ignored.
+
+PC aliasing and SR file
+
+- The core maintains `PC` as the IA/fetch pipeline register; SR exposes a logical `PC` alias for moves and addressing µops.
+- Reads of `SR[PC]` reflect the in-flight pipeline `PC` (not the SR array cell).
+- Writes to `PC` happen via control-flow (branch/jump/return) semantics, not by blindly storing to an SR cell. Micro-ops that appear to write `PC` translate to the appropriate branch target update.
+- This keeps the architectural view with 4 SRs while letting the implementation hold `PC` in the pipeline for timing.
 
 ## Memory
 
