@@ -223,15 +223,17 @@
 `define OPC_CSRWR {`OPCLASS_8, `SUBOP_CSRWR}
 
 // OPCLASS_9 — privileged / kernel-only
-`define SUBOP_HLT    4'b0000 // isa
-`define SUBOP_SETSSP 4'b0001 // isa
-`define SUBOP_SYSCALL 4'b0010 // isa
-`define SUBOP_KRET   4'b0011 // isa
+`define SUBOP_HLT     4'b0000 // isa
+`define SUBOP_SETSSP  4'b0001 // isa
+`define SUBOP_SYSCALL 4'b0010 // isa (aka SWI)
+`define SUBOP_KRET    4'b0011 // isa (aka SRET)
 
-`define OPC_HLT    {`OPCLASS_9, `SUBOP_HLT}
-`define OPC_SETSSP {`OPCLASS_9, `SUBOP_SETSSP}
+`define OPC_HLT     {`OPCLASS_9, `SUBOP_HLT}
+`define OPC_SETSSP  {`OPCLASS_9, `SUBOP_SETSSP}
 `define OPC_SYSCALL {`OPCLASS_9, `SUBOP_SYSCALL}
-`define OPC_KRET   {`OPCLASS_9, `SUBOP_KRET}
+`define OPC_KRET    {`OPCLASS_9, `SUBOP_KRET}
+
+// Backward-compatible aliases removed to avoid ambiguity
 
 // OPCLASS_A
 

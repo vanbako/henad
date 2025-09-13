@@ -621,6 +621,19 @@ module stg_ex(
                 r_branch_taken = 1'b1;
                 r_branch_pc    = iw_pc + r_se_imm16_val;
             end
+            // Privileged/trap entry: SYSCALL/SWI
+            `OPC_SYSCALL: begin
+                // Save return PC (PC+1) into LR via SR write path
+                r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                // Branch to absolute 48-bit target assembled from LUI banks + imm12
+                r_branch_taken = 1'b1;
+                r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val };
+            end
+            // Kernel return: KRET/SRET — jump to LR (selected via ID stage)
+            `OPC_KRET: begin
+                r_branch_taken = 1'b1;
+                r_branch_pc    = iw_tgt_sr_val;
+            end
             default: begin
                 r_result = `SIZE_DATA'b0;
                 r_fl     = `SIZE_FLAG'b0;

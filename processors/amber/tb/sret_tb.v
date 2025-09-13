@@ -81,15 +81,15 @@ module sret_tb;
 
         // Prepare LR with a return address (simulate kernel LR value)
         tgt_sr_val = 48'h0000_0ABC_DEF0; // LR contents
-        opc = `OPC_SRET;
+        opc = `OPC_KRET;
         step();
 
         if (!branch_taken) begin
-            $display("SRET did not set branch_taken");
+            $display("KRET did not set branch_taken");
             $finish;
         end
         if (branch_pc !== (tgt_sr_val)) begin
-            $display("SRET branch_pc mismatch: %h != %h", branch_pc, tgt_sr_val);
+            $display("KRET branch_pc mismatch: %h != %h", branch_pc, tgt_sr_val);
             $finish;
         end
 

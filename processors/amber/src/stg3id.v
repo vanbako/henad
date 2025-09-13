@@ -51,6 +51,8 @@ module stg_id(
         (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
         (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso)    ||
+        // SYSCALL carries a low 12-bit immediate for absolute target
+        (w_opc == `OPC_SYSCALL)   ||
         (w_opc == `OPC_ROLui)     || (w_opc == `OPC_RORui);
 
     // Branch classification
@@ -89,7 +91,9 @@ module stg_id(
     // SR target write enable
     wire w_tgt_sr_we =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRADDsi)   ||
-        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur);
+        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur) ||
+        // SYSCALL writes LR with PC+1
+        (w_opc == `OPC_SYSCALL);
 
     wire w_has_tgt_sr =
         w_tgt_sr_we               || (w_opc == `OPC_SRSTso);
@@ -136,7 +140,7 @@ module stg_id(
             `OPC_ROLui, `OPC_RORui,
             `OPC_MOVsi, `OPC_ADDsi, `OPC_SUBsi, `OPC_SHRsi, `OPC_CMPsi,
             `OPC_JCCui, `OPC_BCCso,
-            `OPC_STui, `OPC_SRSTso, `OPC_SRLDso: begin
+            `OPC_STui, `OPC_SRSTso, `OPC_SRLDso, `OPC_SYSCALL: begin
                 r_imm12_val = w_imm12_all;
             end
             // 14-bit immediates
@@ -186,7 +190,10 @@ module stg_id(
     // Target SR: for most ops it comes from [15:14]
     reg  [`HBIT_TGT_SR:0] r_tgt_sr_sel;
     always @* begin
-        if (w_has_tgt_sr) begin
+        // Force LR selection for KRET (read LR) and SYSCALL (write LR)
+        if ((w_opc == `OPC_KRET) || (w_opc == `OPC_SYSCALL)) begin
+            r_tgt_sr_sel = `SR_IDX_LR;
+        end else if (w_has_tgt_sr) begin
             r_tgt_sr_sel = iw_instr[15:14];
         end else begin
             r_tgt_sr_sel = `SIZE_TGT_SR'b0;
