@@ -4,9 +4,9 @@ Offsets are always signed. All addresses and lengths are in BAUs (24-bit words).
 
 - ## LDcso #imm10(CRs), DRt
 
-| operation                               | µop                    | isa                   |
-|-----------------------------------------|------------------------|-----------------------|
-| DRt = (CRs.cursor + sign_extend(imm10)) | LDcso #imm10(CRs), DRt | load imm10(cs), dt    |
+| operation                               | µop                    | isa                |
+|-----------------------------------------|------------------------|--------------------|
+| DRt = (CRs.cursor + sign_extend(imm10)) | LDcso #imm10(CRs), DRt | load imm10(cs), dt |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -22,9 +22,9 @@ Offsets are always signed. All addresses and lengths are in BAUs (24-bit words).
 
 - ## STcso DRs, #imm10(CRt)
 
-| operation                               | µop                    | isa                    |
-|-----------------------------------------|------------------------|------------------------|
-| (CRt.cursor + sign_extend(imm10)) = DRs | STcso DRs, #imm10(CRt) | store ds, imm10(ct)    |
+| operation                               | µop                    | isa                 |
+|-----------------------------------------|------------------------|---------------------|
+| (CRt.cursor + sign_extend(imm10)) = DRs | STcso DRs, #imm10(CRt) | store ds, imm10(ct) |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -61,8 +61,8 @@ Offsets are always signed. All addresses and lengths are in BAUs (24-bit words).
 
 - ## STsi #imm12, (CRt)
 
-| operation                      | µop                 | isa                 |
-|--------------------------------|---------------------|---------------------|
+| operation                         | µop                | isa                 |
+|-----------------------------------|--------------------|---------------------|
 | (CRt.cursor) = sign_extend(imm12) | STsi #imm12, (CRt) | store.s imm12, (ct) |
 
 | bit range | description | value |
@@ -79,17 +79,18 @@ Offsets are always signed. All addresses and lengths are in BAUs (24-bit words).
 
 - ## CLDcso #imm10(CRs), CRt
 
-| operation                                     | µop                      | isa                   |
-|-----------------------------------------------|--------------------------|-----------------------|
+| operation                                       | µop                     | isa                    |
+|-------------------------------------------------|-------------------------|------------------------|
 | CRt = CAP_LOAD(CRs.cursor + sign_extend(imm10)) | CLDcso #imm10(CRs), CRt | load.cap imm10(cs), ct |
 
-| bit range | description | value        |
-|-----------|-------------|--------------|
-| [23-20]   | opclass     | 0100         |
-| [19-16]   | subop       | 0100         |
-| [15-14]   | CRt         |              |
-| [13-12]   | CRs         |              |
-| [11- 0]   | imm12       |              |
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0100  |
+| [15-14]   | CRt         |       |
+| [13-12]   | CRs         |       |
+| [11-10]   | reserved    | 00    |
+| [ 9- 0]   | imm10       |       |
 
 | z | n | c | v |
 |---|---|---|---|
@@ -97,17 +98,17 @@ Offsets are always signed. All addresses and lengths are in BAUs (24-bit words).
 
 - ## CSTcso CRs, #imm10(CRt)
 
-| operation                                      | µop                      | isa                    |
-|------------------------------------------------|--------------------------|------------------------|
+| operation                                        | µop                     | isa                     |
+|--------------------------------------------------|-------------------------|-------------------------|
 | CAP_STORE(CRt.cursor + sign_extend(imm10)) = CRs | CSTcso CRs, #imm10(CRt) | store.cap cs, imm10(ct) |
 
-| bit range | description | value        |
-|-----------|-------------|--------------|
-| [23-20]   | opclass     | 0100         |
-| [19-16]   | subop       | 0101         |
-| [15-14]   | CRt         |              |
-| [13-12]   | CRs         |              |
-| [11- 0]   | imm12       |              |
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0100  |
+| [19-16]   | subop       | 0101  |
+| [15-14]   | CRt         |       |
+| [13-12]   | CRs         |       |
+| [11- 0]   | imm12       |       |
 
 | z | n | c | v |
 |---|---|---|---|

@@ -178,8 +178,8 @@ UI/imm bank safety
 | [11- 5]   | reserved    | 0000000 |
 | [ 4- 0]   | imm5        |         |
 
-| z | n | c | v | trap condition                             |
-|---|---|---|---|--------------------------------------------|
+| z | n | c | v | trap condition                              |
+|---|---|---|---|---------------------------------------------|
 | x | - | x | - | if imm5 >= 24 → ARITH_RANGE (SWI), no write |
 
 - ## ROLui #imm5, DRt
@@ -220,9 +220,9 @@ UI/imm bank safety
 
 - ## SHRuiv #imm5, DRt (trap on range)
 
-| operation    | µop                | isa                      |
-|--------------|--------------------|--------------------------|
-| DRt >>= imm5 | SHRuiv #imm5, DRt  | shift_right.v imm5, dt   |
+| operation    | µop                | isa                    |
+|--------------|--------------------|------------------------|
+| DRt >>= imm5 | SHRuiv #imm5, DRt  | shift_right.v imm5, dt |
 
 | bit range | description | value   |
 |-----------|-------------|---------|
@@ -232,8 +232,8 @@ UI/imm bank safety
 | [11- 5]   | reserved    | 0000000 |
 | [ 4- 0]   | imm5        |         |
 
-| z | n | c | v | trap condition                             |
-|---|---|---|---|--------------------------------------------|
+| z | n | c | v | trap condition                              |
+|---|---|---|---|---------------------------------------------|
 | x | - | x | - | if imm5 >= 24 → ARITH_RANGE (SWI), no write |
 
 - ## RORui #imm5, DRt
@@ -263,12 +263,12 @@ UI/imm bank safety
 |                                           |                   |   LUIui #0, #imm24[23-12] |
 |                                           |                   |   CMPui #imm24[11-0], DRt |
 
-| bit range | description | value   |
-|-----------|-------------|---------|
-| [23-20]   | opclass     | 0001    |
-| [19-16]   | subop       | 1101    |
-| [15-12]   | DRt         |         |
-| [11- 0]   | imm12       |         |
+| bit range | description | value |
+|-----------|-------------|-------|
+| [23-20]   | opclass     | 0001  |
+| [19-16]   | subop       | 1101  |
+| [15-12]   | DRt         |       |
+| [11- 0]   | imm12       |       |
 
 | z | n | c | v |
 |---|---|---|---|

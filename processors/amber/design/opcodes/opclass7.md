@@ -2,10 +2,10 @@
 
 - ## PUSHur DRs, (CRt)
 
-| operation       | µop                  | isa            |
-|-----------------|----------------------|----------------|
-| --1(CRt) = DRs  | SUBAsi #1, CRt       | push ds, (ct)  |
-|                 | STcso  DRs, #0(CRt)  |                |
+| operation      | µop                 | isa           |
+|----------------|---------------------|---------------|
+| --1(CRt) = DRs | SUBAsi #1, CRt      | push ds, (ct) |
+|                | STcso  DRs, #0(CRt) |               |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
@@ -21,10 +21,10 @@
 
 - ## PUSHAur CRs, (CRt)
 
-| operation       | µop                   | isa            |
-|-----------------|-----------------------|----------------|
-| --2(CRt) = CRs  | SUBAsi #2, CRt        | push cs, (ct)  |
-|                 | CSTcso CRs, #0(CRt)   |                |
+| operation      | µop                 | isa           |
+|----------------|---------------------|---------------|
+| --2(CRt) = CRs | SUBAsi #2, CRt      | push cs, (ct) |
+|                | CSTcso CRs, #0(CRt) |               |
 
 | bit range | description | value        |
 |-----------|-------------|--------------|
@@ -40,10 +40,10 @@
 
 - ## POPur (CRs), DRt
 
-| operation       | µop                   | isa          |
-|-----------------|-----------------------|--------------|
-| DRt = (CRs)1++  | ADDAsi #1, CRs        | pop (cs), dt |
-|                 | LDcso  #-1(CRs), DRt  |              |
+| operation      | µop                  | isa          |
+|----------------|----------------------|--------------|
+| DRt = (CRs)1++ | ADDAsi #1, CRs       | pop (cs), dt |
+|                | LDcso  #-1(CRs), DRt |              |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
@@ -59,10 +59,10 @@
 
 - ## POPAur (CRs), CRt
 
-| operation       | µop                    | isa          |
-|-----------------|------------------------|--------------|
-| CRt = (CRs)2++  | ADDAsi #2, CRs         | pop (cs), ct |
-|                 | CLDcso #-2(CRs), CRt   |              |
+| operation      | µop                  | isa          |
+|----------------|----------------------|--------------|
+| CRt = (CRs)2++ | ADDAsi #2, CRs       | pop (cs), ct |
+|                | CLDcso #-2(CRs), CRt |              |
 
 | bit range | description | value        |
 |-----------|-------------|--------------|

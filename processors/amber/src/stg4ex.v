@@ -130,20 +130,7 @@ module stg_ex(
             endcase
         end
         case (iw_opc)
-            `OPC_SWI: begin
-                // Software interrupt: save return PC into LR, branch to absolute handler
-                // Save LR = PC + 1 (next instruction address)
-                r_sr_result = iw_pc + `SIZE_ADDR'd1;
-                r_branch_taken = 1'b1;
-                // Absolute branch target assembled from uimm banks + imm12
-                r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
-            end
-            `OPC_SRET: begin
-                // Supervisor return: branch to LR (saved by SWI as PC+1)
-                // No SR write needed here; target SR read path carries LR value
-                r_branch_taken = 1'b1;
-                r_branch_pc    = iw_tgt_sr_val;
-            end
+            
             `OPC_LUIui: begin
                 // r_ui_latch updated in sequential block
             end
@@ -192,29 +179,14 @@ module stg_ex(
                     r_flags_we = 1'b1;
                 end
             end
-            `OPC_MOVDur: begin
-                // H|L bit = instr[9]; H=1 means use [47:24], L=0 means use [23:0]
-                if (iw_instr[9])
-                    r_result = iw_src_ar_val[`HBIT_ADDR:`HBIT_ADDR-23];
-                else
-                    r_result = iw_src_ar_val[23:0];
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                r_flags_we = 1'b1;
-            end
+            
             // CSR read: r_result already muxed via amber to contain CSR value (in iw_src_sr_val[23:0])
             `OPC_CSRRD: begin
                 r_result = iw_src_sr_val[23:0];
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
                 r_flags_we = 1'b1;
             end
-            `OPC_MOVAur: begin
-                // Write DRs half into ARt
-                r_tgt_ar_we = 1'b1;
-                if (iw_instr[9]) // H=1
-                    r_ar_result = {iw_src_gp_val, iw_tgt_ar_val[23:0]};
-                else // L=0
-                    r_ar_result = {iw_tgt_ar_val[`HBIT_ADDR:`HBIT_ADDR-23], iw_src_gp_val};
-            end
+            
             // CSR write: pass DRs value along result path for WB to write into CSR file
             `OPC_CSRWR: begin
                 r_result = iw_src_gp_val;
@@ -301,22 +273,7 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (iw_tgt_gp_val == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
-            `OPC_LDur: begin
-                r_addr = iw_src_ar_val;
-            end
-            `OPC_STur: begin
-                r_addr = iw_tgt_ar_val;
-                r_result = iw_src_gp_val;
-            end
-            `OPC_LDso: begin
-                // 24-bit load with signed 10-bit offset into DRt
-                r_addr = $signed(iw_src_ar_val) + $signed({{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val});
-            end
-            `OPC_STso: begin
-                // 24-bit store with signed 10-bit offset from DRs
-                r_addr   = $signed(iw_tgt_ar_val) + $signed({{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val});
-                r_result = iw_src_gp_val;
-            end
+            
             `OPC_STui: begin
                 // Store 24-bit zero-extended immediate to (ARt)
                 r_addr   = iw_tgt_ar_val;
@@ -327,58 +284,8 @@ module stg_ex(
                 r_addr   = iw_tgt_ar_val;
                 r_result = r_se_imm14_val;
             end
-            `OPC_ADDAur: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = iw_tgt_ar_val + {24'b0, iw_src_gp_val};
-            end
-            `OPC_SUBAur: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = iw_tgt_ar_val - {24'b0, iw_src_gp_val};
-            end
-            `OPC_ADDAsr: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_tgt_ar_val) + $signed({{24{iw_src_gp_val[`HBIT_DATA-1]}}, iw_src_gp_val});
-            end
-            `OPC_SUBAsr: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_tgt_ar_val) - $signed({{24{iw_src_gp_val[`HBIT_DATA-1]}}, iw_src_gp_val});
-            end
-            `OPC_ADDAsi: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_tgt_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
-            end
-            `OPC_SUBAsi: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_tgt_ar_val) - $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
-            end
-            `OPC_LEAso: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_src_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
-            end
-            `OPC_LDAso: begin
-                // 48-bit memory load into ARt: compute address now; value assembled in MO stage
-                r_addr      = $signed(iw_src_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
-                r_tgt_ar_we = 1'b1;
-            end
-            `OPC_STAso: begin
-                // 48-bit memory store of ARs: compute address and pass full 48-bit source via ar_result
-                r_addr      = $signed(iw_tgt_ar_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
-                r_ar_result = iw_src_ar_val;
-            end
-            `OPC_ADRAso: begin
-                r_tgt_ar_we = 1'b1;
-                r_ar_result = $signed(iw_pc) + $signed({{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val});
-            end
-            `OPC_CMPAur: begin
-                // Unsigned compare ARs vs ARt
-                r_fl[`FLAG_Z] = (iw_src_ar_val == iw_tgt_ar_val);
-                r_fl[`FLAG_C] = (iw_src_ar_val < iw_tgt_ar_val);
-                r_flags_we = 1'b1;
-            end
-            `OPC_TSTAur: begin
-                r_fl[`FLAG_Z] = (iw_tgt_ar_val == {`SIZE_ADDR{1'b0}});
-                r_flags_we = 1'b1;
-            end
+            
+            
             `OPC_ADDsr: begin
                 r_result = $signed(iw_src_gp_val) + $signed(iw_tgt_gp_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -709,11 +616,7 @@ module stg_ex(
                 r_sr_result = iw_src_ar_val;
                 r_result    = r_sr_result[23:0];
             end
-            `OPC_SRHLT: begin
-                // Halt: keep PC where it is
-                r_branch_taken = 1'b1;
-                r_branch_pc    = iw_pc;
-            end
+            
             `OPC_BALso: begin
                 r_branch_taken = 1'b1;
                 r_branch_pc    = iw_pc + r_se_imm16_val;

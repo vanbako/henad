@@ -53,10 +53,10 @@
 
 - ## SYSCALL #imm12
 
-| operation                          | µop              | isa             |
-|------------------------------------|------------------|-----------------|
-| syscall enter at vector `imm12`     | SYSCALL #imm12   | syscall imm12   |
-| (via sealed kernel entry capability)|                  |                 |
+| operation                            | µop            | isa           |
+|--------------------------------------|----------------|---------------|
+| syscall enter at vector `imm12`      | SYSCALL #imm12 | syscall imm12 |
+| (via sealed kernel entry capability) |                |               |
 
 | bit range | description | value |
 |-----------|-------------|-------|

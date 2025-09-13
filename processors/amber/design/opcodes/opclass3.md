@@ -54,8 +54,8 @@
 
 - ## ADDsiv #imm12, DRt (trap on overflow)
 
-| operation                                     | µop                 | isa                    |
-|-----------------------------------------------|---------------------|------------------------|
+| operation                                     | µop                 | isa                     |
+|-----------------------------------------------|---------------------|-------------------------|
 | signed DRt += sign_extend(imm12); if V→1 trap | ADDsiv #imm12, DRt  | add.sv imm12, dt (trap) |
 
 | bit range | description | value |
@@ -65,9 +65,9 @@
 | [15-12]   | DRt         |       |
 | [11- 0]   | imm12       |       |
 
-| z | n | c | v | trap condition                  |
-|---|---|---|---|---------------------------------|
-| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
+| z | n | c | v | trap condition                |
+|---|---|---|---|-------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI) |
 
 - ## SUBsi #imm12, DRt
 
@@ -88,9 +88,9 @@
 
 - ## SUBsiv #imm12, DRt (trap on overflow)
 
-| operation                                     | µop                 | isa                    |
-|-----------------------------------------------|---------------------|------------------------|
-| signed DRt -= sign_extend(imm12); if V→1 trap | SUBsiv #imm12, DRt  | sub.sv imm12, dt (trap) |
+| operation                                     | µop                | isa                     |
+|-----------------------------------------------|--------------------|-------------------------|
+| signed DRt -= sign_extend(imm12); if V→1 trap | SUBsiv #imm12, DRt | sub.sv imm12, dt (trap) |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -99,9 +99,9 @@
 | [15-12]   | DRt         |       |
 | [11- 0]   | imm12       |       |
 
-| z | n | c | v | trap condition                  |
-|---|---|---|---|---------------------------------|
-| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
+| z | n | c | v | trap condition                |
+|---|---|---|---|-------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI) |
 
 - ## SHRsi #imm5, DRt
 
@@ -123,9 +123,9 @@
 
 - ## SHRsiv #imm5, DRt (trap on range)
 
-| operation           | µop                | isa                               |
-|---------------------|--------------------|-----------------------------------|
-| signed DRt >>= imm5 | SHRsiv #imm5, DRt  | arithm_shift_right.v imm5, dt     |
+| operation           | µop               | isa                           |
+|---------------------|-------------------|-------------------------------|
+| signed DRt >>= imm5 | SHRsiv #imm5, DRt | arithm_shift_right.v imm5, dt |
 
 | bit range | description | value   |
 |-----------|-------------|---------|
@@ -135,8 +135,8 @@
 | [11- 5]   | reserved    | 0000000 |
 | [ 4- 0]   | imm5        |         |
 
-| z | n | c | v | trap condition                             |
-|---|---|---|---|--------------------------------------------|
+| z | n | c | v | trap condition                              |
+|---|---|---|---|---------------------------------------------|
 | x | x | - | x | if imm5 >= 24 → ARITH_RANGE (SWI), no write |
 
 - ## CMPsi #imm12, DRt

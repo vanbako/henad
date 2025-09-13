@@ -20,8 +20,8 @@
 
 - ## ADDsv DRs, DRt (trap on overflow)
 
-| operation                        | µop             | isa                 |
-|----------------------------------|-----------------|---------------------|
+| operation                           | µop            | isa                  |
+|-------------------------------------|----------------|----------------------|
 | signed DRt += DRs; if V→1 then trap | ADDsv DRs, DRt | add.sv ds, dt (trap) |
 
 | bit range | description | value    |
@@ -32,9 +32,9 @@
 | [11- 8]   | DRs         |          |
 | [ 7- 0]   | reserved    | 00000000 |
 
-| z | n | c | v | trap condition                  |
-|---|---|---|---|---------------------------------|
-| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
+| z | n | c | v | trap condition                |
+|---|---|---|---|-------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI) |
 
 - ## SUBsr DRs, DRt
 
@@ -56,8 +56,8 @@
 
 - ## SUBsv DRs, DRt (trap on overflow)
 
-| operation                        | µop             | isa                 |
-|----------------------------------|-----------------|---------------------|
+| operation                           | µop            | isa                  |
+|-------------------------------------|----------------|----------------------|
 | signed DRt -= DRs; if V→1 then trap | SUBsv DRs, DRt | sub.sv ds, dt (trap) |
 
 | bit range | description | value    |
@@ -68,9 +68,9 @@
 | [11- 8]   | DRs         |          |
 | [ 7- 0]   | reserved    | 00000000 |
 
-| z | n | c | v | trap condition                  |
-|---|---|---|---|---------------------------------|
-| x | x | - | x | if V=1, raise ARITH_OVF (SWI)   |
+| z | n | c | v | trap condition                |
+|---|---|---|---|-------------------------------|
+| x | x | - | x | if V=1, raise ARITH_OVF (SWI) |
 
 - ## NEGsr DRt
 
@@ -91,9 +91,9 @@
 
 - ## NEGsv DRt (trap on overflow)
 
-| operation                               | µop        | isa                 |
-|-----------------------------------------|------------|---------------------|
-| signed DRt = -DRt; if overflow then trap | NEGsv DRt  | neg.v dt (trap)     |
+| operation                                | µop        | isa             |
+|------------------------------------------|------------|-----------------|
+| signed DRt = -DRt; if overflow then trap | NEGsv DRt  | neg.v dt (trap) |
 
 | bit range | description | value        |
 |-----------|-------------|--------------|
@@ -102,9 +102,9 @@
 | [15-12]   | DRt         |              |
 | [11- 0]   | reserved    | 000000000000 |
 
-| z | n | c | v | trap condition                                    |
-|---|---|---|---|---------------------------------------------------|
-| x | x | - | x | if DRt was INT24_MIN then V=1 → ARITH_OVF (SWI)   |
+| z | n | c | v | trap condition                                  |
+|---|---|---|---|-------------------------------------------------|
+| x | x | - | x | if DRt was INT24_MIN then V=1 → ARITH_OVF (SWI) |
 
 - ## SHRsr DRs, DRt
 
@@ -126,9 +126,9 @@
 
 - ## SHRsrv DRs, DRt (trap on range)
 
-| operation               | µop                  | isa                         |
-|-------------------------|----------------------|-----------------------------|
-| signed DRt >>= DRs[4:0] | SHRsrv DRs, DRt      | arithm_shift_right.v ds, dt |
+| operation               | µop             | isa                         |
+|-------------------------|-----------------|-----------------------------|
+| signed DRt >>= DRs[4:0] | SHRsrv DRs, DRt | arithm_shift_right.v ds, dt |
 
 | bit range | description | value    |
 |-----------|-------------|----------|
@@ -138,9 +138,9 @@
 | [11- 8]   | DRs         |          |
 | [ 7- 0]   | reserved    | 00000000 |
 
-| z | n | c | v | trap condition                                        |
-|---|---|---|---|-------------------------------------------------------|
-| x | x | - | x | if DRs[4:0] >= 24 → ARITH_RANGE (SWI), no write       |
+| z | n | c | v | trap condition                                  |
+|---|---|---|---|-------------------------------------------------|
+| x | x | - | x | if DRs[4:0] >= 24 → ARITH_RANGE (SWI), no write |
 
 - ## CMPsr DRs, DRt
 

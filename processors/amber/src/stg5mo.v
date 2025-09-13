@@ -57,10 +57,6 @@ module stg_mo(
         r_sr_result_next = iw_sr_result;
         r_ar_result_next = iw_ar_result;
         case (iw_opc)
-            `OPC_LDur, `OPC_LDso: begin
-                // 24-bit load from the selected port (low 24 bits)
-                r_result = iw_mem_rdata[iw_mem_mp][23:0];
-            end
             `OPC_SRLDso: begin
                 // 48-bit little-endian load from the selected port
                 // Enable 48-bit read packing on both ports to tolerate the
@@ -70,13 +66,7 @@ module stg_mo(
                 r_sr_result_next = iw_mem_rdata[iw_mem_mp];
                 r_result = r_sr_result_next[23:0];
             end
-            `OPC_LDAso: begin
-                // 48-bit little-endian load into AR from the selected port
-                ow_mem_is48[0] = 1'b1;
-                ow_mem_is48[1] = 1'b1;
-                r_ar_result_next = iw_mem_rdata[iw_mem_mp];
-            end
-            `OPC_STur, `OPC_STso, `OPC_STui, `OPC_STsi: begin
+            `OPC_STui, `OPC_STsi: begin
                 // 24-bit store to the selected port for this cycle
                 ow_mem_we[iw_mem_mp] = 1'b1;
                 ow_mem_wdata[iw_mem_mp] = {24'b0, iw_result};
@@ -87,13 +77,6 @@ module stg_mo(
                 // Use latched SR value (from previous cycle) to align with MA
                 ow_mem_we[iw_mem_mp] = 1'b1;
                 ow_mem_wdata[iw_mem_mp] = r_sr_result_latch;
-                ow_mem_is48[iw_mem_mp] = 1'b1;
-            end
-            `OPC_STAso: begin
-                // 48-bit little-endian store of ARs on the selected port
-                // Use latched AR value (from previous cycle)
-                ow_mem_we[iw_mem_mp] = 1'b1;
-                ow_mem_wdata[iw_mem_mp] = r_ar_result_latch;
                 ow_mem_is48[iw_mem_mp] = 1'b1;
             end
         endcase

@@ -69,84 +69,7 @@ module stg_xt(
         end
     endfunction
 
-    function automatic [`HBIT_DATA:0] pack_ar_imm12;
-        input [`HBIT_OPC:0] opc;
-        input [1:0]         tgt_ar;
-        input [11:0]        imm12;
-        begin
-            pack_ar_imm12 = { opc, tgt_ar, imm12 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_sta_so;
-        input [1:0]         tgt_ar;
-        input [1:0]         src_ar;
-        input [11:0]        imm12;
-        begin
-            pack_sta_so = { `OPC_STAso, tgt_ar, src_ar, imm12 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_stur;
-        input [1:0]         tgt_ar;
-        input [3:0]         src_dr;
-        begin
-            pack_stur = { `OPC_STur, tgt_ar, src_dr, 10'b0 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_stso;
-        input [1:0]         tgt_ar;
-        input [3:0]         src_dr;
-        input [9:0]         imm10;
-        begin
-            pack_stso = { `OPC_STso, tgt_ar, src_dr, imm10 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_ldso;
-        input [3:0]         tgt_dr;
-        input [1:0]         src_ar;
-        input [9:0]         imm10;
-        begin
-            pack_ldso = { `OPC_LDso, tgt_dr, src_ar, imm10 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_ldur;
-        input [3:0]         tgt_dr;
-        input [1:0]         src_ar;
-        begin
-            pack_ldur = { `OPC_LDur, tgt_dr, src_ar, 10'b0 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_lda_so;
-        input [1:0]         tgt_ar;
-        input [1:0]         src_ar;
-        input [11:0]        imm12;
-        begin
-            pack_lda_so = { `OPC_LDAso, tgt_ar, src_ar, imm12 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_addasi;
-        input [1:0]         tgt_ar;
-        input [11:0]        imm12;
-        begin
-            // OPCLASS_6 immediate encoding: [23:16]=OPC, [15:14]=ARt, [13:12]=resv0, [11:0]=imm12
-            pack_addasi = { `OPC_ADDAsi, tgt_ar, 2'b00, imm12 };
-        end
-    endfunction
-
-    function automatic [`HBIT_DATA:0] pack_subasi;
-        input [1:0]         tgt_ar;
-        input [11:0]        imm12;
-        begin
-            // OPCLASS_6 immediate encoding: [23:16]=OPC, [15:14]=ARt, [13:12]=resv0, [11:0]=imm12
-            pack_subasi = { `OPC_SUBAsi, tgt_ar, 2'b00, imm12 };
-        end
-    endfunction
+    // AR/legacy packers removed with deprecation of undocumented AR ops
 
     function automatic [`HBIT_DATA:0] pack_jccui;
         input [3:0]         cc;
@@ -266,41 +189,9 @@ module stg_xt(
                         end
                     endcase
                 end
-                // OPCLASS_7: Stack helpers (legacy AR-based push/pop kept here until CHERI CR path lands)
+                // OPCLASS_7: Stack helpers (deprecated legacy AR expansion removed)
                 `OPCLASS_7: begin
-                    case (w_subop)
-                        `SUBOP_PUSHur: begin
-                            w_seq_start   = 1'b1;
-                            w_seq_len     = 3'd2;
-                            w_seq_list[0] = pack_subasi(iw_instr[15:14], 12'sd1);
-                            w_seq_list[1] = pack_stur(iw_instr[15:14], iw_instr[13:10]);
-                            r_instr       = w_seq_list[0];
-                        end
-                        `SUBOP_PUSHAur: begin
-                            w_seq_start   = 1'b1;
-                            w_seq_len     = 3'd2;
-                            w_seq_list[0] = pack_subasi(iw_instr[15:14], 12'sd2);
-                            w_seq_list[1] = pack_sta_so(iw_instr[15:14], iw_instr[13:12], 12'sd0);
-                            r_instr       = w_seq_list[0];
-                        end
-                        `SUBOP_POPur: begin
-                            w_seq_start   = 1'b1;
-                            w_seq_len     = 3'd2;
-                            w_seq_list[0] = pack_addasi(iw_instr[11:10], 12'sd1);
-                            w_seq_list[1] = pack_ldso(iw_instr[15:12], iw_instr[11:10], -10'sd1);
-                            r_instr       = w_seq_list[0];
-                        end
-                        `SUBOP_POPAur: begin
-                            w_seq_start   = 1'b1;
-                            w_seq_len     = 3'd2;
-                            w_seq_list[0] = pack_addasi(iw_instr[13:12], 12'sd2);
-                            w_seq_list[1] = pack_lda_so(iw_instr[15:14], iw_instr[13:12], -12'sd2);
-                            r_instr       = w_seq_list[0];
-                        end
-                        default: begin
-                            r_instr = {`SIZE_DATA{1'b0}};
-                        end
-                    endcase
+                    r_instr = iw_instr; // pass-through (no expansion in this build)
                 end
                 // OPCLASS_9: privileged
                 `OPCLASS_9: begin

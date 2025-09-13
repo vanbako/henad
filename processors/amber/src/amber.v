@@ -590,18 +590,12 @@ module amber(
         .ow_csr_wdata  (w_csr_w2_data)
     );
 
-    // Kernel/User mode state machine
+    // Kernel/User mode state machine (legacy SWI/SRET removed)
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             // Reset into kernel mode
             r_mode_kernel <= 1'b1;
         end else begin
-            // Enter kernel on SWI when it reaches EX/MA boundary
-            if (w_exma_opc == `OPC_SWI)
-                r_mode_kernel <= 1'b1;
-            // Leave kernel on SRET
-            else if (w_exma_opc == `OPC_SRET)
-                r_mode_kernel <= 1'b0;
             // CSR writes to STATUS allowed only in kernel; update mode bit from bit[0]
             if (w_csr_write_enable && (w_csr_write_addr == `CSR_IDX_STATUS) && r_mode_kernel)
                 r_mode_kernel <= w_csr_write_data[0];

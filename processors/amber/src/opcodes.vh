@@ -10,6 +10,7 @@
 //  - sr: signed register form (reg–reg ALU, signed flags)
 //  - si: signed immediate form (immediate is sign-extended; width varies by opcode)
 //  - so: signed offset form (PC-relative or base+offset; offset is sign-extended; width varies)
+//  - v : checked/trap variant (raises SWI on UB: range/overflow/bounds)
 
 // OPCLASSES
 `define OPCLASS_0 4'b0000
@@ -75,6 +76,8 @@
 `define SUBOP_SHRui 4'b1011 // µop & isa
 `define SUBOP_RORui 4'b1100 // µop & isa
 `define SUBOP_CMPui 4'b1101 // µop & isa
+`define SUBOP_SHLuiv 4'b1110 // isa (trap on range)
+`define SUBOP_SHRuiv 4'b1111 // isa (trap on range)
 
 `define OPC_LUIui {`OPCLASS_1, `SUBOP_LUIui}
 `define OPC_MOVui {`OPCLASS_1, `SUBOP_MOVui}
@@ -88,84 +91,97 @@
 `define OPC_SHRui {`OPCLASS_1, `SUBOP_SHRui}
 `define OPC_RORui {`OPCLASS_1, `SUBOP_RORui}
 `define OPC_CMPui {`OPCLASS_1, `SUBOP_CMPui}
+`define OPC_SHLuiv {`OPCLASS_1, `SUBOP_SHLuiv}
+`define OPC_SHRuiv {`OPCLASS_1, `SUBOP_SHRuiv}
 
 // OPCLASS_2
-`define SUBOP_ADDsr 4'b0011 // µop & isa
-`define SUBOP_SUBsr 4'b0100 // µop & isa
-`define SUBOP_NEGsr 4'b0101 // µop & isa
-`define SUBOP_SHRsr 4'b1011 // µop & isa
-`define SUBOP_CMPsr 4'b1101 // µop & isa
-`define SUBOP_TSTsr 4'b1110 // µop & isa
+`define SUBOP_ADDsr  4'b0011 // µop & isa
+`define SUBOP_SUBsr  4'b0100 // µop & isa
+`define SUBOP_NEGsr  4'b0101 // µop & isa
+`define SUBOP_NEGsv  4'b0110 // isa (trap on overflow)
+`define SUBOP_ADDsv  4'b0111 // isa (trap on overflow)
+`define SUBOP_SUBsv  4'b1000 // isa (trap on overflow)
+`define SUBOP_SHRsrv 4'b1010 // isa (trap on range)
+`define SUBOP_SHRsr  4'b1011 // µop & isa
+`define SUBOP_CMPsr  4'b1101 // µop & isa
+`define SUBOP_TSTsr  4'b1110 // µop & isa
 
 `define OPC_ADDsr {`OPCLASS_2, `SUBOP_ADDsr}
 `define OPC_SUBsr {`OPCLASS_2, `SUBOP_SUBsr}
 `define OPC_NEGsr {`OPCLASS_2, `SUBOP_NEGsr}
+`define OPC_NEGsv {`OPCLASS_2, `SUBOP_NEGsv}
 `define OPC_SHRsr {`OPCLASS_2, `SUBOP_SHRsr}
+`define OPC_SHRsrv {`OPCLASS_2, `SUBOP_SHRsrv}
 `define OPC_CMPsr {`OPCLASS_2, `SUBOP_CMPsr}
 `define OPC_TSTsr {`OPCLASS_2, `SUBOP_TSTsr}
+`define OPC_ADDsv {`OPCLASS_2, `SUBOP_ADDsv}
+`define OPC_SUBsv {`OPCLASS_2, `SUBOP_SUBsv}
 
 // OPCLASS_3
 `define SUBOP_MOVsi 4'b0001 // µop & isa
 `define SUBOP_MCCsi 4'b0010 // µop & isa
 `define SUBOP_ADDsi 4'b0011 // µop & isa
 `define SUBOP_SUBsi 4'b0100 // µop & isa
-`define SUBOP_SHRsi 4'b1011 // µop & isa
+`define SUBOP_ADDsiv 4'b0110 // isa (trap on overflow)
+`define SUBOP_SUBsiv 4'b0111 // isa (trap on overflow)
+`define SUBOP_SHRsi  4'b1011 // µop & isa
+`define SUBOP_SHRsiv 4'b1100 // isa (trap on range)
 `define SUBOP_CMPsi 4'b1101 // µop & isa
 
 `define OPC_MOVsi {`OPCLASS_3, `SUBOP_MOVsi}
 `define OPC_MCCsi {`OPCLASS_3, `SUBOP_MCCsi}
 `define OPC_ADDsi {`OPCLASS_3, `SUBOP_ADDsi}
 `define OPC_SUBsi {`OPCLASS_3, `SUBOP_SUBsi}
-`define OPC_SHRsi {`OPCLASS_3, `SUBOP_SHRsi}
+`define OPC_ADDsiv {`OPCLASS_3, `SUBOP_ADDsiv}
+`define OPC_SUBsiv {`OPCLASS_3, `SUBOP_SUBsiv}
+`define OPC_SHRsi  {`OPCLASS_3, `SUBOP_SHRsi}
+`define OPC_SHRsiv {`OPCLASS_3, `SUBOP_SHRsiv}
 `define OPC_CMPsi {`OPCLASS_3, `SUBOP_CMPsi}
 
-// OPCLASS_4
-`define SUBOP_LDso  4'b0000 // µop & isa
-`define SUBOP_STso  4'b0001 // µop & isa
-`define SUBOP_STui  4'b0010 // µop & isa
-`define SUBOP_STsi  4'b0011 // µop & isa
-`define SUBOP_LDAso 4'b0100 // µop & isa
-`define SUBOP_STAso 4'b0101 // µop & isa
-`define SUBOP_LDur  4'b0110 // µop & isa
-`define SUBOP_STur  4'b0111 // µop & isa
+// OPCLASS_4 — CHERI Loads/Stores (via CR)
+`define SUBOP_LDcso  4'b0000 // isa
+`define SUBOP_STcso  4'b0001 // isa
+`define SUBOP_STui   4'b0010 // isa
+`define SUBOP_STsi   4'b0011 // isa
+`define SUBOP_CLDcso 4'b0100 // isa
+`define SUBOP_CSTcso 4'b0101 // isa
 
-`define OPC_LDso  {`OPCLASS_4, `SUBOP_LDso}
-`define OPC_STso  {`OPCLASS_4, `SUBOP_STso}
-`define OPC_STui  {`OPCLASS_4, `SUBOP_STui}
-`define OPC_STsi  {`OPCLASS_4, `SUBOP_STsi}
-`define OPC_LDAso {`OPCLASS_4, `SUBOP_LDAso}
-`define OPC_STAso {`OPCLASS_4, `SUBOP_STAso}
-`define OPC_LDur  {`OPCLASS_4, `SUBOP_LDur}
-`define OPC_STur  {`OPCLASS_4, `SUBOP_STur}
+`define OPC_LDcso  {`OPCLASS_4, `SUBOP_LDcso}
+`define OPC_STcso  {`OPCLASS_4, `SUBOP_STcso}
+`define OPC_STui   {`OPCLASS_4, `SUBOP_STui}
+`define OPC_STsi   {`OPCLASS_4, `SUBOP_STsi}
+`define OPC_CLDcso {`OPCLASS_4, `SUBOP_CLDcso}
+`define OPC_CSTcso {`OPCLASS_4, `SUBOP_CSTcso}
 
-// OPCLASS_5
-`define SUBOP_MOVAur 4'b0001 // µop & isa
-`define SUBOP_MOVDur 4'b0010 // µop & isa
-`define SUBOP_ADDAur 4'b0011 // µop & isa
-`define SUBOP_SUBAur 4'b0100 // µop & isa
-`define SUBOP_ADDAsr 4'b0101 // µop & isa
-`define SUBOP_SUBAsr 4'b0110 // µop & isa
-`define SUBOP_ADDAsi 4'b0111 // µop & isa
-`define SUBOP_SUBAsi 4'b1000 // µop & isa
-`define SUBOP_LEAso  4'b1001 // µop & isa
-`define SUBOP_ADRAso 4'b1010 // µop & isa
-`define SUBOP_MOVAui 4'b1011 // µop & isa
-`define SUBOP_CMPAur 4'b1101 // µop & isa
-`define SUBOP_TSTAur 4'b1110 // µop & isa
+// OPCLASS_5 — CHERI Capability ops (moves, offset/bounds)
+`define SUBOP_CMOV    4'b0001 // isa
+`define SUBOP_CINC    4'b0010 // isa
+`define SUBOP_CINCi   4'b0011 // isa
+`define SUBOP_CSETB   4'b0100 // isa
+`define SUBOP_CSETBi  4'b0101 // isa
+`define SUBOP_CGETP   4'b0110 // isa
+`define SUBOP_CANDP   4'b0111 // isa
+`define SUBOP_CGETT   4'b1000 // isa
+`define SUBOP_CCLRT   4'b1001 // isa
+// checked variants (trap on bounds/invalid): allocate distinct subops
+`define SUBOP_CINCv   4'b1010 // isa (trap on bounds)
+`define SUBOP_CINCiv  4'b1011 // isa (trap on bounds)
+`define SUBOP_CSETBv  4'b1100 // isa (trap on invalid bounds)
+`define SUBOP_CSETBiv 4'b1101 // isa (trap on invalid bounds)
 
-`define OPC_MOVAur {`OPCLASS_5, `SUBOP_MOVAur}
-`define OPC_MOVDur {`OPCLASS_5, `SUBOP_MOVDur}
-`define OPC_ADDAur {`OPCLASS_5, `SUBOP_ADDAur}
-`define OPC_SUBAur {`OPCLASS_5, `SUBOP_SUBAur}
-`define OPC_ADDAsr {`OPCLASS_5, `SUBOP_ADDAsr}
-`define OPC_SUBAsr {`OPCLASS_5, `SUBOP_SUBAsr}
-`define OPC_ADDAsi {`OPCLASS_5, `SUBOP_ADDAsi}
-`define OPC_SUBAsi {`OPCLASS_5, `SUBOP_SUBAsi}
-`define OPC_LEAso  {`OPCLASS_5, `SUBOP_LEAso}
-`define OPC_ADRAso {`OPCLASS_5, `SUBOP_ADRAso}
-`define OPC_MOVAui {`OPCLASS_5, `SUBOP_MOVAui}
-`define OPC_CMPAur {`OPCLASS_5, `SUBOP_CMPAur}
-`define OPC_TSTAur {`OPCLASS_5, `SUBOP_TSTAur}
+`define OPC_CMOV    {`OPCLASS_5, `SUBOP_CMOV}
+`define OPC_CINC    {`OPCLASS_5, `SUBOP_CINC}
+`define OPC_CINCi   {`OPCLASS_5, `SUBOP_CINCi}
+`define OPC_CSETB   {`OPCLASS_5, `SUBOP_CSETB}
+`define OPC_CSETBi  {`OPCLASS_5, `SUBOP_CSETBi}
+`define OPC_CGETP   {`OPCLASS_5, `SUBOP_CGETP}
+`define OPC_CANDP   {`OPCLASS_5, `SUBOP_CANDP}
+`define OPC_CGETT   {`OPCLASS_5, `SUBOP_CGETT}
+`define OPC_CCLRT   {`OPCLASS_5, `SUBOP_CCLRT}
+`define OPC_CINCv   {`OPCLASS_5, `SUBOP_CINCv}
+`define OPC_CINCiv  {`OPCLASS_5, `SUBOP_CINCiv}
+`define OPC_CSETBv  {`OPCLASS_5, `SUBOP_CSETBv}
+`define OPC_CSETBiv {`OPCLASS_5, `SUBOP_CSETBiv}
 
 // OPCLASS_6 — Control Flow (per updated docs)
 `define SUBOP_BTP   4'b0000 // isa
@@ -206,17 +222,16 @@
 `define OPC_CSRRD {`OPCLASS_8, `SUBOP_CSRRD}
 `define OPC_CSRWR {`OPCLASS_8, `SUBOP_CSRWR}
 
-// OPCLASS_9
-
-`define SUBOP_SRHLT  4'b0000 // µop & isa
+// OPCLASS_9 — privileged / kernel-only
+`define SUBOP_HLT    4'b0000 // isa
 `define SUBOP_SETSSP 4'b0001 // isa
-`define SUBOP_SWI    4'b0010 // isa
-`define SUBOP_SRET   4'b0011 // isa
+`define SUBOP_SYSCALL 4'b0010 // isa
+`define SUBOP_KRET   4'b0011 // isa
 
-`define OPC_SRHLT  {`OPCLASS_9, `SUBOP_SRHLT}
+`define OPC_HLT    {`OPCLASS_9, `SUBOP_HLT}
 `define OPC_SETSSP {`OPCLASS_9, `SUBOP_SETSSP}
-`define OPC_SWI    {`OPCLASS_9, `SUBOP_SWI}
-`define OPC_SRET   {`OPCLASS_9, `SUBOP_SRET}
+`define OPC_SYSCALL {`OPCLASS_9, `SUBOP_SYSCALL}
+`define OPC_KRET   {`OPCLASS_9, `SUBOP_KRET}
 
 // OPCLASS_A
 
@@ -280,11 +295,17 @@ function automatic [79:0] opc2str;
             `OPC_SHRui:   opc2str = "SHRui";
             `OPC_RORui:   opc2str = "RORui";
             `OPC_CMPui:   opc2str = "CMPui";
+            `OPC_SHLuiv:  opc2str = "SHLuiv";
+            `OPC_SHRuiv:  opc2str = "SHRuiv";
 // OPCLASS_2
             `OPC_NEGsr:   opc2str = "NEGsr";
+            `OPC_NEGsv:   opc2str = "NEGsv";
             `OPC_ADDsr:   opc2str = "ADDsr";
             `OPC_SUBsr:   opc2str = "SUBsr";
+            `OPC_ADDsv:   opc2str = "ADDsv";
+            `OPC_SUBsv:   opc2str = "SUBsv";
             `OPC_SHRsr:   opc2str = "SHRsr";
+            `OPC_SHRsrv:  opc2str = "SHRsrv";
             `OPC_CMPsr:   opc2str = "CMPsr";
             `OPC_TSTsr:   opc2str = "TSTsr";
 // OPCLASS_3
@@ -292,31 +313,18 @@ function automatic [79:0] opc2str;
             `OPC_MCCsi:   opc2str = "MCCsi";
             `OPC_ADDsi:   opc2str = "ADDsi";
             `OPC_SUBsi:   opc2str = "SUBsi";
+            `OPC_ADDsiv:  opc2str = "ADDsiv";
+            `OPC_SUBsiv:  opc2str = "SUBsiv";
             `OPC_SHRsi:   opc2str = "SHRsi";
+            `OPC_SHRsiv:  opc2str = "SHRsiv";
             `OPC_CMPsi:   opc2str = "CMPsi";
-// OPCLASS_4
-            `OPC_LDur:    opc2str = "LDur";
-            `OPC_STur:    opc2str = "STur";
+// OPCLASS_4 (CHERI LD/ST)
+            `OPC_LDcso:   opc2str = "LDcso";
+            `OPC_STcso:   opc2str = "STcso";
             `OPC_STui:    opc2str = "STui";
             `OPC_STsi:    opc2str = "STsi";
-            `OPC_LDso:    opc2str = "LDso";
-            `OPC_STso:    opc2str = "STso";
-            `OPC_LDAso:   opc2str = "LDAso";
-            `OPC_STAso:   opc2str = "STAso";
-// OPCLASS_5 (legacy AR ops)
-// OPCLASS_5 (legacy AR ops)
-            `OPC_MOVAur:  opc2str = "MOVAur";
-            `OPC_MOVDur:  opc2str = "MOVDur";
-            `OPC_ADDAur:  opc2str = "ADDAur";
-            `OPC_SUBAur:  opc2str = "SUBAur";
-            `OPC_ADDAsr:  opc2str = "ADDAsr";
-            `OPC_SUBAsr:  opc2str = "SUBAsr";
-            `OPC_ADDAsi:  opc2str = "ADDAsi";
-            `OPC_SUBAsi:  opc2str = "SUBAsi";
-            `OPC_LEAso:   opc2str = "LEAso";
-            `OPC_ADRAso:  opc2str = "ADRAso";
-            `OPC_CMPAur:  opc2str = "CMPAur";
-            `OPC_TSTAur:  opc2str = "TSTAur";
+            `OPC_CLDcso:  opc2str = "CLDcso";
+            `OPC_CSTcso:  opc2str = "CSTcso";
 // OPCLASS_6 (control flow)
             `OPC_BTP:     opc2str = "BTP";
             `OPC_JCCui:   opc2str = "JCCui";
@@ -327,23 +335,37 @@ function automatic [79:0] opc2str;
             `OPC_BSRsr:   opc2str = "BSRsr";
             `OPC_BSRso:   opc2str = "BSRso";
             `OPC_RET:     opc2str = "RET";
-// OPCLASS_8
+// OPCLASS_7
             `OPC_PUSHur:  opc2str = "PUSHur";
             `OPC_PUSHAur: opc2str = "PUSHAur";
             `OPC_POPur:   opc2str = "POPur";
             `OPC_POPAur:  opc2str = "POPAur";
-// OPCLASS_9
+// OPCLASS_8 (CSR)
             `OPC_CSRRD:   opc2str = "CSRRD";
             `OPC_CSRWR:   opc2str = "CSRWR";
-// OPCLASS_A
-            `OPC_SRHLT:   opc2str = "SRHLT";
+// OPCLASS_9 (priv)
+            `OPC_HLT:     opc2str = "HLT";
             `OPC_SETSSP:  opc2str = "SETSSP";
-            `OPC_SWI:     opc2str = "SWI";
-            `OPC_SRET:    opc2str = "SRET";
+            `OPC_SYSCALL: opc2str = "SYSCALL";
+            `OPC_KRET:    opc2str = "KRET";
 // OPCLASS_B
 // OPCLASS_C
 // OPCLASS_D
 // OPCLASS_E
+// OPCLASS_5 (CHERI caps)
+            `OPC_CMOV:    opc2str = "CMOV";
+            `OPC_CINC:    opc2str = "CINC";
+            `OPC_CINCi:   opc2str = "CINCi";
+            `OPC_CSETB:   opc2str = "CSETB";
+            `OPC_CSETBi:  opc2str = "CSETBi";
+            `OPC_CGETP:   opc2str = "CGETP";
+            `OPC_CANDP:   opc2str = "CANDP";
+            `OPC_CGETT:   opc2str = "CGETT";
+            `OPC_CCLRT:   opc2str = "CCLRT";
+            `OPC_CINCv:   opc2str = "CINCv";
+            `OPC_CINCiv:  opc2str = "CINCiv";
+            `OPC_CSETBv:  opc2str = "CSETBv";
+            `OPC_CSETBiv: opc2str = "CSETBiv";
 // OPCLASS_F
             `OPC_SRMOVur:  opc2str = "SRMOVur";
             `OPC_SRMOVAur: opc2str = "SRMOVAur";

@@ -13,18 +13,11 @@ module hazard(
     // for a fixed number of cycles regardless of following instructions.
     wire hazard = (
         // Loads
-        (iw_idex_opc == `OPC_LDur)   ||
-        (iw_idex_opc == `OPC_LDso)   ||
         (iw_idex_opc == `OPC_SRLDso) ||
-        (iw_idex_opc == `OPC_LDAso)  ||
         // Stores
-        (iw_idex_opc == `OPC_STur)   ||
         (iw_idex_opc == `OPC_STui)   ||
         (iw_idex_opc == `OPC_STsi)   ||
-        (iw_idex_opc == `OPC_STso)   ||
-        (iw_idex_opc == `OPC_SRSTso) ||
-        // Address register store (planned/ISA)
-        (iw_idex_opc == `OPC_STAso)
+        (iw_idex_opc == `OPC_SRSTso)
     );
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin

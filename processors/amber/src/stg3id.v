@@ -38,20 +38,17 @@ module stg_id(
 
     // Signed immediates present
     wire w_sgn_en =
-        (w_opclass == `OPCLASS_2) || (w_opclass == `OPCLASS_3) || (w_opclass == `OPCLASS_5) ||
+        (w_opclass == `OPCLASS_2) || (w_opclass == `OPCLASS_3) ||
         (w_opc == `OPC_STsi)      ||
-        (w_opc == `OPC_ADDAsr)    || (w_opc == `OPC_SUBAsr)    || (w_opc == `OPC_ADDAsi)    ||
-        (w_opc == `OPC_SUBAsi)    || (w_opc == `OPC_LEAso)     || (w_opc == `OPC_ADRAso)    ||
         (w_opc == `OPC_BCCsr)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
         (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso);
 
     // Immediates present (any size)
     wire w_imm_en =
-        (w_opclass == `OPCLASS_1) || (w_opclass == `OPCLASS_3) || (w_opclass == `OPCLASS_5) ||
-        (w_opc == `OPC_ADDAsi)    || (w_opc == `OPC_SUBAsi)    || (w_opc == `OPC_LEAso)     ||
-        (w_opc == `OPC_ADRAso)    || (w_opc == `OPC_STui)      || (w_opc == `OPC_STsi)      ||
-        (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     || (w_opc == `OPC_SWI) ||
+        (w_opclass == `OPCLASS_1) || (w_opclass == `OPCLASS_3) ||
+        (w_opc == `OPC_STui)      || (w_opc == `OPC_STsi)      ||
+        (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
         (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso)    ||
         (w_opc == `OPC_ROLui)     || (w_opc == `OPC_RORui);
@@ -69,15 +66,12 @@ module stg_id(
         (w_opc == `OPC_NOTur)     || (w_opc == `OPC_ANDur)     || (w_opc == `OPC_ORur)    ||
         (w_opc == `OPC_XORur)     || (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)   ||
         (w_opc == `OPC_ROLur)     || (w_opc == `OPC_RORur)     ||
-        (w_opc == `OPC_LDur)      || (w_opc == `OPC_LDso)      ||
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_NEGsr) ||
         (w_opc == `OPC_MOVui)     || (w_opc == `OPC_ADDui)     || (w_opc == `OPC_SUBui)   ||
         (w_opc == `OPC_ANDui)     || (w_opc == `OPC_ORui)      || (w_opc == `OPC_XORui)   ||
         (w_opc == `OPC_SHLui)     || (w_opc == `OPC_SHRui)     || (w_opc == `OPC_ROLui)   || (w_opc == `OPC_RORui) ||
         (w_opc == `OPC_MOVsi)     || (w_opc == `OPC_ADDsi)     || (w_opc == `OPC_SUBsi)   ||
         (w_opc == `OPC_SHRsi)     || (w_opc == `OPC_MCCur)     || (w_opc == `OPC_MCCsi)   ||
-        // AR->DR move writes DRt
-        (w_opc == `OPC_MOVDur)    ||
         // CSR read writes DRt
         (w_opc == `OPC_CSRRD);
 
@@ -95,9 +89,7 @@ module stg_id(
     // SR target write enable
     wire w_tgt_sr_we =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRADDsi)   ||
-        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur) ||
-        // SWI saves return PC into LR
-        (w_opc == `OPC_SWI);
+        (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur);
 
     wire w_has_tgt_sr =
         w_tgt_sr_we               || (w_opc == `OPC_SRSTso);
@@ -108,15 +100,10 @@ module stg_id(
         (w_opc == `OPC_MOVur)     || (w_opc == `OPC_ADDur)     || (w_opc == `OPC_SUBur)   ||
         (w_opc == `OPC_ANDur)     || (w_opc == `OPC_ORur)      || (w_opc == `OPC_XORur)   ||
         (w_opc == `OPC_SHLur)     || (w_opc == `OPC_SHRur)     || (w_opc == `OPC_ROLur)   || (w_opc == `OPC_RORur) || (w_opc == `OPC_CMPur)   ||
-        // Stores use DRs as source
-        (w_opc == `OPC_STur)      || (w_opc == `OPC_STso)      ||
         // Signed ALU uses
         (w_opc == `OPC_ADDsr)     || (w_opc == `OPC_SUBsr)     || (w_opc == `OPC_SHRsr)   || (w_opc == `OPC_CMPsr) ||
         // Conditional move consults DRs
         (w_opc == `OPC_MCCur)     ||
-        // OPCLASS_6 AR-ALU that take DRs as source
-        (w_opc == `OPC_MOVAur)    || (w_opc == `OPC_ADDAur)    || (w_opc == `OPC_SUBAur)  ||
-        (w_opc == `OPC_ADDAsr)    || (w_opc == `OPC_SUBAsr)    ||
         // CSR write takes DRs as source
         (w_opc == `OPC_CSRWR);
 
@@ -149,16 +136,15 @@ module stg_id(
             `OPC_ROLui, `OPC_RORui,
             `OPC_MOVsi, `OPC_ADDsi, `OPC_SUBsi, `OPC_SHRsi, `OPC_CMPsi,
             `OPC_JCCui, `OPC_BCCso,
-            `OPC_LDAso, `OPC_STAso, `OPC_LEAso, `OPC_ADDAsi, `OPC_SUBAsi,
             `OPC_STui, `OPC_SRSTso, `OPC_SRLDso: begin
                 r_imm12_val = w_imm12_all;
             end
             // 14-bit immediates
-            `OPC_STsi, `OPC_ADRAso, `OPC_SRADDsi, `OPC_SRSUBsi: begin
+            `OPC_STsi, `OPC_SRADDsi, `OPC_SRSUBsi: begin
                 r_imm14_val = w_imm14_all;
             end
             // 10-bit immediate
-            `OPC_SRJCCso, `OPC_LDso, `OPC_STso: begin
+            `OPC_SRJCCso: begin
                 r_imm10_val = w_imm10_all;
             end
             // 16-bit immediate
@@ -191,21 +177,16 @@ module stg_id(
         r_src_gp_sel = `SIZE_SRC_GP'b0;
         if (w_has_src_gp) begin
             case (w_opc)
-                // DR source field at [13:10] for stores and OPCLASS_6 DR-source ops
-                `OPC_STur, `OPC_STso,
-                `OPC_MOVAur, `OPC_ADDAur, `OPC_SUBAur, `OPC_ADDAsr, `OPC_SUBAsr: r_src_gp_sel = iw_instr[13:10];
-                default:                                           r_src_gp_sel = iw_instr[11:8];
+                // DR source field at [13:10] for legacy stores
+                default: r_src_gp_sel = iw_instr[11:8];
             endcase
         end
     end
     wire [`HBIT_SRC_GP:0] w_src_gp = r_src_gp_sel;
-    // Target SR: for most ops it comes from [15:14], but SWI/SRET target LR explicitly
+    // Target SR: for most ops it comes from [15:14]
     reg  [`HBIT_TGT_SR:0] r_tgt_sr_sel;
     always @* begin
-        if (w_opc == `OPC_SWI || w_opc == `OPC_SRET) begin
-            // Force LR selection for SWI (save return) and SRET (return from LR)
-            r_tgt_sr_sel = `SR_IDX_LR;
-        end else if (w_has_tgt_sr) begin
+        if (w_has_tgt_sr) begin
             r_tgt_sr_sel = iw_instr[15:14];
         end else begin
             r_tgt_sr_sel = `SIZE_TGT_SR'b0;
@@ -223,24 +204,9 @@ module stg_id(
         r_has_src_ar = 1'b0; r_src_ar = {(`HBIT_TGT_AR+1){1'b0}};
         r_has_tgt_ar = 1'b0; r_tgt_ar = {(`HBIT_TGT_AR+1){1'b0}};
         case (w_opc)
-            // OPCLASS_4 base
-            `OPC_LDur:   begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
-            `OPC_STur:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            // OPCLASS_4 base (immediate stores)
             `OPC_STui:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             `OPC_STsi:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            // OPCLASS_5 base + offset
-            `OPC_LDso:   begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
-            `OPC_STso:   begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            `OPC_LDAso:  begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            `OPC_STAso:  begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            // OPCLASS_6 address ALU & moves
-            `OPC_MOVAur, `OPC_ADDAur, `OPC_SUBAur, `OPC_ADDAsr, `OPC_SUBAsr, `OPC_ADDAsi, `OPC_SUBAsi,
-            `OPC_LEAso, `OPC_ADRAso: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            `OPC_MOVDur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
-            `OPC_CMPAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            `OPC_TSTAur: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
-            // OPCLASS_7 control flow
-            // `OPC_JCCur` (deprecated) removed
             // OPCLASS_F SR/AR µops
             `OPC_SRMOVAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; end
         endcase
