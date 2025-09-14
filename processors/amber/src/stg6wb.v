@@ -66,6 +66,16 @@ module stg_wb(
     assign ow_sr_write_addr   = iw_tgt_sr;
     assign ow_sr_write_data   = iw_sr_result;
     assign ow_ar_write_enable = iw_tgt_ar_we ? 1'b1 : 1'b0;
+`ifndef SYNTHESIS
+    always @(*) begin
+        if (iw_tgt_ar_we) begin
+            $display("[WB] AR write CR%0d := %0d", iw_tgt_ar, iw_ar_result);
+        end
+        if (iw_cr_we_cur) begin
+            $display("[WB] CR write CUR CR%0d := %0d", iw_cr_write_addr, iw_cr_cur);
+        end
+    end
+`endif
     assign ow_ar_write_addr   = iw_tgt_ar;
     assign ow_ar_write_data   = iw_ar_result;
     // Pass-through CR writeback controls

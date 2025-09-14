@@ -92,6 +92,14 @@ module mem #(
         if (iw_we[0]) $display("mem wr0 addr=%0d data=%h (is48=%0d)", iw_addr[0], iw_wdata[0], iw_is48[0]);
         if (iw_we[1]) $display("mem wr1 addr=%0d data=%h (is48=%0d)", iw_addr[1], iw_wdata[1], iw_is48[1]);
 `endif
+`ifndef SYNTHESIS
+        if (iw_we[0]) begin
+            $display("[MEM] P0 write addr=%0d lo=%h hi=%h is48=%0d", iw_addr[0], iw_wdata[0][23:0], iw_wdata[0][47:24], iw_is48[0]);
+        end
+        if (iw_we[1]) begin
+            $display("[MEM] P1 write addr=%0d lo=%h hi=%h is48=%0d", iw_addr[1], iw_wdata[1][23:0], iw_wdata[1][47:24], iw_is48[1]);
+        end
+`endif
         // Registered read outputs with forwarding
         or_rdata[0] <= rdata0_mux;
         or_rdata[1] <= rdata1_mux;

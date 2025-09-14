@@ -63,7 +63,12 @@ module regcr(
         end else begin
             if (iw_write_en_base)  r_base[iw_write_addr]  <= iw_write_base;
             if (iw_write_en_len)   r_len[iw_write_addr]   <= iw_write_len;
-            if (iw_write_en_cur)   r_cur[iw_write_addr]   <= iw_write_cur;
+            if (iw_write_en_cur) begin
+                r_cur[iw_write_addr] <= iw_write_cur;
+`ifndef SYNTHESIS
+                $display("[CR] write CUR CR%0d := %0d", iw_write_addr, iw_write_cur);
+`endif
+            end
             if (iw_write_en_perms) r_perms[iw_write_addr] <= iw_write_perms;
             if (iw_write_en_attr)  r_attr[iw_write_addr]  <= iw_write_attr;
             if (iw_write_en_tag)   r_tag[iw_write_addr]   <= iw_write_tag;

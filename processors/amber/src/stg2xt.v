@@ -10,7 +10,11 @@ module stg_xt(
     input wire  [`HBIT_DATA:0] iw_instr,
     output wire [`HBIT_DATA:0] ow_instr,
     input wire                 iw_flush,
-    input wire                 iw_stall
+    input wire                 iw_stall,
+    // Export whether a macro expansion sequence is active
+    output wire                ow_busy,
+    // Asserted in the cycle a new sequence starts (before ow_busy rises)
+    output wire                ow_seq_start
 );
     // Translate stage: expand ISA macros into micro-ops.
     localparam integer MAX_SEQ = 64;
@@ -154,6 +158,10 @@ module stg_xt(
         if (r_busy) begin
             // Emit current micro-op from active sequence
             r_instr = r_instr_list[r_idx];
+`ifndef SYNTHESIS
+            // Debug: show micro-op being emitted from expansion
+            $display("[XT] seq idx=%0d of %0d instr=%h", r_idx, r_cnt, r_instr);
+`endif
         end else begin
             // Not in a sequence: either pass-through or start one
             case (w_opclass)
@@ -165,9 +173,9 @@ module stg_xt(
                         // Build a widened sequence using LR as base pointer and SSP as temp data SR.
                         // Insert 6 NOPs between producer/consumer to avoid needing forwarding.
                         w_seq_start   = 1'b1;
-                        w_seq_len     = 6'd50;
-                        // indices per encoding
-                        // CRs at [13:12], CRt at [15:14]
+                        // Build the sequence without emitting a separate check op to avoid unintended flushes.
+                        w_seq_len     = 6'd54;
+                        // indices per encoding: CRs at [13:12], CRt at [15:14]
                         w_seq_list[0] = pack_cr2sr(`SR_IDX_LR, iw_instr[13:12], `CR_FLD_CUR);
                         w_seq_list[1] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_LR, {{4{w_imm10_val[9]}}, w_imm10_val});
                         // BASE
@@ -178,58 +186,65 @@ module stg_xt(
                         w_seq_list[6]  = pack_nop();
                         w_seq_list[7]  = pack_nop();
                         w_seq_list[8]  = pack_nop();
-                        w_seq_list[9]  = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_BASE);
+                        w_seq_list[9]  = pack_nop();
+                        w_seq_list[10] = pack_nop();
+                        w_seq_list[11] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_BASE);
                         // LEN
-                        w_seq_list[10] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd2);
-                        w_seq_list[11] = pack_nop();
-                        w_seq_list[12] = pack_nop();
+                        w_seq_list[12] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd2);
                         w_seq_list[13] = pack_nop();
                         w_seq_list[14] = pack_nop();
                         w_seq_list[15] = pack_nop();
                         w_seq_list[16] = pack_nop();
-                        w_seq_list[17] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_LEN);
-                        // CUR
-                        w_seq_list[18] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd4);
+                        w_seq_list[17] = pack_nop();
+                        w_seq_list[18] = pack_nop();
                         w_seq_list[19] = pack_nop();
                         w_seq_list[20] = pack_nop();
-                        w_seq_list[21] = pack_nop();
-                        w_seq_list[22] = pack_nop();
+                        w_seq_list[21] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_LEN);
+                        // CUR
+                        w_seq_list[22] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd4);
                         w_seq_list[23] = pack_nop();
                         w_seq_list[24] = pack_nop();
-                        w_seq_list[25] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_CUR);
-                        // PERMS
-                        w_seq_list[26] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd6);
+                        w_seq_list[25] = pack_nop();
+                        w_seq_list[26] = pack_nop();
                         w_seq_list[27] = pack_nop();
                         w_seq_list[28] = pack_nop();
                         w_seq_list[29] = pack_nop();
                         w_seq_list[30] = pack_nop();
-                        w_seq_list[31] = pack_nop();
-                        w_seq_list[32] = pack_nop();
-                        w_seq_list[33] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_PERMS);
-                        // ATTR
-                        w_seq_list[34] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd8);
+                        w_seq_list[31] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_CUR);
+                        // PERMS
+                        w_seq_list[32] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd6);
+                        w_seq_list[33] = pack_nop();
+                        w_seq_list[34] = pack_nop();
                         w_seq_list[35] = pack_nop();
                         w_seq_list[36] = pack_nop();
                         w_seq_list[37] = pack_nop();
                         w_seq_list[38] = pack_nop();
                         w_seq_list[39] = pack_nop();
                         w_seq_list[40] = pack_nop();
-                        w_seq_list[41] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_ATTR);
-                        // TAG
-                        w_seq_list[42] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd10);
+                        w_seq_list[41] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_PERMS);
+                        // ATTR
+                        w_seq_list[42] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd8);
                         w_seq_list[43] = pack_nop();
                         w_seq_list[44] = pack_nop();
                         w_seq_list[45] = pack_nop();
                         w_seq_list[46] = pack_nop();
                         w_seq_list[47] = pack_nop();
                         w_seq_list[48] = pack_nop();
-                        w_seq_list[49] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_TAG);
-                        r_instr       = w_seq_list[0];
+                        w_seq_list[49] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_ATTR);
+                        // TAG
+                        // Final block: load tag
+                        // Extend sequence by two extra NOPs to ensure memory result reachable
+                        // before SR2CR consumes it
+                        w_seq_list[50] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_SSP, `SR_IDX_LR, 12'sd10);
+                        w_seq_list[51] = pack_nop();
+                        w_seq_list[52] = pack_nop();
+                        w_seq_list[53] = pack_sr2cr(iw_instr[15:14], `SR_IDX_SSP, `CR_FLD_TAG);
+                        r_instr        = w_seq_list[0];
                     end else if (w_subop == `SUBOP_CSTcso) begin
                         // CSTcso CRs, #offs(CRt)
                         w_seq_start   = 1'b1;
-                        w_seq_len     = 6'd50;
-                        // Effective address from CRt.cur + off into LR
+                        w_seq_len     = 6'd54;
+                        // Effective address from CRt.cur + off into LR (no separate check op)
                         w_seq_list[0] = pack_cr2sr(`SR_IDX_LR, iw_instr[15:14], `CR_FLD_CUR);
                         w_seq_list[1] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_LR, {{4{w_imm10_val[9]}}, w_imm10_val});
                         // BASE
@@ -240,53 +255,57 @@ module stg_xt(
                         w_seq_list[6]  = pack_nop();
                         w_seq_list[7]  = pack_nop();
                         w_seq_list[8]  = pack_nop();
-                        w_seq_list[9]  = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd0);
+                        w_seq_list[9]  = pack_nop();
+                        w_seq_list[10] = pack_nop();
+                        w_seq_list[11] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd0);
                         // LEN
-                        w_seq_list[10] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_LEN);
-                        w_seq_list[11] = pack_nop();
-                        w_seq_list[12] = pack_nop();
+                        w_seq_list[12] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_LEN);
                         w_seq_list[13] = pack_nop();
                         w_seq_list[14] = pack_nop();
                         w_seq_list[15] = pack_nop();
                         w_seq_list[16] = pack_nop();
-                        w_seq_list[17] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd2);
-                        // CUR
-                        w_seq_list[18] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_CUR);
+                        w_seq_list[17] = pack_nop();
+                        w_seq_list[18] = pack_nop();
                         w_seq_list[19] = pack_nop();
                         w_seq_list[20] = pack_nop();
-                        w_seq_list[21] = pack_nop();
-                        w_seq_list[22] = pack_nop();
+                        w_seq_list[21] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd2);
+                        // CUR
+                        w_seq_list[22] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_CUR);
                         w_seq_list[23] = pack_nop();
                         w_seq_list[24] = pack_nop();
-                        w_seq_list[25] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd4);
-                        // PERMS
-                        w_seq_list[26] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_PERMS);
+                        w_seq_list[25] = pack_nop();
+                        w_seq_list[26] = pack_nop();
                         w_seq_list[27] = pack_nop();
                         w_seq_list[28] = pack_nop();
                         w_seq_list[29] = pack_nop();
                         w_seq_list[30] = pack_nop();
-                        w_seq_list[31] = pack_nop();
-                        w_seq_list[32] = pack_nop();
-                        w_seq_list[33] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd6);
-                        // ATTR
-                        w_seq_list[34] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_ATTR);
+                        w_seq_list[31] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd4);
+                        // PERMS
+                        w_seq_list[32] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_PERMS);
+                        w_seq_list[33] = pack_nop();
+                        w_seq_list[34] = pack_nop();
                         w_seq_list[35] = pack_nop();
                         w_seq_list[36] = pack_nop();
                         w_seq_list[37] = pack_nop();
                         w_seq_list[38] = pack_nop();
                         w_seq_list[39] = pack_nop();
                         w_seq_list[40] = pack_nop();
-                        w_seq_list[41] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd8);
-                        // TAG
-                        w_seq_list[42] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_TAG);
+                        w_seq_list[41] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd6);
+                        // ATTR
+                        w_seq_list[42] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_ATTR);
                         w_seq_list[43] = pack_nop();
                         w_seq_list[44] = pack_nop();
                         w_seq_list[45] = pack_nop();
                         w_seq_list[46] = pack_nop();
                         w_seq_list[47] = pack_nop();
                         w_seq_list[48] = pack_nop();
-                        w_seq_list[49] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd10);
-                        r_instr       = w_seq_list[0];
+                        w_seq_list[49] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd8);
+                        // TAG
+                        w_seq_list[50] = pack_cr2sr(`SR_IDX_SSP, iw_instr[13:12], `CR_FLD_TAG);
+                        w_seq_list[51] = pack_nop();
+                        w_seq_list[52] = pack_nop();
+                        w_seq_list[53] = pack_sr_sr_imm12(`OPC_SRSTso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd10);
+                        r_instr        = w_seq_list[0];
                     end else begin
                         r_instr = iw_instr;
                     end
@@ -433,6 +452,8 @@ module stg_xt(
         end
     end
 
-    assign ow_pc    = r_pc_latch;
-    assign ow_instr = r_instr_latch;
+    assign ow_pc        = r_pc_latch;
+    assign ow_instr     = r_instr_latch;
+    assign ow_busy      = r_busy;
+    assign ow_seq_start = w_seq_start;
 endmodule

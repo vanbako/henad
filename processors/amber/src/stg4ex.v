@@ -81,6 +81,10 @@ module stg_ex(
     reg [`HBIT_IMM12:0] r_uimm_bank0; // bits [23:12] for 24-bit immediates
     reg [`HBIT_IMM12:0] r_uimm_bank1; // bits [35:24] lower-half of 48-bit
     reg [`HBIT_IMM12:0] r_uimm_bank2; // bits [47:36] upper-half of 48-bit
+    // Valid bits for uimm banks (cleared on reset/flush, set by LUIui)
+    reg                  r_uimm_bank0_valid;
+    reg                  r_uimm_bank1_valid;
+    reg                  r_uimm_bank2_valid;
     reg [`HBIT_DATA:0]  r_ir;
     reg [`HBIT_DATA:0]  r_se_imm12_val;
     reg [`HBIT_DATA:0]  r_se_imm14_val;
@@ -121,18 +125,24 @@ module stg_ex(
             r_uimm_bank0 <= {(`HBIT_IMM12+1){1'b0}};
             r_uimm_bank1 <= {(`HBIT_IMM12+1){1'b0}};
             r_uimm_bank2 <= {(`HBIT_IMM12+1){1'b0}};
+            r_uimm_bank0_valid <= 1'b0;
+            r_uimm_bank1_valid <= 1'b0;
+            r_uimm_bank2_valid <= 1'b0;
         end else if (!iw_stall) begin
             if (iw_flush) begin
                 // Prevent cross-path mixing after branch/flush
                 r_uimm_bank0 <= {(`HBIT_IMM12+1){1'b0}};
                 r_uimm_bank1 <= {(`HBIT_IMM12+1){1'b0}};
                 r_uimm_bank2 <= {(`HBIT_IMM12+1){1'b0}};
+                r_uimm_bank0_valid <= 1'b0;
+                r_uimm_bank1_valid <= 1'b0;
+                r_uimm_bank2_valid <= 1'b0;
             end else if (iw_opc == `OPC_LUIui) begin
                 case (iw_instr[15:14])
-                    2'b00: r_uimm_bank0 <= iw_imm12_val;
-                    2'b01: r_uimm_bank1 <= iw_imm12_val;
-                    2'b10: r_uimm_bank2 <= iw_imm12_val;
-                    default: r_uimm_bank0 <= iw_imm12_val; // treat others as bank0
+                    2'b00: begin r_uimm_bank0 <= iw_imm12_val; r_uimm_bank0_valid <= 1'b1; end
+                    2'b01: begin r_uimm_bank1 <= iw_imm12_val; r_uimm_bank1_valid <= 1'b1; end
+                    2'b10: begin r_uimm_bank2 <= iw_imm12_val; r_uimm_bank2_valid <= 1'b1; end
+                    default: begin r_uimm_bank0 <= iw_imm12_val; r_uimm_bank0_valid <= 1'b1; end // treat others as bank0
                 endcase
             end
         end
@@ -166,7 +176,8 @@ module stg_ex(
         r_se_imm12_val  = {{12{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val};
         r_se_imm14_val  = {{10{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
         r_se_imm10_val  = {{14{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
-        r_se_imm16_val  = {{8{iw_imm16_val[`HBIT_IMM16]}},  iw_imm16_val};
+        // Sign-extend 16-bit immediate to full 48-bit address domain
+        r_se_imm16_val  = {{32{iw_imm16_val[`HBIT_IMM16]}}, iw_imm16_val};
         if ((iw_opc == `OPC_BCCsr  ||
              iw_opc == `OPC_JCCui  || iw_opc == `OPC_BCCso ||
              iw_opc == `OPC_SRJCCso)) begin
@@ -184,6 +195,11 @@ module stg_ex(
                 `CC_AE: r_branch_taken = ~w_fl_in[`FLAG_C];
             endcase
         end
+`ifndef SYNTHESIS
+        if (r_branch_taken) begin
+            $display("[EX-BR] opc=%h pc=%0d -> %0d", iw_opc, iw_pc, r_branch_pc);
+        end
+`endif
         case (iw_opc)
             // CHERI: 24-bit loads/stores checked against CR
             `OPC_LDcso: begin
@@ -231,7 +247,9 @@ module stg_ex(
                 reg [47:0] newc;
                 reg fault;
                 delta = {{24{iw_src_gp_val[23]}}, iw_src_gp_val};
-                newc  = iw_cr_t_cur + delta;
+                // Use forwarded AR view of CRt.cursor so back-to-back updates
+                // chain correctly without waiting for WB commit.
+                newc  = iw_tgt_ar_val + delta;
                 fault = 1'b0;
                 if (iw_opc == `OPC_CINCv) begin
                     if (!((newc >= iw_cr_t_base) && (newc < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
@@ -242,8 +260,15 @@ module stg_ex(
                     r_trap_lr_we   = 1'b1;
                     r_sr_result    = iw_pc + `SIZE_ADDR'd1;
                 end else begin
-                    r_tgt_ar_we = 1'b1;
-                    r_ar_result = newc;
+                    // Drive both AR path and CR direct write to ensure commit
+                    r_tgt_ar_we   = 1'b1;
+                    r_ar_result   = newc;
+                    r_cr_write_addr = iw_tgt_ar;
+                    r_cr_we_cur     = 1'b1;
+                    r_cr_cur        = newc;
+`ifndef SYNTHESIS
+                    $display("[EX] CINC%c (reg) set CR%0d.cur := %0d", (iw_opc==`OPC_CINCv)?"v":" ", iw_tgt_ar, newc);
+`endif
                 end
             end
             `OPC_CINCi, `OPC_CINCiv: begin
@@ -251,8 +276,13 @@ module stg_ex(
                 reg [47:0] newc;
                 reg fault;
                 delta = {{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
-                newc  = iw_cr_t_cur + delta;
+                // Use forwarded AR view of CRt.cursor for immediate form as well
+                newc  = iw_tgt_ar_val + delta;
                 fault = 1'b0;
+`ifndef SYNTHESIS
+                $display("[EX] CINC%sv imm=%0d cur=%0d -> newc=%0d",
+                    (iw_opc==`OPC_CINCiv)?"iv":"i", $signed(iw_imm14_val), iw_cr_t_cur, newc);
+`endif
                 if (iw_opc == `OPC_CINCiv) begin
                     if (!((newc >= iw_cr_t_base) && (newc < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
                 end
@@ -262,8 +292,14 @@ module stg_ex(
                     r_trap_lr_we   = 1'b1;
                     r_sr_result    = iw_pc + `SIZE_ADDR'd1;
                 end else begin
-                    r_tgt_ar_we = 1'b1;
-                    r_ar_result = newc;
+                    r_tgt_ar_we     = 1'b1;
+                    r_ar_result     = newc;
+                    r_cr_write_addr = iw_tgt_ar;
+                    r_cr_we_cur     = 1'b1;
+                    r_cr_cur        = newc;
+`ifndef SYNTHESIS
+                    $display("[EX] CINC%c (imm) set CR%0d.cur := %0d", (iw_opc==`OPC_CINCiv)?"v":" ", iw_tgt_ar, newc);
+`endif
                 end
             end
             `OPC_CMOV: begin
@@ -275,6 +311,10 @@ module stg_ex(
                 r_cr_we_perms = 1'b1; r_cr_perms = iw_cr_s_perms;
                 r_cr_we_attr  = 1'b1; r_cr_attr  = iw_cr_s_attr;
                 r_cr_we_tag   = 1'b1; r_cr_tag   = iw_cr_s_tag;
+`ifndef SYNTHESIS
+                $display("[EX] CMOV CR%0d->CR%0d base=%0d len=%0d cur=%0d perms=%h tag=%0d",
+                    iw_src_ar, iw_tgt_ar, iw_cr_s_base, iw_cr_s_len, iw_cr_s_cur, iw_cr_s_perms, iw_cr_s_tag);
+`endif
             end
             `OPC_CSETB, `OPC_CSETBi, `OPC_CSETBv, `OPC_CSETBiv: begin
                 // Set bounds: base := CRs.cursor, len := DRs or imm
@@ -324,6 +364,49 @@ module stg_ex(
             `OPC_CGETT: begin
                 r_result = {23'b0, (iw_cr_s_tag ? 1'b1 : 1'b0)};
             end
+            // Check-only ops for capability load/store sequences
+            `OPC_CLDcso: begin
+                // Validate capability load: require LC permission and in-bounds for 10 BAUs
+                reg [47:0] eff;
+                reg [47:0] last;
+                reg [47:0] bound;
+                reg        fault;
+                fault = 1'b0;
+                eff   = iw_cr_s_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                last  = eff + 48'd10; // exclusive upper bound (covers words [0..9])
+                bound = iw_cr_s_base + iw_cr_s_len;
+                if (!iw_cr_s_tag)                         fault = 1'b1;
+                if (iw_cr_s_attr[`CR_ATTR_SEALED_BIT])    fault = 1'b1;
+                if (!iw_cr_s_perms[`CR_PERM_LC_BIT])      fault = 1'b1;
+                if (!( (eff >= iw_cr_s_base) && (last <= bound) )) fault = 1'b1;
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                end
+            end
+            `OPC_CSTcso: begin
+                // Validate capability store: require SC permission and in-bounds for 10 BAUs
+                reg [47:0] eff;
+                reg [47:0] last;
+                reg [47:0] bound;
+                reg        fault;
+                fault = 1'b0;
+                eff   = iw_cr_t_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                last  = eff + 48'd10;
+                bound = iw_cr_t_base + iw_cr_t_len;
+                if (!iw_cr_t_tag)                         fault = 1'b1;
+                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT])    fault = 1'b1;
+                if (!iw_cr_t_perms[`CR_PERM_SC_BIT])      fault = 1'b1;
+                if (!( (eff >= iw_cr_t_base) && (last <= bound) )) fault = 1'b1;
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                end
+            end
             // Micro-ops: CR2SR and SR2CR
             `OPC_CR2SR: begin
                 // field selector at [11:8]
@@ -351,7 +434,7 @@ module stg_ex(
             end
             
             `OPC_LUIui: begin
-                // r_ui_latch updated in sequential block
+                // r_uimm_* banks and valid bits updated in sequential block
             end
             `OPC_MOVur: begin
                 r_result = iw_src_gp_val;
@@ -502,14 +585,46 @@ module stg_ex(
             end
             
             `OPC_STui: begin
-                // Store 24-bit zero-extended immediate to (ARt)
-                r_addr   = iw_tgt_ar_val;
-                r_result = r_ir;
+                // CHERI-checked store: 24-bit immediate to (CRt.cursor)
+                reg [47:0] eff;
+                reg fault;
+                fault = 1'b0;
+                eff = iw_cr_t_cur; // no offset
+                if (!iw_cr_t_tag)                      fault = 1'b1;
+                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
+                if (!iw_cr_t_perms[`CR_PERM_W_BIT])    fault = 1'b1;
+                if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_addr   = eff;
+                    r_result = r_ir; // zero-extended 24-bit immediate
+                end
             end
             `OPC_STsi: begin
-                // Store 24-bit sign-extended immediate to (ARt)
-                r_addr   = iw_tgt_ar_val;
-                r_result = r_se_imm14_val;
+                // CHERI-checked store: 24-bit sign-extended immediate to (CRt.cursor)
+                reg [47:0] eff;
+                reg fault;
+                fault = 1'b0;
+                eff = iw_cr_t_cur; // no offset
+                if (!iw_cr_t_tag)                      fault = 1'b1;
+                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
+                if (!iw_cr_t_perms[`CR_PERM_W_BIT])    fault = 1'b1;
+                if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_addr   = eff;
+                    r_result = r_se_imm14_val;
+                end
             end
             
             
@@ -618,6 +733,32 @@ module stg_ex(
                     r_flags_we = 1'b1;
                 end
             end
+            `OPC_SHRsrv: begin
+                // Arithmetic right shift by variable amount with range trap
+                // Trap on n >= 24; otherwise identical behavior to SHRsr
+                reg [4:0] n;
+                reg [4:0] n_eff;
+                n = iw_src_gp_val[4:0];
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
+                    // Range trap: branch to handler base from uimm banks; save LR=PC+1, suppress GP write
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0; // do not update flags on trap
+                end else begin
+                    n_eff = n;
+                    r_result = $signed(iw_tgt_gp_val) >>> n_eff;
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_fl[`FLAG_N] = r_result[`HBIT_DATA];
+                    r_flags_we = 1'b1;
+                end
+            end
             `OPC_CMPsr: begin
                 reg signed [`HBIT_DATA:0] s_diff;
                 s_diff = $signed(iw_tgt_gp_val) - $signed(iw_src_gp_val);
@@ -659,48 +800,127 @@ module stg_ex(
                     r_branch_pc = iw_pc + $signed(iw_tgt_gp_val);
             end
             `OPC_MOVui: begin
-                r_result = r_ir;
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    // UIMM_STATE trap
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_result = r_ir;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_ADDui: begin
-                r_result = iw_tgt_gp_val + r_ir;
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_C] = (r_result < iw_tgt_gp_val) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_result = iw_tgt_gp_val + r_ir;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                    r_fl[`FLAG_C] = (r_result < iw_tgt_gp_val) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_SUBui: begin
-                r_result = iw_tgt_gp_val - r_ir;
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_C] = (iw_tgt_gp_val < r_ir) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_result = iw_tgt_gp_val - r_ir;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val < r_ir) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_ANDui: begin
-                r_result = iw_tgt_gp_val & r_ir;
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_result = iw_tgt_gp_val & r_ir;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_ORui: begin
-                r_result = iw_tgt_gp_val | r_ir;
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_result = iw_tgt_gp_val | r_ir;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_XORui: begin
-                r_result = iw_tgt_gp_val ^ r_ir;
-                r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_result = iw_tgt_gp_val ^ r_ir;
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_SHLui: begin
+                if (!r_uimm_bank0_valid) begin
+                    // UIMM_STATE trap
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    reg [4:0] n;
+                    n = r_ir[4:0];
+                    if (n == 5'd0) begin
+                        // No-op, flags unchanged
+                        r_result = iw_tgt_gp_val;
+                    end else if (n >= `SIZE_DATA) begin
+                        r_result = {`SIZE_DATA{1'b0}};
+                        r_fl[`FLAG_C] = 1'b0;
+                        r_fl[`FLAG_Z] = 1'b1;
+                        r_flags_we = 1'b1;
+                    end else begin
+                        r_result = iw_tgt_gp_val << n;
+                        r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (`SIZE_DATA - n)) & 1'b1);
+                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                        r_flags_we = 1'b1;
+                    end
+                end
+            end
+            `OPC_SHLuiv: begin
+                // Checked left shift: trap when imm5 >= 24 (ARITH_RANGE)
                 reg [4:0] n;
                 n = r_ir[4:0];
                 if (n == 5'd0) begin
-                    // No-op, flags unchanged
                     r_result = iw_tgt_gp_val;
                 end else if (n >= `SIZE_DATA) begin
-                    r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_C] = 1'b0;
-                    r_fl[`FLAG_Z] = 1'b1;
-                    r_flags_we = 1'b1;
+                    // Trap: branch to SWI vector from uimm banks; save LR=PC+1; cancel GP write/flags
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
                 end else begin
                     r_result = iw_tgt_gp_val << n;
                     r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (`SIZE_DATA - n)) & 1'b1);
@@ -709,48 +929,96 @@ module stg_ex(
                 end
             end
             `OPC_ROLui: begin
-                // Rotate left by immediate (use low 5 bits of r_ir)
-                reg [4:0] amt;
-                reg [4:0] amt_mod;
-                amt = r_ir[4:0];
-                amt_mod = amt % `SIZE_DATA;
-                if (amt_mod == 5'd0) begin
-                    r_result = iw_tgt_gp_val;
-                    // flags unchanged
+                if (!r_uimm_bank0_valid) begin
+                    // UIMM_STATE trap
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
                 end else begin
-                    r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
-                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod)) & 1'b1;
-                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                    r_flags_we = 1'b1;
+                    // Rotate left by immediate (use low 5 bits of r_ir)
+                    reg [4:0] amt;
+                    reg [4:0] amt_mod;
+                    amt = r_ir[4:0];
+                    amt_mod = amt % `SIZE_DATA;
+                    if (amt_mod == 5'd0) begin
+                        r_result = iw_tgt_gp_val;
+                        // flags unchanged
+                    end else begin
+                        r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
+                        r_fl[`FLAG_C] = (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod)) & 1'b1;
+                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                        r_flags_we = 1'b1;
+                    end
                 end
             end
             `OPC_RORui: begin
-                // Rotate right by immediate (use low 5 bits of r_ir)
-                reg [4:0] amt;
-                reg [4:0] amt_mod;
-                amt = r_ir[4:0];
-                amt_mod = amt % `SIZE_DATA;
-                if (amt_mod == 5'd0) begin
-                    r_result = iw_tgt_gp_val;
-                    // flags unchanged
+                if (!r_uimm_bank0_valid) begin
+                    // UIMM_STATE trap
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
                 end else begin
-                    r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
-                    r_fl[`FLAG_C] = (iw_tgt_gp_val >> (amt_mod-1)) & 1'b1;
-                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                    r_flags_we = 1'b1;
+                    // Rotate right by immediate (use low 5 bits of r_ir)
+                    reg [4:0] amt;
+                    reg [4:0] amt_mod;
+                    amt = r_ir[4:0];
+                    amt_mod = amt % `SIZE_DATA;
+                    if (amt_mod == 5'd0) begin
+                        r_result = iw_tgt_gp_val;
+                        // flags unchanged
+                    end else begin
+                        r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
+                        r_fl[`FLAG_C] = (iw_tgt_gp_val >> (amt_mod-1)) & 1'b1;
+                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                        r_flags_we = 1'b1;
+                    end
                 end
             end
             `OPC_SHRui: begin
+                if (!r_uimm_bank0_valid) begin
+                    // UIMM_STATE trap
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    reg [4:0] n;
+                    n = r_ir[4:0];
+                    if (n == 5'd0) begin
+                        // No-op, flags unchanged
+                        r_result = iw_tgt_gp_val;
+                    end else if (n >= `SIZE_DATA) begin
+                        r_result = {`SIZE_DATA{1'b0}};
+                        r_fl[`FLAG_C] = 1'b0;
+                        r_fl[`FLAG_Z] = 1'b1;
+                        r_flags_we = 1'b1;
+                    end else begin
+                        r_result = iw_tgt_gp_val >> n;
+                        r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
+                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                        r_flags_we = 1'b1;
+                    end
+                end
+            end
+            `OPC_SHRuiv: begin
+                // Checked right shift: trap when imm5 >= 24 (ARITH_RANGE)
                 reg [4:0] n;
                 n = r_ir[4:0];
                 if (n == 5'd0) begin
-                    // No-op, flags unchanged
                     r_result = iw_tgt_gp_val;
                 end else if (n >= `SIZE_DATA) begin
-                    r_result = {`SIZE_DATA{1'b0}};
-                    r_fl[`FLAG_C] = 1'b0;
-                    r_fl[`FLAG_Z] = 1'b1;
-                    r_flags_we = 1'b1;
+                    // Trap: branch to SWI vector from uimm banks; save LR=PC+1; cancel GP write/flags
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
                 end else begin
                     r_result = iw_tgt_gp_val >> n;
                     r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
@@ -759,14 +1027,32 @@ module stg_ex(
                 end
             end
             `OPC_CMPui: begin
-                r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_ir) ? 1'b1 : 1'b0;
-                r_fl[`FLAG_C] = (iw_tgt_gp_val < r_ir) ? 1'b1 : 1'b0;
-                r_flags_we = 1'b1;
+                if (!r_uimm_bank0_valid) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_ir) ? 1'b1 : 1'b0;
+                    r_fl[`FLAG_C] = (iw_tgt_gp_val < r_ir) ? 1'b1 : 1'b0;
+                    r_flags_we = 1'b1;
+                end
             end
             `OPC_JCCui: begin
-                if (r_branch_taken)
-                    // Assemble 48-bit absolute from banks and imm12
-                    r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
+                if (r_branch_taken) begin
+                    // If uimm banks are not valid, raise UIMM_STATE trap instead of branching
+                    if (!(r_uimm_bank0_valid & r_uimm_bank1_valid & r_uimm_bank2_valid)) begin
+                        r_branch_taken = 1'b1;
+                        r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                        r_trap_lr_we   = 1'b1;
+                        r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                        r_kill_gp_we   = 1'b1;
+                    end else begin
+                        // Assemble 48-bit absolute from banks and imm12
+                        r_branch_pc = {r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val};
+                    end
+                end
             end
             `OPC_MOVsi: begin
                 r_result = r_se_imm12_val;
@@ -806,16 +1092,16 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_V] =
-                    ((~(iw_tgt_gp_val[`HBIT_DATA-1] ^ r_se_imm12_val[`HBIT_DATA-1])) &&
-                    (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+                    ((~(iw_tgt_gp_val[`HBIT_DATA] ^ r_se_imm12_val[`HBIT_DATA])) &&
+                    (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
             `OPC_ADDsiv: begin
                 r_result = $signed(iw_tgt_gp_val) + $signed(r_se_imm12_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
                 r_fl[`FLAG_N] = ($signed(r_result) < 0);
-                r_fl[`FLAG_V] = ((~(iw_tgt_gp_val[`HBIT_DATA-1] ^ r_se_imm12_val[`HBIT_DATA-1])) &&
-                                 (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1]));
+                r_fl[`FLAG_V] = ((~(iw_tgt_gp_val[`HBIT_DATA] ^ r_se_imm12_val[`HBIT_DATA])) &&
+                                 (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA]));
                 if (r_fl[`FLAG_V]) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
@@ -832,16 +1118,16 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_N] = ($signed(r_result) < 0) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_V] =
-                    ((r_se_imm12_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1]) &&
-                    (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1])) ? 1'b1 : 1'b0;
+                    ((r_se_imm12_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA]) &&
+                    (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA])) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
             end
             `OPC_SUBsiv: begin
                 r_result = $signed(iw_tgt_gp_val) - $signed(r_se_imm12_val);
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
                 r_fl[`FLAG_N] = ($signed(r_result) < 0);
-                r_fl[`FLAG_V] = ((r_se_imm12_val[`HBIT_DATA-1] ^ iw_tgt_gp_val[`HBIT_DATA-1]) &&
-                                 (iw_tgt_gp_val[`HBIT_DATA-1] ^ r_result[`HBIT_DATA-1]));
+                r_fl[`FLAG_V] = ((r_se_imm12_val[`HBIT_DATA] ^ iw_tgt_gp_val[`HBIT_DATA]) &&
+                                 (iw_tgt_gp_val[`HBIT_DATA] ^ r_result[`HBIT_DATA]));
                 if (r_fl[`FLAG_V]) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
@@ -875,14 +1161,37 @@ module stg_ex(
                     r_flags_we = 1'b1;
                 end
             end
+            `OPC_SHRsiv: begin
+                // Checked arithmetic right shift by immediate: trap when imm5 >= 24 (ARITH_RANGE)
+                reg [4:0] n;
+                n = iw_imm12_val[4:0];
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
+                    // Trap: branch to SWI vector from uimm banks; save LR=PC+1; cancel GP write/flags
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
+                end else begin
+                    r_result = $signed(iw_tgt_gp_val) >>> n;
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_fl[`FLAG_N] = r_result[`HBIT_DATA];
+                    r_flags_we = 1'b1;
+                end
+            end
             `OPC_CMPsi: begin
                 reg signed [`HBIT_DATA:0] s_diff;
                 s_diff = $signed(iw_tgt_gp_val) - $signed(r_se_imm12_val);
                 r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_se_imm12_val) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_N] = (s_diff < 0) ? 1'b1 : 1'b0;
                 // Signed overflow detection for a - b: V=1 when sign(a)!=sign(b) and sign(a)!=sign(a-b)
-                r_fl[`FLAG_V] = ((iw_tgt_gp_val[`HBIT_DATA-1] ^ r_se_imm12_val[`HBIT_DATA-1]) &
-                                 (iw_tgt_gp_val[`HBIT_DATA-1] ^ s_diff[`HBIT_DATA-1]));
+                r_fl[`FLAG_V] = ((iw_tgt_gp_val[`HBIT_DATA] ^ r_se_imm12_val[`HBIT_DATA]) &
+                                 (iw_tgt_gp_val[`HBIT_DATA] ^ s_diff[`HBIT_DATA]));
                 r_flags_we = 1'b1;
             end
             `OPC_TSTsr: begin
@@ -931,8 +1240,9 @@ module stg_ex(
             end
             
             `OPC_BALso: begin
+                // Unconditional PC-relative branch by signed imm16
                 r_branch_taken = 1'b1;
-                r_branch_pc    = iw_pc + r_se_imm16_val;
+                r_branch_pc    = $signed(iw_pc) + $signed(r_se_imm16_val);
             end
             // Privileged/trap entry: SYSCALL/SWI
             `OPC_SYSCALL: begin
@@ -940,7 +1250,14 @@ module stg_ex(
                 r_sr_result    = iw_pc + `SIZE_ADDR'd1;
                 // Branch to absolute 48-bit target assembled from LUI banks + imm12
                 r_branch_taken = 1'b1;
-                r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val };
+                if (!(r_uimm_bank0_valid & r_uimm_bank1_valid & r_uimm_bank2_valid)) begin
+                    // UIMM_STATE trap
+                    r_branch_pc  = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we = 1'b1; // LR already set above
+                    r_kill_gp_we = 1'b1;
+                end else begin
+                    r_branch_pc  = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val };
+                end
             end
             // Kernel return: KRET/SRET — jump to LR (selected via ID stage)
             `OPC_KRET: begin

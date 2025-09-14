@@ -222,6 +222,15 @@ module dcache_16x16_24(
             b_is48  = pend_store_is48;
         end
     end
+`ifndef SYNTHESIS
+    // Debug: show write-through operations to backing memory
+    always @(posedge clk) begin
+        if (!rst && !miss_active && pend_store) begin
+            $display("[DC] WTHRU addr=%0d data_lo=%h data_hi=%h is48=%0d", pend_store_addr,
+                     pend_store_wdata[23:0], pend_store_wdata[47:24], pend_store_is48);
+        end
+    end
+`endif
 
     // Read datapath to front (registered like mem.v)
     reg [47:0] rd_p0, rd_p1;

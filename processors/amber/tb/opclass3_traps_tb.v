@@ -5,7 +5,7 @@
 `include "src/sizes.vh"
 `include "src/flags.vh"
 
-module branch_tb;
+module opclass3_traps_tb;
     reg                    clk;
     reg                    rst;
     reg  [`HBIT_ADDR:0]    pc;
@@ -65,7 +65,13 @@ module branch_tb;
         .iw_src_gp_val(src_gp_val), .iw_tgt_gp_val(tgt_gp_val),
         .iw_src_ar_val(src_ar_val), .iw_tgt_ar_val(tgt_ar_val),
         .iw_src_sr_val(src_sr_val), .iw_tgt_sr_val(tgt_sr_val),
-        .iw_flush(flush), .iw_stall(stall)
+        .iw_flush(flush), .iw_stall(stall),
+        // CR read/write are unused here
+        .ow_cr_write_addr(), .ow_cr_we_base(), .ow_cr_base(), .ow_cr_we_len(), .ow_cr_len(),
+        .ow_cr_we_cur(), .ow_cr_cur(), .ow_cr_we_perms(), .ow_cr_perms(), .ow_cr_we_attr(), .ow_cr_attr(),
+        .ow_cr_we_tag(), .ow_cr_tag(),
+        .iw_cr_s_base(48'd0), .iw_cr_s_len(48'd0), .iw_cr_s_cur(48'd0), .iw_cr_s_perms(24'd0), .iw_cr_s_attr(24'd0), .iw_cr_s_tag(1'b0),
+        .iw_cr_t_base(48'd0), .iw_cr_t_len(48'd0), .iw_cr_t_cur(48'd0), .iw_cr_t_perms(24'd0), .iw_cr_t_attr(24'd0), .iw_cr_t_tag(1'b0)
     );
 
     task step; begin @(posedge clk); @(posedge clk); end endtask
@@ -73,41 +79,35 @@ module branch_tb;
 
     initial begin
         rst = 1; stall = 0; flush = 0;
-        pc = 48'h000000_1000; instr = 0; opc = 0; sgn_en = 1; imm_en = 1;
+        pc = 48'h0000_0400; instr = 0; opc = 0; sgn_en = 1; imm_en = 1;
         imm14_val = 0; imm12_val = 0; imm10_val = 0; imm16_val = 0;
-        cc = 0; tgt_gp = 0; tgt_gp_we = 0; tgt_sr = 0; tgt_sr_we = 0; tgt_ar = 0;
-        src_gp = 0; src_ar = 0; src_sr = 2'b10; // SR[FL]
-        src_gp_val = 0; tgt_gp_val = 0; src_ar_val = 0; tgt_ar_val = 48'h0000_2000; src_sr_val = 0; tgt_sr_val = 0;
+        cc = `CC_RA; tgt_gp = 0; tgt_gp_we = 1; tgt_sr = 0; tgt_sr_we = 0; tgt_ar = 0;
+        src_gp = 0; src_ar = 0; src_sr = 2'b10;
+        src_gp_val = 0; tgt_gp_val = 24'h000001; src_ar_val = 0; tgt_ar_val = 0; src_sr_val = 0; tgt_sr_val = 0;
         #12 rst = 0;
 
-        // Set flags Z=1 to force take on EQ
-        src_sr_val = {44'b0, 4'b0001};
+        // 1) ADDsiv overflow should trap and suppress GP write
+        opc = `OPC_ADDsiv; tgt_gp_val = 24'h7FFFFF; imm12_val = 12'd1; step();
+        $display("[ADDsiv] branch_taken=%0d ex_result=%h ex_tgt_gp_we=%0d", branch_taken, ex_result, ex_tgt_gp_we);
+        if (!branch_taken) begin $display("ADDsiv overflow should trap"); $fatal; end
+        if (ex_tgt_gp_we !== 1'b0) begin $display("ADDsiv trap should suppress GP write"); $fatal; end
 
-        // JCCui: need to program uimm banks then issue JCCui
-        // Program bank2=0x012, bank1=0x345, bank0=0x678; then imm12=0x9AB -> absolute 0x012345_6789AB
-        opc = `OPC_LUIui; instr[15:14] = 2'b10; imm12_val = 12'h012; step();
-        opc = `OPC_LUIui; instr[15:14] = 2'b01; imm12_val = 12'h345; step();
-        opc = `OPC_LUIui; instr[15:14] = 2'b00; imm12_val = 12'h678; step();
-        opc = `OPC_JCCui; cc = `CC_EQ; imm12_val = 12'h9AB; step();
-        if (!branch_taken || branch_pc !== 48'h012345_6789AB) $fatal;
+        // 2) SUBsiv overflow should trap: INT24_MIN - 1
+        opc = `OPC_SUBsiv; tgt_gp_val = 24'h800000; imm12_val = 12'd1; step();
+        if (!branch_taken) begin $display("SUBsiv overflow should trap"); $fatal; end
+        if (ex_tgt_gp_we !== 1'b0) $fatal;
 
-        // BCCsr: PC + DRt (signed)
-        pc = 48'h0000_0100; opc = `OPC_BCCsr; cc = `CC_EQ; tgt_gp_val = 24'shFFFE; step();
-        if (!branch_taken || branch_pc !== (48'h0000_0100 + 48'shFFFE)) $fatal;
+        // 3) SHRsiv with imm5 >= 24 should trap
+        opc = `OPC_SHRsiv; tgt_gp_val = 24'h0000FF; imm12_val = 12'd24; step();
+        if (!branch_taken) begin $display("SHRsiv imm>=24 should trap"); $fatal; end
+        if (ex_tgt_gp_we !== 1'b0) $fatal;
 
-        // BCCso: PC + sext(imm12)
-        pc = 48'h0000_0100; opc = `OPC_BCCso; cc = `CC_EQ; imm12_val = 12'sd5; step();
-        if (!branch_taken || branch_pc !== 48'h0000_0105) $fatal;
+        // 4) SHRsiv with in-range imm5 behaves like SHRsi (no trap)
+        opc = `OPC_SHRsiv; tgt_gp_val = 24'h800002; imm12_val = 12'd1; step();
+        if (branch_taken) $fatal;
+        if (ex_result[23] !== 1'b1) begin $display("SHRsiv arithmetic shift should preserve sign"); $fatal; end
 
-        // BALso: always branch PC + sext(imm16)
-        // Use positive imm16 to avoid sign-ext bug in current EX implementation
-        opc = `OPC_BALso; imm16_val = 16'd4; step();
-        $display("BALso: taken=%b branch_pc=%h", branch_taken, branch_pc);
-        if (!branch_taken || branch_pc !== 48'h0000_0104) $fatal;
-
-        // End of test
-
-        $display("branch_tb PASS");
+        $display("opclass3_traps_tb PASS");
         $finish;
     end
 endmodule

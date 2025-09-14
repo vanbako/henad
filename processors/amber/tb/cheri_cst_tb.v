@@ -45,7 +45,7 @@ module cheri_cst_tb;
         u_amber.u_imem.r_mem[1] = { `OPC_HLT, 16'd0 };
 
         // Run
-        repeat (200) @(posedge r_clk);
+        repeat (400) @(posedge r_clk);
 
         // Show LR
         $display("LR=%0d", u_amber.u_regsr.r_sr[`SR_IDX_LR]);

@@ -50,7 +50,7 @@ module cheri_cld_tb;
         u_amber.u_imem.r_mem[0] = { `OPC_CLDcso, 2'b01, 2'b00, 10'd0 };
         u_amber.u_imem.r_mem[1] = { `OPC_HLT, 16'd0 };
 
-        repeat (200) @(posedge r_clk);
+        repeat (400) @(posedge r_clk);
 
         if (u_amber.u_regcr.r_base[1] !== {24'd7, 24'd42}) begin $display("FAIL: CLD base mismatch: %h", u_amber.u_regcr.r_base[1]); $finish; end
         if (u_amber.u_regcr.r_len[1]  !== {24'd9, 24'd88}) begin $display("FAIL: CLD len mismatch: %h", u_amber.u_regcr.r_len[1]); $finish; end

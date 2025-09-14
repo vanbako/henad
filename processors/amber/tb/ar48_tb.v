@@ -116,13 +116,13 @@ module ar48_tb;
         #5; clk = 1; #5; clk = 0; // reset edge
         rst = 0;
 
-        // 48-bit AR store: STAso to addr 20 with value 0xCAFEBE_987654
-        r_opc = `OPC_STAso; r_addr = 48'd20; r_ar_result = 48'hCAFEBE_987654;
+        // 48-bit store via SR path: SRSTso to addr 20 with value 0xCAFEBE_987654
+        r_opc = `OPC_SRSTso; r_addr = 48'd20; r_sr_result = 48'hCAFEBE_987654;
         #5; clk = 1; #5; clk = 0;
         $display("AR store: we0=%b we1=%b addr0=%0d addr1=%0d wdata0=%h wdata1=%h ar_in=%h opc=%h",
-                 w_dmem_we[0], w_dmem_we[1], w_dmem_addr[0], w_dmem_addr[1], w_dmem_wdata[0], w_dmem_wdata[1], u_stg_mo.iw_ar_result, u_stg_mo.iw_opc);
+                 w_dmem_we[0], w_dmem_we[1], w_dmem_addr[0], w_dmem_addr[1], w_dmem_wdata[0], w_dmem_wdata[1], u_stg_mo.iw_sr_result, u_stg_mo.iw_opc);
         // idle cycle
-        r_opc = `OPC_NOP; r_ar_result = 0; r_addr = 0;
+        r_opc = `OPC_NOP; r_sr_result = 0; r_addr = 0;
         #5; clk = 1; #5; clk = 0;
         $display("after AR store: mem[%0d]=%h mem[%0d]=%h", 20, u_dmem.r_mem[20], 21, u_dmem.r_mem[21]);
 
@@ -131,24 +131,24 @@ module ar48_tb;
             $fatal;
         end
 
-        // 48-bit AR load: LDAso from addr 20
+        // 48-bit load via SR path: SRLDso from addr 20
         // Like SR test: two cycles to drive addr and capture, one NOP to latch output
-        r_opc = `OPC_LDAso; r_addr = 48'd20;
+        r_opc = `OPC_SRLDso; r_addr = 48'd20;
         #5; clk = 1; #5; clk = 0;
         $display("cycle3: we0=%b we1=%b addr0=%0d addr1=%0d",
                  w_dmem_we[0], w_dmem_we[1], w_dmem_addr[0], w_dmem_addr[1]);
-        r_opc = `OPC_LDAso; r_addr = 48'd20;
+        r_opc = `OPC_SRLDso; r_addr = 48'd20;
         #5; clk = 1; #5; clk = 0;
         $display("cycle4: we0=%b we1=%b addr0=%0d addr1=%0d rdata0=%h rdata1=%h",
                  w_dmem_we[0], w_dmem_we[1], w_dmem_addr[0], w_dmem_addr[1], w_dmem_rdata[0], w_dmem_rdata[1]);
         r_opc = `OPC_NOP; r_addr = 0;
         #5; clk = 1; #5; clk = 0;
 
-        if (w_mowb_ar_result !== 48'hCAFEBE_987654) begin
-            $display("AR48 LOAD FAIL: got=%h exp=%h", w_mowb_ar_result, 48'hCAFEBE_987654);
+        if (w_mowb_sr_result !== 48'hCAFEBE_987654) begin
+            $display("SR48 LOAD FAIL: got=%h exp=%h", w_mowb_sr_result, 48'hCAFEBE_987654);
             $fatal;
         end else begin
-            $display("AR48 LOAD PASS: %h", w_mowb_ar_result);
+            $display("SR48 LOAD PASS: %h", w_mowb_sr_result);
         end
         $finish;
     end

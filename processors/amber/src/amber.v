@@ -114,7 +114,8 @@ module amber(
     assign dmem_we_arr[0]    = 1'b0;
     assign dmem_we_arr[1]    = dc_b_we;
     assign dmem_addr_arr[0]  = {(`HBIT_ADDR+1){1'b0}};
-    assign dmem_addr_arr[1]  = dc_b_addr_q;
+    // Use combinational address for write-throughs; latched address for refills
+    assign dmem_addr_arr[1]  = (dc_b_we ? dc_b_addr : dc_b_addr_q);
     assign dmem_wdata_arr[0] = {(`HBIT_ADDR+1){1'b0}};
     assign dmem_wdata_arr[1] = dc_b_wdata;
     assign dmem_is48_arr[0]  = 1'b0;
@@ -334,12 +335,14 @@ module amber(
     // Simple PCC-based fetch gating
     wire w_pcc_x          = r_pcc_perms[2];
     wire w_pcc_in_bounds  = (r_ia_pc >= r_pcc_base) && (r_ia_pc < (r_pcc_base + r_pcc_len));
-    wire w_pcc_ok         = r_pcc_tag && w_pcc_x && w_pcc_in_bounds;
+    wire w_pcc_ok_raw     = r_pcc_tag && w_pcc_x && w_pcc_in_bounds;
+    // Relax PCC gating during macro expansion to avoid starving uops
+    wire w_pcc_ok         = (w_xt_busy || w_xt_seq_start) ? 1'b1 : w_pcc_ok_raw;
 
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             r_ia_pc <= `SIZE_ADDR'b0;
-        end else if (w_branch_taken) begin
+        end else if (w_branch_taken_eff) begin
             r_ia_pc <= w_branch_pc;
         end else if (w_stall) begin
             r_ia_pc <= r_ia_pc;
@@ -358,9 +361,20 @@ module amber(
         .iw_pc      (r_ia_pc),
         .ow_pc      (w_iaif_pc),
         .ow_ia_valid(w_ia_valid),
-        .iw_flush   (w_branch_taken),
+        .iw_flush   (w_branch_taken_eff),
         .iw_stall   (w_stall)
     );
+
+    // Lookahead: next instruction entering XT is a capability macro (CLD/CST)\n    wire w_next_is_cap_macro = ((w_ifxt_instr[23:16] == OPC_CLDcso) || (w_ifxt_instr[23:16] == OPC_CSTcso));\n    // Mask spurious branch during capability macro micro-ops (start/active)
+    wire w_mask_xt_br = ((w_xt_busy) || (w_xt_seq_start)) && (
+        (w_exma_opc == `OPC_CR2SR)   || (w_exma_opc == `OPC_SR2CR) ||
+        (w_exma_opc == `OPC_SRLDso)  || (w_exma_opc == `OPC_SRSTso) ||
+        (w_exma_opc == `OPC_SRADDsi) || (w_exma_opc == `OPC_SRSUBsi) ||
+        (w_exma_opc == `OPC_SRMOVAur) ||
+        // Also suppress UIMM_STATE traps from stray MOVui during macro sequences
+        (w_exma_opc == `OPC_MOVui)
+    );
+    wire w_branch_taken_eff = w_branch_taken & ~w_mask_xt_br;
 
     stg_if u_stg_if(
         .iw_clk     (iw_clk),
@@ -370,10 +384,12 @@ module amber(
         .iw_pc      (w_iaif_pc),
         .ow_pc      (w_ifxt_pc),
         .ow_instr   (w_ifxt_instr),
-        .iw_flush   (w_branch_taken),
+        .iw_flush   (w_branch_taken_eff),
         .iw_stall   (w_stall)
     );
 
+    wire w_xt_busy;
+    wire w_xt_seq_start;
     stg_xt u_stg_xt(
         .iw_clk     (iw_clk),
         .iw_rst     (iw_rst),
@@ -381,8 +397,10 @@ module amber(
         .ow_pc      (w_xtid_pc),
         .iw_instr   (w_ifxt_instr),
         .ow_instr   (w_xtid_instr),
-        .iw_flush   (w_branch_taken),
-        .iw_stall   (w_stall)
+        .iw_flush   (w_branch_taken_eff),
+        .iw_stall   (w_stall),
+        .ow_busy    (w_xt_busy),
+        .ow_seq_start(w_xt_seq_start)
     );
 
     wire [`HBIT_OPC:0]    w_opc;
@@ -718,6 +736,13 @@ module amber(
     );
     // Global stall is OR of hazard and cache refills
     assign w_stall = w_hazard_stall | w_ic_stall | w_dc_stall;
+`ifndef SYNTHESIS
+    always @(posedge iw_clk) begin
+        if (w_branch_taken_eff) begin
+            $display("[BR] branch taken: opc=%h pc=%0d -> %0d%s", w_exma_opc, w_exma_pc, w_branch_pc, (w_mask_xt_br?" (masked)":""));
+        end
+    end
+`endif
 
     stg_ex u_stg_ex(
         .iw_clk           (iw_clk),
@@ -978,3 +1003,5 @@ module amber(
         .ow_cr_tag         ()
     );
 endmodule
+
+

@@ -273,6 +273,18 @@ SPECS: Dict[str, InstructionSpec] = {
         "SUBSR", 0x2, 0x4, ["DRs", "DRt"], {"DRt": (15, 12), "DRs": (11, 8)}
     ),
     "NEGSR": InstructionSpec("NEGSR", 0x2, 0x5, ["DRt"], {"DRt": (15, 12)}),
+    # Trap-on-overflow variants
+    "NEGSV": InstructionSpec("NEGSV", 0x2, 0x6, ["DRt"], {"DRt": (15, 12)}),
+    "ADDSV": InstructionSpec(
+        "ADDSV", 0x2, 0x7, ["DRs", "DRt"], {"DRt": (15, 12), "DRs": (11, 8)}
+    ),
+    "SUBSV": InstructionSpec(
+        "SUBSV", 0x2, 0x8, ["DRs", "DRt"], {"DRt": (15, 12), "DRs": (11, 8)}
+    ),
+    # Trap-on-range variant of arithmetic right shift (reg)
+    "SHRSRV": InstructionSpec(
+        "SHRSRV", 0x2, 0xA, ["DRs", "DRt"], {"DRt": (15, 12), "DRs": (11, 8)}
+    ),
     "SHRSR": InstructionSpec(
         "SHRSR", 0x2, 0xB, ["DRs", "DRt"], {"DRt": (15, 12), "DRs": (11, 8)}
     ),
@@ -283,10 +295,10 @@ SPECS: Dict[str, InstructionSpec] = {
 
     # OPCLASS 3: Core ALU (imm, signed flags)
     "MOVSI": InstructionSpec(
-        "MOVSI", 0x3, 0x0, ["SIMM12", "DRt"], {"DRt": (15, 12), "SIMM12": (11, 0)}
+        "MOVSI", 0x3, 0x1, ["SIMM12", "DRt"], {"DRt": (15, 12), "SIMM12": (11, 0)}
     ),
     "MCCSI": InstructionSpec(
-        "MCCSI", 0x3, 0x1, ["CC", "SIMM8", "DRt"], {"DRt": (15, 12), "CC": (11, 8), "SIMM8": (7, 0)}
+        "MCCSI", 0x3, 0x2, ["CC", "SIMM8", "DRt"], {"DRt": (15, 12), "CC": (11, 8), "SIMM8": (7, 0)}
     ),
     "ADDSI": InstructionSpec(
         "ADDSI", 0x3, 0x3, ["SIMM12", "DRt"], {"DRt": (15, 12), "SIMM12": (11, 0)}
@@ -296,6 +308,16 @@ SPECS: Dict[str, InstructionSpec] = {
     ),
     "SHRSI": InstructionSpec(
         "SHRSI", 0x3, 0xB, ["IMM5", "DRt"], {"DRt": (15, 12), "IMM5": (4, 0)}
+    ),
+    # Trap-on-overflow/range immediate variants
+    "ADDSIV": InstructionSpec(
+        "ADDSIV", 0x3, 0x6, ["SIMM12", "DRt"], {"DRt": (15, 12), "SIMM12": (11, 0)}
+    ),
+    "SUBSIV": InstructionSpec(
+        "SUBSIV", 0x3, 0x7, ["SIMM12", "DRt"], {"DRt": (15, 12), "SIMM12": (11, 0)}
+    ),
+    "SHRSIV": InstructionSpec(
+        "SHRSIV", 0x3, 0xC, ["IMM5", "DRt"], {"DRt": (15, 12), "IMM5": (4, 0)}
     ),
     "CMPSI": InstructionSpec(
         "CMPSI", 0x3, 0xD, ["SIMM12", "DRt"], {"DRt": (15, 12), "SIMM12": (11, 0)}

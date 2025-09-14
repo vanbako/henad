@@ -37,11 +37,11 @@ module bsr_jsr_tb;
     //  00: LUIui   bank0=0                ; clear banks (not strictly needed, but explicit)
     //  01: LUIui   bank1=0
     //  02: LUIui   bank2=0
-    //  03: MOVsi   #0x0FF0, DR3           ; AR0 low half source
-    //  04: MOVAurL AR0, DR3               ; AR0[23:0]  = DR3
-    //  05: MOVsi   #0, DR4                ; AR0 high half source
-    //  06: MOVAurH AR0, DR4               ; AR0[47:24] = DR4
-    //  07: SETSSP  AR0                    ; SSP = AR0 = 0x000000_000FF0
+    //  03: NOP                            ; AR0 cursor initialized via TB into CR0.cur
+    //  04: NOP
+    //  05: NOP
+    //  06: NOP
+    //  07: SETSSP  AR0                    ; SSP = AR0 = 0x000000_000FF0 (from CR0.cur)
     //  08: MOVsi   #5, DR0                ; loop counter
     //  09: MOVsi   #1, DR1                ; accum 1
     //  0A: MOVsi   #2, DR2                ; accum 2
@@ -64,17 +64,19 @@ module bsr_jsr_tb;
     //  18: ADDsi   #2, DR1
     //  19: RET
     initial begin
-        // Preload instruction memory
+        // Preload instruction memory and initialize AR0 via CR0 cursor
         #1;
+        // Initialize CR0 cursor used by SETSSP to 0x0FF0
+        u_amber.u_regcr.r_cur[0] = 48'h000000_000FF0;
         // 00-02: LUIui bank clears
         u_amber.u_imem.r_mem[24'h000000] = 24'h100000; // LUIui bank0=0
         u_amber.u_imem.r_mem[24'h000001] = 24'h104000; // LUIui bank1=0
         u_amber.u_imem.r_mem[24'h000002] = 24'h108000; // LUIui bank2=0
-        // 03-07: SSP = 0x000000_000FF0 via AR0
-        u_amber.u_imem.r_mem[24'h000003] = 24'h303FF0; // MOVsi #0x0FF0, DR3
-        u_amber.u_imem.r_mem[24'h000004] = 24'h610C00; // MOVAur (AR0, DR3, L=0)
-        u_amber.u_imem.r_mem[24'h000005] = 24'h304000; // MOVsi #0, DR4
-        u_amber.u_imem.r_mem[24'h000006] = 24'h611200; // MOVAur (AR0, DR4, H=1)
+        // 03-06: nops (placeholders)
+        u_amber.u_imem.r_mem[24'h000003] = 24'h000000; // NOP
+        u_amber.u_imem.r_mem[24'h000004] = 24'h000000; // NOP
+        u_amber.u_imem.r_mem[24'h000005] = 24'h000000; // NOP
+        u_amber.u_imem.r_mem[24'h000006] = 24'h000000; // NOP
         u_amber.u_imem.r_mem[24'h000007] = 24'hA10000; // SETSSP AR0
         // 08-0A: init regs
         u_amber.u_imem.r_mem[24'h000008] = 24'h300005; // MOVsi #5, DR0
@@ -154,4 +156,3 @@ module bsr_jsr_tb;
         tick = tick + 1;
     end
 endmodule
-

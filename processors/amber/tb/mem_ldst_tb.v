@@ -117,16 +117,16 @@ module mem_ldst_tb;
         r_pc = 0; r_instr = 0; r_opc = 0; r_addr = 0; r_result = 0; r_sr_result = 0; r_ar_result = 0;
         tick(); rst = 0;
 
-        // STur: store 24-bit value
-        r_opc = `OPC_STur; r_addr = 48'd40; r_result = 24'hA1B2C3; tick();
+        // Store 24-bit value at addr (use STui path)
+        r_opc = `OPC_STui; r_addr = 48'd40; r_result = 24'hA1B2C3; tick();
         // idle
         r_opc = `OPC_NOP; tick();
         if (u_dmem.r_mem[40] !== 24'hA1B2C3) begin $display("STur FAIL: %h", u_dmem.r_mem[40]); $fatal; end
 
-        // LDur: load 24-bit value
+        // LDcso: load 24-bit value (via CR path in MO; here we just drive addr)
         u_dmem.r_mem[50] = 24'h00C0DE; // preload
-        r_opc = `OPC_LDur; r_addr = 48'd50; tick();
-        r_opc = `OPC_LDur; r_addr = 48'd50; tick();
+        r_opc = `OPC_LDcso; r_addr = 48'd50; tick();
+        r_opc = `OPC_LDcso; r_addr = 48'd50; tick();
         r_opc = `OPC_NOP; tick();
         if (w_mowb_result !== 24'h00C0DE) begin $display("LDur FAIL: %h", w_mowb_result); $fatal; end
 
@@ -138,14 +138,14 @@ module mem_ldst_tb;
         r_opc = `OPC_STsi; r_addr = 48'd42; r_result = 24'hFFF800; tick(); r_opc = `OPC_NOP; tick();
         if (u_dmem.r_mem[42] !== 24'hFFF800) $fatal;
 
-        // STso: store with offset (we just provide computed r_addr)
-        r_opc = `OPC_STso; r_addr = 48'd60; r_result = 24'h112233; tick(); r_opc = `OPC_NOP; tick();
+        // Store with precomputed address (use STui path)
+        r_opc = `OPC_STui; r_addr = 48'd60; r_result = 24'h112233; tick(); r_opc = `OPC_NOP; tick();
         if (u_dmem.r_mem[60] !== 24'h112233) $fatal;
 
-        // LDso: load with offset
+        // LDcso: load with precomputed address
         u_dmem.r_mem[61] = 24'hABCD01;
-        r_opc = `OPC_LDso; r_addr = 48'd61; tick();
-        r_opc = `OPC_LDso; r_addr = 48'd61; tick();
+        r_opc = `OPC_LDcso; r_addr = 48'd61; tick();
+        r_opc = `OPC_LDcso; r_addr = 48'd61; tick();
         r_opc = `OPC_NOP; tick();
         if (w_mowb_result !== 24'hABCD01) $fatal;
 

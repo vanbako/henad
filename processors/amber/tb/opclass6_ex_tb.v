@@ -3,9 +3,10 @@
 `include "src/opcodes.vh"
 `include "src/cc.vh"
 `include "src/sizes.vh"
+`include "src/sr.vh"
 `include "src/flags.vh"
 
-module branch_tb;
+module opclass6_ex_tb;
     reg                    clk;
     reg                    rst;
     reg  [`HBIT_ADDR:0]    pc;
@@ -73,41 +74,58 @@ module branch_tb;
 
     initial begin
         rst = 1; stall = 0; flush = 0;
-        pc = 48'h000000_1000; instr = 0; opc = 0; sgn_en = 1; imm_en = 1;
+        pc = 48'h0000_0100; instr = 0; opc = 0; sgn_en = 1; imm_en = 1;
         imm14_val = 0; imm12_val = 0; imm10_val = 0; imm16_val = 0;
         cc = 0; tgt_gp = 0; tgt_gp_we = 0; tgt_sr = 0; tgt_sr_we = 0; tgt_ar = 0;
-        src_gp = 0; src_ar = 0; src_sr = 2'b10; // SR[FL]
-        src_gp_val = 0; tgt_gp_val = 0; src_ar_val = 0; tgt_ar_val = 48'h0000_2000; src_sr_val = 0; tgt_sr_val = 0;
+        src_gp = 0; src_ar = 0; src_sr = `SR_IDX_FL; // use SR[FL] as flags source
+        src_gp_val = 0; tgt_gp_val = 0; src_ar_val = 0; tgt_ar_val = 48'h0; src_sr_val = 0; tgt_sr_val = 0;
         #12 rst = 0;
 
-        // Set flags Z=1 to force take on EQ
+        // Set flags: Z=1 to satisfy EQ
         src_sr_val = {44'b0, 4'b0001};
 
-        // JCCui: need to program uimm banks then issue JCCui
-        // Program bank2=0x012, bank1=0x345, bank0=0x678; then imm12=0x9AB -> absolute 0x012345_6789AB
+        // Program uimm banks for absolute jump: 0x012345_6789AB
         opc = `OPC_LUIui; instr[15:14] = 2'b10; imm12_val = 12'h012; step();
         opc = `OPC_LUIui; instr[15:14] = 2'b01; imm12_val = 12'h345; step();
         opc = `OPC_LUIui; instr[15:14] = 2'b00; imm12_val = 12'h678; step();
+
+        // JCCui EQ -> absolute target
         opc = `OPC_JCCui; cc = `CC_EQ; imm12_val = 12'h9AB; step();
-        if (!branch_taken || branch_pc !== 48'h012345_6789AB) $fatal;
+        if (!branch_taken || branch_pc !== 48'h012345_6789AB) begin
+            $display("FAIL: JCCui branch_taken=%b pc=%h", branch_taken, branch_pc);
+            $fatal;
+        end
 
-        // BCCsr: PC + DRt (signed)
+        // BCCsr EQ: PC + DRt (signed)
         pc = 48'h0000_0100; opc = `OPC_BCCsr; cc = `CC_EQ; tgt_gp_val = 24'shFFFE; step();
-        if (!branch_taken || branch_pc !== (48'h0000_0100 + 48'shFFFE)) $fatal;
+        if (!branch_taken || branch_pc !== (48'h0000_0100 + 48'shFFFE)) begin
+            $display("FAIL: BCCsr branch_taken=%b pc=%h", branch_taken, branch_pc);
+            $fatal;
+        end
 
-        // BCCso: PC + sext(imm12)
-        pc = 48'h0000_0100; opc = `OPC_BCCso; cc = `CC_EQ; imm12_val = 12'sd5; step();
-        if (!branch_taken || branch_pc !== 48'h0000_0105) $fatal;
+        // BCCso EQ: PC + sext(imm12)
+        pc = 48'h0000_0200; opc = `OPC_BCCso; cc = `CC_EQ; imm12_val = 12'sd5; step();
+        if (!branch_taken || branch_pc !== 48'h0000_0205) begin
+            $display("FAIL: BCCso branch_taken=%b pc=%h", branch_taken, branch_pc);
+            $fatal;
+        end
 
         // BALso: always branch PC + sext(imm16)
-        // Use positive imm16 to avoid sign-ext bug in current EX implementation
-        opc = `OPC_BALso; imm16_val = 16'd4; step();
-        $display("BALso: taken=%b branch_pc=%h", branch_taken, branch_pc);
-        if (!branch_taken || branch_pc !== 48'h0000_0104) $fatal;
+        // Use positive imm16 (sign-extension bug for negative values is known)
+        pc = 48'h0000_1000; opc = `OPC_BALso; imm16_val = 16'sd12; step();
+        if (!branch_taken || branch_pc !== 48'h0000_100C) begin
+            $display("FAIL: BALso branch_taken=%b pc=%h", branch_taken, branch_pc);
+            $fatal;
+        end
 
-        // End of test
+        // BALso with negative imm16: PC - 8
+        pc = 48'h0000_1000; opc = `OPC_BALso; imm16_val = -16'sd8; step();
+        if (!branch_taken || branch_pc !== 48'h0000_0FF8) begin
+            $display("FAIL: BALso-neg branch_taken=%b pc=%h (expected 000000000ff8)", branch_taken, branch_pc);
+            $fatal;
+        end
 
-        $display("branch_tb PASS");
+        $display("opclass6_ex_tb PASS");
         $finish;
     end
 endmodule
