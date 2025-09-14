@@ -74,6 +74,8 @@ SR vs. CSR
   - `CUNSEAL CRs, CRseal, CRt` — unseal (needs `S`)
   - `CGETT CRs, DRt` — get tag (1/0)
   - `CCLRT CRt` — clear tag (invalidate)
+  - `CLDcso #offs(CRs), CRt` — load capability from memory into CRt (proposed µ-seq)
+  - `CSTcso CRs, #offs(CRt)` — store capability from CRs to memory (proposed µ-seq)
 - Control flow (opclass 0110): `JSR/RET` leverage `SCC` and `SSP` for the shadow stack, with `BTP` pads.
   - Indirect jumps/calls must be within a valid executable capability (via `PCC`); otherwise a capability-exec fault.
 - Arithmetic trap-on-overflow: variants of ADD/SUB (signed) raise a software interrupt if `V=1`.
@@ -92,6 +94,35 @@ SR vs. CSR
  - `UIMM_STATE`: use of `..ui` instruction without valid `LUIui` bank state
 
 The exact encoding of causes is reported in `PSTATE.cause` and surfaced via the software interrupt vector.
+
+## Proposed CLD/CST Micro-ops and Memory Layout
+
+Amber’s memory path supports 24/48-bit accesses today. A full architectural capability is >128 bits (3×48 + 24 + 24 + 1 = 193b). We propose a packed, BAU-friendly layout and a simple µ-sequence using existing 48-bit SR load/store micro-ops.
+
+Memory layout (10×24-bit words, little-endian per field):
+- [0] BASE_LO24, [1] BASE_HI24
+- [2] LEN_LO24,  [3] LEN_HI24
+- [4] CUR_LO24,  [5] CUR_HI24
+- [6] PERMS_24
+- [7] ATTR_24
+- [8] TAG_24 (bit0 = architectural tag, rest zero)
+- [9] RESERVED_24 (zero for future use / checksum)
+
+µ-sequence expansion (in `stg2xt`) for `CSTcso CRs, #off(CRt)`:
+- EX: compute `eff = CRt.cur + off`; check `tag && !sealed && SC && in-bounds` on CRt.
+- For fields in order: {BASE, LEN, CUR} (48b each), then {PERMS, ATTR} (24b) and TAG.
+  1. Emit new µ-op `CR2SR fld, CRs, SRtmp` to present a 48/24b slice on SRtmp.
+  2. Emit `SRSTso SRtmp, #k(PC)` to store 48b at `eff + k`. For 24b fields, a 24b store variant or `SRSTso` with upper cleared.
+- TAG: write 1b in low bit of a 24b word via SRtmp.
+
+µ-sequence for `CLDcso #off(CRs), CRt` (reverse of above):
+- EX: compute `eff = CRs.cur + off`; check `tag && !sealed && LC && in-bounds` on CRs.
+- For fields in order, emit `SRLDso SRtmp, #k(PC)`, then `SR2CR fld, SRtmp, CRt` to update CRt’s slices.
+
+Notes
+- The `CR2SR/SR2CR` micro-ops are narrow, single-cycle register transfers between the CR file and the SR port in EX, with writeback in WB (mirroring existing SR/AR paths). They reuse the new CR writeback bus already present for CHERI ops.
+- Back-to-back 48-bit `SRLDso/SRSTso` are already supported; MA/MO alternate ports to keep timing simple.
+- A compressed alternative (8×24-bit) can combine PERMS+ATTR into 48b and fold TAG into ATTR[0]; in that case TAG_24 and RESERVED_24 are omitted.
 
 ## Syscall vs. Software Interrupt
 

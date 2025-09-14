@@ -200,6 +200,10 @@ UI/imm bank safety
 |---|---|---|---|
 | x | - | x | - |
 
+Note
+
+- Flags are updated only when the effective rotation amount `imm5` is non-zero; if the amount is zero the operation is a no-op and flags are unchanged.
+
 - ## SHRui #imm5, DRt
 
 | operation    | µop              | isa                  |
@@ -253,6 +257,10 @@ UI/imm bank safety
 | z | n | c | v |
 |---|---|---|---|
 | x | - | x | - |
+
+Note
+
+- Flags are updated only when the effective rotation amount `imm5` is non-zero; if the amount is zero the operation is a no-op and flags are unchanged.
 
 - ## CMPui #imm12, DRt
 

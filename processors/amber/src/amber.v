@@ -297,20 +297,20 @@ module amber(
         .ow_read_perms2     (w_cr_read_perms2),
         .ow_read_attr2      (w_cr_read_attr2),
         .ow_read_tag2       (w_cr_read_tag2),
-        // Write CR.cursor from AR write port; other fields unchanged here
-        .iw_write_addr      (w_ar_write_addr),
-        .iw_write_en_base   (1'b0),
-        .iw_write_base      ({(`HBIT_ADDR+1){1'b0}}),
-        .iw_write_en_len    (1'b0),
-        .iw_write_len       ({(`HBIT_ADDR+1){1'b0}}),
-        .iw_write_en_cur    (w_ar_write_enable),
-        .iw_write_cur       (w_ar_write_data),
-        .iw_write_en_perms  (1'b0),
-        .iw_write_perms     ({(`HBIT_DATA+1){1'b0}}),
-        .iw_write_en_attr   (1'b0),
-        .iw_write_attr      ({(`HBIT_DATA+1){1'b0}}),
-        .iw_write_en_tag    (1'b0),
-        .iw_write_tag       (1'b0)
+        // Write CR fields: prefer CR writeback controls from WB; fall back to AR->CUR writes
+        .iw_write_addr      (w_cr_wb_any ? w_wb_cr_write_addr : w_ar_write_addr),
+        .iw_write_en_base   (w_cr_wb_any ? w_wb_cr_we_base   : 1'b0),
+        .iw_write_base      (w_cr_wb_any ? w_wb_cr_base      : {(`HBIT_ADDR+1){1'b0}}),
+        .iw_write_en_len    (w_cr_wb_any ? w_wb_cr_we_len    : 1'b0),
+        .iw_write_len       (w_cr_wb_any ? w_wb_cr_len       : {(`HBIT_ADDR+1){1'b0}}),
+        .iw_write_en_cur    (w_cr_wb_any ? w_wb_cr_we_cur    : w_ar_write_enable),
+        .iw_write_cur       (w_cr_wb_any ? w_wb_cr_cur       : w_ar_write_data),
+        .iw_write_en_perms  (w_cr_wb_any ? w_wb_cr_we_perms  : 1'b0),
+        .iw_write_perms     (w_cr_wb_any ? w_wb_cr_perms     : {(`HBIT_DATA+1){1'b0}}),
+        .iw_write_en_attr   (w_cr_wb_any ? w_wb_cr_we_attr   : 1'b0),
+        .iw_write_attr      (w_cr_wb_any ? w_wb_cr_attr      : {(`HBIT_DATA+1){1'b0}}),
+        .iw_write_en_tag    (w_cr_wb_any ? w_wb_cr_we_tag    : 1'b0),
+        .iw_write_tag       (w_cr_wb_any ? w_wb_cr_tag       : 1'b0)
     );
 
     // Present CR.cursor as legacy AR read data
@@ -448,6 +448,20 @@ module amber(
     wire [`HBIT_DATA:0]   w_exma_result;
     wire [`HBIT_ADDR:0]   w_exma_sr_result;
     wire [`HBIT_ADDR:0]   w_exma_ar_result;
+    // CR writeback buses EX->MA
+    wire [`HBIT_TGT_CR:0] w_exma_cr_write_addr;
+    wire                  w_exma_cr_we_base;
+    wire [`HBIT_ADDR:0]   w_exma_cr_base;
+    wire                  w_exma_cr_we_len;
+    wire [`HBIT_ADDR:0]   w_exma_cr_len;
+    wire                  w_exma_cr_we_cur;
+    wire [`HBIT_ADDR:0]   w_exma_cr_cur;
+    wire                  w_exma_cr_we_perms;
+    wire [`HBIT_DATA:0]   w_exma_cr_perms;
+    wire                  w_exma_cr_we_attr;
+    wire [`HBIT_DATA:0]   w_exma_cr_attr;
+    wire                  w_exma_cr_we_tag;
+    wire                  w_exma_cr_tag;
 
     wire [`HBIT_OPC:0]    w_mamo_opc;
     wire [`HBIT_TGT_GP:0] w_mamo_tgt_gp;
@@ -459,6 +473,20 @@ module amber(
     wire                  w_mamo_tgt_ar_we;
     wire [`HBIT_ADDR:0]   w_mamo_sr_result;
     wire [`HBIT_ADDR:0]   w_mamo_ar_result;
+    // CR writeback buses MA->MO
+    wire [`HBIT_TGT_CR:0] w_mamo_cr_write_addr;
+    wire                  w_mamo_cr_we_base;
+    wire [`HBIT_ADDR:0]   w_mamo_cr_base;
+    wire                  w_mamo_cr_we_len;
+    wire [`HBIT_ADDR:0]   w_mamo_cr_len;
+    wire                  w_mamo_cr_we_cur;
+    wire [`HBIT_ADDR:0]   w_mamo_cr_cur;
+    wire                  w_mamo_cr_we_perms;
+    wire [`HBIT_DATA:0]   w_mamo_cr_perms;
+    wire                  w_mamo_cr_we_attr;
+    wire [`HBIT_DATA:0]   w_mamo_cr_attr;
+    wire                  w_mamo_cr_we_tag;
+    wire                  w_mamo_cr_tag;
 
     wire [`HBIT_OPC:0]    w_mowb_opc;
     wire [`HBIT_TGT_GP:0] w_mowb_tgt_gp;
@@ -470,6 +498,21 @@ module amber(
     wire                  w_mowb_tgt_ar_we;
     wire [`HBIT_ADDR:0]   w_mowb_sr_result;
     wire [`HBIT_ADDR:0]   w_mowb_ar_result;
+    // CR writeback buses MO->WB
+    wire [`HBIT_TGT_CR:0] w_wb_cr_write_addr;
+    wire                  w_wb_cr_we_base;
+    wire [`HBIT_ADDR:0]   w_wb_cr_base;
+    wire                  w_wb_cr_we_len;
+    wire [`HBIT_ADDR:0]   w_wb_cr_len;
+    wire                  w_wb_cr_we_cur;
+    wire [`HBIT_ADDR:0]   w_wb_cr_cur;
+    wire                  w_wb_cr_we_perms;
+    wire [`HBIT_DATA:0]   w_wb_cr_perms;
+    wire                  w_wb_cr_we_attr;
+    wire [`HBIT_DATA:0]   w_wb_cr_attr;
+    wire                  w_wb_cr_we_tag;
+    wire                  w_wb_cr_tag;
+    wire                  w_cr_wb_any = w_wb_cr_we_base | w_wb_cr_we_len | w_wb_cr_we_cur | w_wb_cr_we_perms | w_wb_cr_we_attr | w_wb_cr_we_tag;
 
     wire [`HBIT_DATA:0]   w_src_gp_val;
     wire [`HBIT_DATA:0]   w_tgt_gp_val;
@@ -718,6 +761,20 @@ module amber(
         .iw_tgt_ar_val    (w_tgt_ar_val),
         .iw_src_sr_val    (w_src_sr_val_mux),
         .iw_tgt_sr_val    (w_tgt_sr_val),
+        // CR writeback controls out of EX
+        .ow_cr_write_addr (w_exma_cr_write_addr),
+        .ow_cr_we_base    (w_exma_cr_we_base),
+        .ow_cr_base       (w_exma_cr_base),
+        .ow_cr_we_len     (w_exma_cr_we_len),
+        .ow_cr_len        (w_exma_cr_len),
+        .ow_cr_we_cur     (w_exma_cr_we_cur),
+        .ow_cr_cur        (w_exma_cr_cur),
+        .ow_cr_we_perms   (w_exma_cr_we_perms),
+        .ow_cr_perms      (w_exma_cr_perms),
+        .ow_cr_we_attr    (w_exma_cr_we_attr),
+        .ow_cr_attr       (w_exma_cr_attr),
+        .ow_cr_we_tag     (w_exma_cr_we_tag),
+        .ow_cr_tag        (w_exma_cr_tag),
         // CR read views mapped from CR read ports 1/2 (driven by AR indices)
         .iw_cr_s_base     (w_cr_read_base1),
         .iw_cr_s_len      (w_cr_read_len1),
@@ -766,7 +823,34 @@ module amber(
         .iw_sr_result(w_exma_sr_result),
         .ow_sr_result(w_mamo_sr_result),
         .iw_ar_result(w_exma_ar_result),
-        .ow_ar_result(w_mamo_ar_result)
+        .ow_ar_result(w_mamo_ar_result),
+        // CR writeback forward EX->MA
+        .iw_cr_write_addr (w_exma_cr_write_addr),
+        .iw_cr_we_base    (w_exma_cr_we_base),
+        .iw_cr_base       (w_exma_cr_base),
+        .iw_cr_we_len     (w_exma_cr_we_len),
+        .iw_cr_len        (w_exma_cr_len),
+        .iw_cr_we_cur     (w_exma_cr_we_cur),
+        .iw_cr_cur        (w_exma_cr_cur),
+        .iw_cr_we_perms   (w_exma_cr_we_perms),
+        .iw_cr_perms      (w_exma_cr_perms),
+        .iw_cr_we_attr    (w_exma_cr_we_attr),
+        .iw_cr_attr       (w_exma_cr_attr),
+        .iw_cr_we_tag     (w_exma_cr_we_tag),
+        .iw_cr_tag        (w_exma_cr_tag),
+        .ow_cr_write_addr (w_mamo_cr_write_addr),
+        .ow_cr_we_base    (w_mamo_cr_we_base),
+        .ow_cr_base       (w_mamo_cr_base),
+        .ow_cr_we_len     (w_mamo_cr_we_len),
+        .ow_cr_len        (w_mamo_cr_len),
+        .ow_cr_we_cur     (w_mamo_cr_we_cur),
+        .ow_cr_cur        (w_mamo_cr_cur),
+        .ow_cr_we_perms   (w_mamo_cr_we_perms),
+        .ow_cr_perms      (w_mamo_cr_perms),
+        .ow_cr_we_attr    (w_mamo_cr_we_attr),
+        .ow_cr_attr       (w_mamo_cr_attr),
+        .ow_cr_we_tag     (w_mamo_cr_we_tag),
+        .ow_cr_tag        (w_mamo_cr_tag)
     );
 
     stg_mo u_stg_mo(
@@ -800,7 +884,34 @@ module amber(
         .iw_sr_result(w_mamo_sr_result),
         .ow_sr_result(w_mowb_sr_result),
         .iw_ar_result(w_mamo_ar_result),
-        .ow_ar_result(w_mowb_ar_result)
+        .ow_ar_result(w_mowb_ar_result),
+        // CR writeback forward MA->MO
+        .iw_cr_write_addr (w_mamo_cr_write_addr),
+        .iw_cr_we_base    (w_mamo_cr_we_base),
+        .iw_cr_base       (w_mamo_cr_base),
+        .iw_cr_we_len     (w_mamo_cr_we_len),
+        .iw_cr_len        (w_mamo_cr_len),
+        .iw_cr_we_cur     (w_mamo_cr_we_cur),
+        .iw_cr_cur        (w_mamo_cr_cur),
+        .iw_cr_we_perms   (w_mamo_cr_we_perms),
+        .iw_cr_perms      (w_mamo_cr_perms),
+        .iw_cr_we_attr    (w_mamo_cr_we_attr),
+        .iw_cr_attr       (w_mamo_cr_attr),
+        .iw_cr_we_tag     (w_mamo_cr_we_tag),
+        .iw_cr_tag        (w_mamo_cr_tag),
+        .ow_cr_write_addr (w_wb_cr_write_addr),
+        .ow_cr_we_base    (w_wb_cr_we_base),
+        .ow_cr_base       (w_wb_cr_base),
+        .ow_cr_we_len     (w_wb_cr_we_len),
+        .ow_cr_len        (w_wb_cr_len),
+        .ow_cr_we_cur     (w_wb_cr_we_cur),
+        .ow_cr_cur        (w_wb_cr_cur),
+        .ow_cr_we_perms   (w_wb_cr_we_perms),
+        .ow_cr_perms      (w_wb_cr_perms),
+        .ow_cr_we_attr    (w_wb_cr_we_attr),
+        .ow_cr_attr       (w_wb_cr_attr),
+        .ow_cr_we_tag     (w_wb_cr_we_tag),
+        .ow_cr_tag        (w_wb_cr_tag)
     );
 
     wire [`HBIT_OPC:0]    w_wb_opc;
@@ -837,6 +948,33 @@ module amber(
         .iw_result         (w_mowb_result),
         .iw_sr_result      (w_mowb_sr_result),
         .iw_ar_result      (w_mowb_ar_result),
-        .ow_result         (w_wb_result)
+        .ow_result         (w_wb_result),
+        // CR writeback forward MO->WB
+        .iw_cr_write_addr  (w_wb_cr_write_addr),
+        .iw_cr_we_base     (w_wb_cr_we_base),
+        .iw_cr_base        (w_wb_cr_base),
+        .iw_cr_we_len      (w_wb_cr_we_len),
+        .iw_cr_len         (w_wb_cr_len),
+        .iw_cr_we_cur      (w_wb_cr_we_cur),
+        .iw_cr_cur         (w_wb_cr_cur),
+        .iw_cr_we_perms    (w_wb_cr_we_perms),
+        .iw_cr_perms       (w_wb_cr_perms),
+        .iw_cr_we_attr     (w_wb_cr_we_attr),
+        .iw_cr_attr        (w_wb_cr_attr),
+        .iw_cr_we_tag      (w_wb_cr_we_tag),
+        .iw_cr_tag         (w_wb_cr_tag),
+        .ow_cr_write_addr  (),
+        .ow_cr_we_base     (),
+        .ow_cr_base        (),
+        .ow_cr_we_len      (),
+        .ow_cr_len         (),
+        .ow_cr_we_cur      (),
+        .ow_cr_cur         (),
+        .ow_cr_we_perms    (),
+        .ow_cr_perms       (),
+        .ow_cr_we_attr     (),
+        .ow_cr_attr        (),
+        .ow_cr_we_tag      (),
+        .ow_cr_tag         ()
     );
 endmodule

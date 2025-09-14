@@ -63,6 +63,11 @@ Amber keeps the async 24-bit math CSR block. It is unaffected by CHERI and remai
 - Done in spec: capability register model; cap-checked loads/stores; syscall separation; CFI with `BTP/LR/SSP`.
 - Not yet: MMU/virt, caches, atomics.
 
+HDL status (current tree)
+
+- Implemented CHERI ops: `CINC/CINCv`, `CINCi/CINCiv`, `CMOV`, `CSETB/CSETBi` (+ checked variants), `CANDP`, `CGETP`, `CGETT`, `CCLRT`, and CHERI-checked `LDcso/STcso`.
+- Deferred: memory capability load/store `CLDcso/CSTcso` (full-width cap moves) pending a wider memory path/microcode sequence.
+
 ## Further Documentation
 
 - Design: `processors/amber/design/design.md`

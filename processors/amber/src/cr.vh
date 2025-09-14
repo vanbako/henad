@@ -19,5 +19,12 @@
 // Attribute register (24-bit): [0] SEALED, [23:8] OTYPE (up to 16 bits), others reserved
 `define CR_ATTR_SEALED_BIT 0
 
-`endif
+// CR field selector encodings for CR2SR/SR2CR micro-ops
+`define CR_FLD_BASE   4'd0
+`define CR_FLD_LEN    4'd1
+`define CR_FLD_CUR    4'd2
+`define CR_FLD_PERMS  4'd3
+`define CR_FLD_ATTR   4'd4
+`define CR_FLD_TAG    4'd5
 
+`endif

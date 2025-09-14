@@ -1,5 +1,6 @@
 `include "src/sizes.vh"
 `include "src/opcodes.vh"
+`include "src/cr.vh"
 
 module stg_ma(
     input wire                   iw_clk,
@@ -30,7 +31,34 @@ module stg_ma(
     input wire  [`HBIT_ADDR:0]   iw_sr_result,
     output wire [`HBIT_ADDR:0]   ow_sr_result,
     input wire  [`HBIT_ADDR:0]   iw_ar_result,
-    output wire [`HBIT_ADDR:0]   ow_ar_result
+    output wire [`HBIT_ADDR:0]   ow_ar_result,
+    // Forward CR writeback controls to MO
+    input wire  [`HBIT_TGT_CR:0] iw_cr_write_addr,
+    input wire                   iw_cr_we_base,
+    input wire  [`HBIT_ADDR:0]   iw_cr_base,
+    input wire                   iw_cr_we_len,
+    input wire  [`HBIT_ADDR:0]   iw_cr_len,
+    input wire                   iw_cr_we_cur,
+    input wire  [`HBIT_ADDR:0]   iw_cr_cur,
+    input wire                   iw_cr_we_perms,
+    input wire  [`HBIT_DATA:0]   iw_cr_perms,
+    input wire                   iw_cr_we_attr,
+    input wire  [`HBIT_DATA:0]   iw_cr_attr,
+    input wire                   iw_cr_we_tag,
+    input wire                   iw_cr_tag,
+    output wire [`HBIT_TGT_CR:0] ow_cr_write_addr,
+    output wire                  ow_cr_we_base,
+    output wire [`HBIT_ADDR:0]   ow_cr_base,
+    output wire                  ow_cr_we_len,
+    output wire [`HBIT_ADDR:0]   ow_cr_len,
+    output wire                  ow_cr_we_cur,
+    output wire [`HBIT_ADDR:0]   ow_cr_cur,
+    output wire                  ow_cr_we_perms,
+    output wire [`HBIT_DATA:0]   ow_cr_perms,
+    output wire                  ow_cr_we_attr,
+    output wire [`HBIT_DATA:0]   ow_cr_attr,
+    output wire                  ow_cr_we_tag,
+    output wire                  ow_cr_tag
 );
     reg [`HBIT_ADDR:0]   r_pc_latch;
     reg [`HBIT_DATA:0]   r_instr_latch;
@@ -51,6 +79,20 @@ module stg_ma(
     reg [`HBIT_DATA:0]   r_result_latch;
     reg [`HBIT_ADDR:0]   r_sr_result_latch;
     reg [`HBIT_ADDR:0]   r_ar_result_latch;
+    // CR writeback latches
+    reg [`HBIT_TGT_CR:0] r_cr_write_addr_latch;
+    reg                  r_cr_we_base_latch;
+    reg [`HBIT_ADDR:0]   r_cr_base_latch;
+    reg                  r_cr_we_len_latch;
+    reg [`HBIT_ADDR:0]   r_cr_len_latch;
+    reg                  r_cr_we_cur_latch;
+    reg [`HBIT_ADDR:0]   r_cr_cur_latch;
+    reg                  r_cr_we_perms_latch;
+    reg [`HBIT_DATA:0]   r_cr_perms_latch;
+    reg                  r_cr_we_attr_latch;
+    reg [`HBIT_DATA:0]   r_cr_attr_latch;
+    reg                  r_cr_we_tag_latch;
+    reg                  r_cr_tag_latch;
     always @(*) begin
         // Address driving policy for the dual-port memory
         // MA always drives only the port opposite to MO so the address is
@@ -91,6 +133,20 @@ module stg_ma(
             r_result_latch    <= iw_result;
             r_sr_result_latch <= iw_sr_result;
             r_ar_result_latch <= iw_ar_result;
+            // Latch CR writeback controls
+            r_cr_write_addr_latch <= iw_cr_write_addr;
+            r_cr_we_base_latch    <= iw_cr_we_base;
+            r_cr_base_latch       <= iw_cr_base;
+            r_cr_we_len_latch     <= iw_cr_we_len;
+            r_cr_len_latch        <= iw_cr_len;
+            r_cr_we_cur_latch     <= iw_cr_we_cur;
+            r_cr_cur_latch        <= iw_cr_cur;
+            r_cr_we_perms_latch   <= iw_cr_we_perms;
+            r_cr_perms_latch      <= iw_cr_perms;
+            r_cr_we_attr_latch    <= iw_cr_we_attr;
+            r_cr_attr_latch       <= iw_cr_attr;
+            r_cr_we_tag_latch     <= iw_cr_we_tag;
+            r_cr_tag_latch        <= iw_cr_tag;
         end
     end
     assign ow_pc        = r_pc_latch;
@@ -107,4 +163,18 @@ module stg_ma(
     assign ow_result    = r_result_latch;
     assign ow_sr_result = r_sr_result_latch;
     assign ow_ar_result = r_ar_result_latch;
+    // Forward CR writebacks
+    assign ow_cr_write_addr = r_cr_write_addr_latch;
+    assign ow_cr_we_base    = r_cr_we_base_latch;
+    assign ow_cr_base       = r_cr_base_latch;
+    assign ow_cr_we_len     = r_cr_we_len_latch;
+    assign ow_cr_len        = r_cr_len_latch;
+    assign ow_cr_we_cur     = r_cr_we_cur_latch;
+    assign ow_cr_cur        = r_cr_cur_latch;
+    assign ow_cr_we_perms   = r_cr_we_perms_latch;
+    assign ow_cr_perms      = r_cr_perms_latch;
+    assign ow_cr_we_attr    = r_cr_we_attr_latch;
+    assign ow_cr_attr       = r_cr_attr_latch;
+    assign ow_cr_we_tag     = r_cr_we_tag_latch;
+    assign ow_cr_tag        = r_cr_tag_latch;
 endmodule

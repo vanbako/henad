@@ -1,4 +1,5 @@
 `include "src/sizes.vh"
+`include "src/cr.vh"
 
 module stg_wb(
     input wire                   iw_clk,
@@ -29,7 +30,34 @@ module stg_wb(
     input wire  [`HBIT_DATA:0]   iw_result,
     input wire  [`HBIT_ADDR:0]   iw_sr_result,
     input wire  [`HBIT_ADDR:0]   iw_ar_result,
-    output wire [`HBIT_DATA:0]   ow_result
+    output wire [`HBIT_DATA:0]   ow_result,
+    // CR writeback controls toward regcr
+    input wire  [`HBIT_TGT_CR:0] iw_cr_write_addr,
+    input wire                   iw_cr_we_base,
+    input wire  [`HBIT_ADDR:0]   iw_cr_base,
+    input wire                   iw_cr_we_len,
+    input wire  [`HBIT_ADDR:0]   iw_cr_len,
+    input wire                   iw_cr_we_cur,
+    input wire  [`HBIT_ADDR:0]   iw_cr_cur,
+    input wire                   iw_cr_we_perms,
+    input wire  [`HBIT_DATA:0]   iw_cr_perms,
+    input wire                   iw_cr_we_attr,
+    input wire  [`HBIT_DATA:0]   iw_cr_attr,
+    input wire                   iw_cr_we_tag,
+    input wire                   iw_cr_tag,
+    output wire [`HBIT_TGT_CR:0] ow_cr_write_addr,
+    output wire                  ow_cr_we_base,
+    output wire [`HBIT_ADDR:0]   ow_cr_base,
+    output wire                  ow_cr_we_len,
+    output wire [`HBIT_ADDR:0]   ow_cr_len,
+    output wire                  ow_cr_we_cur,
+    output wire [`HBIT_ADDR:0]   ow_cr_cur,
+    output wire                  ow_cr_we_perms,
+    output wire [`HBIT_DATA:0]   ow_cr_perms,
+    output wire                  ow_cr_we_attr,
+    output wire [`HBIT_DATA:0]   ow_cr_attr,
+    output wire                  ow_cr_we_tag,
+    output wire                  ow_cr_tag
 );
     assign ow_gp_write_enable = iw_tgt_gp_we ? 1'b1 : 1'b0;
     assign ow_gp_write_addr   = iw_tgt_gp;
@@ -40,6 +68,20 @@ module stg_wb(
     assign ow_ar_write_enable = iw_tgt_ar_we ? 1'b1 : 1'b0;
     assign ow_ar_write_addr   = iw_tgt_ar;
     assign ow_ar_write_data   = iw_ar_result;
+    // Pass-through CR writeback controls
+    assign ow_cr_write_addr = iw_cr_write_addr;
+    assign ow_cr_we_base    = iw_cr_we_base;
+    assign ow_cr_base       = iw_cr_base;
+    assign ow_cr_we_len     = iw_cr_we_len;
+    assign ow_cr_len        = iw_cr_len;
+    assign ow_cr_we_cur     = iw_cr_we_cur;
+    assign ow_cr_cur        = iw_cr_cur;
+    assign ow_cr_we_perms   = iw_cr_we_perms;
+    assign ow_cr_perms      = iw_cr_perms;
+    assign ow_cr_we_attr    = iw_cr_we_attr;
+    assign ow_cr_attr       = iw_cr_attr;
+    assign ow_cr_we_tag     = iw_cr_we_tag;
+    assign ow_cr_tag        = iw_cr_tag;
 
     reg [`HBIT_ADDR:0]   r_pc_latch;
     reg [`HBIT_DATA:0]   r_instr_latch;

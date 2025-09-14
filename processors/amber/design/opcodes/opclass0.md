@@ -200,6 +200,10 @@ Trap note
 |---|---|---|---|
 | x | - | x | - |
 
+Note
+
+- Flags are updated only when the effective rotation amount `DRs[4:0]` is non-zero; if the amount is zero the operation is a no-op and flags are unchanged.
+
 - ## SHRur DRs, DRt
 
 | operation        | µop            | isa                |
@@ -239,6 +243,10 @@ Trap note
 | z | n | c | v |
 |---|---|---|---|
 | x | - | x | - |
+
+Note
+
+- Flags are updated only when the effective rotation amount `DRs[4:0]` is non-zero; if the amount is zero the operation is a no-op and flags are unchanged.
 
 - ## CMPur DRs, DRt
 

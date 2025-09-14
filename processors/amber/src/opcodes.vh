@@ -255,6 +255,8 @@
 `define SUBOP_SRSUBsi  4'b0100 // µop
 `define SUBOP_SRSTso   4'b0101 // µop
 `define SUBOP_SRLDso   4'b0110 // µop
+`define SUBOP_CR2SR    4'b0111 // µop
+`define SUBOP_SR2CR    4'b1000 // µop
 
 `define OPC_SRMOVur  {`OPCLASS_F, `SUBOP_SRMOVur}
 `define OPC_SRMOVAur {`OPCLASS_F, `SUBOP_SRMOVAur}
@@ -263,6 +265,8 @@
 `define OPC_SRSUBsi  {`OPCLASS_F, `SUBOP_SRSUBsi}
 `define OPC_SRSTso   {`OPCLASS_F, `SUBOP_SRSTso}
 `define OPC_SRLDso   {`OPCLASS_F, `SUBOP_SRLDso}
+`define OPC_CR2SR    {`OPCLASS_F, `SUBOP_CR2SR}
+`define OPC_SR2CR    {`OPCLASS_F, `SUBOP_SR2CR}
 
 function automatic [79:0] opc2str;
     input [`HBIT_OPC:0] opc;
@@ -376,6 +380,8 @@ function automatic [79:0] opc2str;
             `OPC_SRSUBsi:  opc2str = "SRSUBsi";
             `OPC_SRSTso:   opc2str = "SRSTso";
             `OPC_SRLDso:   opc2str = "SRLDso";
+            `OPC_CR2SR:    opc2str = "CR2SR";
+            `OPC_SR2CR:    opc2str = "SR2CR";
 // DEFAULT
             default:      opc2str = "UNKNOWN";
         endcase

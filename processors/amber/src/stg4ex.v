@@ -47,6 +47,20 @@ module stg_ex(
     input wire  [`HBIT_ADDR:0]   iw_tgt_ar_val,
     input wire  [`HBIT_ADDR:0]   iw_src_sr_val,
     input wire  [`HBIT_ADDR:0]   iw_tgt_sr_val,
+    // CR writeback controls (to regcr via top-level)
+    output wire [`HBIT_TGT_CR:0] ow_cr_write_addr,
+    output wire                  ow_cr_we_base,
+    output wire [`HBIT_ADDR:0]   ow_cr_base,
+    output wire                  ow_cr_we_len,
+    output wire [`HBIT_ADDR:0]   ow_cr_len,
+    output wire                  ow_cr_we_cur,
+    output wire [`HBIT_ADDR:0]   ow_cr_cur,
+    output wire                  ow_cr_we_perms,
+    output wire [`HBIT_DATA:0]   ow_cr_perms,
+    output wire                  ow_cr_we_attr,
+    output wire [`HBIT_DATA:0]   ow_cr_attr,
+    output wire                  ow_cr_we_tag,
+    output wire                  ow_cr_tag,
     // CHERI: CR read views for the CR indices selected in ID
     input wire  [`HBIT_ADDR:0]   iw_cr_s_base,
     input wire  [`HBIT_ADDR:0]   iw_cr_s_len,
@@ -85,6 +99,20 @@ module stg_ex(
     // Trap control: request LR write and kill GP write when taking a trap
     reg                  r_trap_lr_we;
     reg                  r_kill_gp_we;
+    // CR writeback controls
+    reg [`HBIT_TGT_CR:0] r_cr_write_addr;
+    reg                  r_cr_we_base;
+    reg [`HBIT_ADDR:0]   r_cr_base;
+    reg                  r_cr_we_len;
+    reg [`HBIT_ADDR:0]   r_cr_len;
+    reg                  r_cr_we_cur;
+    reg [`HBIT_ADDR:0]   r_cr_cur;
+    reg                  r_cr_we_perms;
+    reg [`HBIT_DATA:0]   r_cr_perms;
+    reg                  r_cr_we_attr;
+    reg [`HBIT_DATA:0]   r_cr_attr;
+    reg                  r_cr_we_tag;
+    reg                  r_cr_tag;
     // Current flags come from SR[FL] via SR read port 1 (forwarded)
     wire [`HBIT_FLAG:0]  w_fl_in = iw_src_sr_val[`HBIT_FLAG:0];
     // Latch for upper immediate banks (cleared on reset/flush)
@@ -121,6 +149,14 @@ module stg_ex(
             r_tgt_sr_we    = 1'b0;
             r_trap_lr_we   = 1'b0;
             r_kill_gp_we   = 1'b0;
+            // Defaults for CR writebacks
+            r_cr_write_addr = {(`HBIT_TGT_CR+1){1'b0}};
+            r_cr_we_base  = 1'b0; r_cr_base  = {`SIZE_ADDR{1'b0}};
+            r_cr_we_len   = 1'b0; r_cr_len   = {`SIZE_ADDR{1'b0}};
+            r_cr_we_cur   = 1'b0; r_cr_cur   = {`SIZE_ADDR{1'b0}};
+            r_cr_we_perms = 1'b0; r_cr_perms = {`SIZE_DATA{1'b0}};
+            r_cr_we_attr  = 1'b0; r_cr_attr  = {`SIZE_DATA{1'b0}};
+            r_cr_we_tag   = 1'b0; r_cr_tag   = 1'b0;
         end
         // By default, clear computed flags each cycle; set only when op defines them
         r_fl             = {`SIZE_FLAG{1'b0}};
@@ -190,7 +226,7 @@ module stg_ex(
                 end
             end
             `OPC_CINC, `OPC_CINCv: begin
-                // Update CRt.cursor via AR write path
+                // Update CRt.cursor via AR write/forwarding path
                 reg signed [47:0] delta;
                 reg [47:0] newc;
                 reg fault;
@@ -230,11 +266,88 @@ module stg_ex(
                     r_ar_result = newc;
                 end
             end
+            `OPC_CMOV: begin
+                // Copy full capability CRs -> CRt
+                r_cr_write_addr = iw_tgt_ar;
+                r_cr_we_base  = 1'b1; r_cr_base  = iw_cr_s_base;
+                r_cr_we_len   = 1'b1; r_cr_len   = iw_cr_s_len;
+                r_cr_we_cur   = 1'b1; r_cr_cur   = iw_cr_s_cur;
+                r_cr_we_perms = 1'b1; r_cr_perms = iw_cr_s_perms;
+                r_cr_we_attr  = 1'b1; r_cr_attr  = iw_cr_s_attr;
+                r_cr_we_tag   = 1'b1; r_cr_tag   = iw_cr_s_tag;
+            end
+            `OPC_CSETB, `OPC_CSETBi, `OPC_CSETBv, `OPC_CSETBiv: begin
+                // Set bounds: base := CRs.cursor, len := DRs or imm
+                reg signed [47:0] newlen;
+                reg [47:0] newbase;
+                reg fault;
+                // Use forwarded AR view for CRs.cursor for proper bypassing
+                newbase = iw_src_ar_val;
+                if ((iw_opc == `OPC_CSETBi) || (iw_opc == `OPC_CSETBiv))
+                    newlen = {{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
+                else
+                    newlen = {{24{iw_src_gp_val[23]}}, iw_src_gp_val};
+                fault = 1'b0;
+                // Require SB permission on target capability to change bounds
+                if (!iw_cr_t_perms[`CR_PERM_SB_BIT]) fault = 1'b1;
+                // Checked variants: length must be > 0 and current cursor must fit
+                if ((iw_opc == `OPC_CSETBv) || (iw_opc == `OPC_CSETBiv)) begin
+                    if (newlen <= 0) fault = 1'b1;
+                    if (!((iw_cr_t_cur >= newbase) && (iw_cr_t_cur < (newbase + newlen[47:0])))) fault = 1'b1;
+                end
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                end else begin
+                    r_cr_write_addr = iw_tgt_ar;
+                    r_cr_we_base    = 1'b1; r_cr_base = newbase;
+                    r_cr_we_len     = 1'b1; r_cr_len  = newlen[47:0];
+                end
+            end
+            `OPC_CANDP: begin
+                // AND permissions with mask in DRs
+                r_cr_write_addr = iw_tgt_ar;
+                r_cr_we_perms   = 1'b1;
+                r_cr_perms      = (iw_cr_t_perms & iw_src_gp_val);
+            end
+            `OPC_CCLRT: begin
+                // Clear capability tag (invalidate)
+                r_cr_write_addr = iw_tgt_ar;
+                r_cr_we_tag     = 1'b1;
+                r_cr_tag        = 1'b0;
+            end
             `OPC_CGETP: begin
                 r_result = iw_cr_s_perms;
             end
             `OPC_CGETT: begin
                 r_result = {23'b0, (iw_cr_s_tag ? 1'b1 : 1'b0)};
+            end
+            // Micro-ops: CR2SR and SR2CR
+            `OPC_CR2SR: begin
+                // field selector at [11:8]
+                case (iw_instr[11:8])
+                    `CR_FLD_BASE:  r_sr_result = iw_cr_s_base;
+                    `CR_FLD_LEN:   r_sr_result = iw_cr_s_len;
+                    `CR_FLD_CUR:   r_sr_result = iw_cr_s_cur;
+                    `CR_FLD_PERMS: r_sr_result = {24'b0, iw_cr_s_perms};
+                    `CR_FLD_ATTR:  r_sr_result = {24'b0, iw_cr_s_attr};
+                    `CR_FLD_TAG:   r_sr_result = {47'b0, iw_cr_s_tag};
+                    default:       r_sr_result = {`SIZE_ADDR{1'b0}};
+                endcase
+                r_result    = r_sr_result[23:0];
+            end
+            `OPC_SR2CR: begin
+                r_cr_write_addr = iw_tgt_ar;
+                case (iw_instr[11:8])
+                    `CR_FLD_BASE:  begin r_cr_we_base  = 1'b1; r_cr_base  = iw_src_sr_val; end
+                    `CR_FLD_LEN:   begin r_cr_we_len   = 1'b1; r_cr_len   = iw_src_sr_val; end
+                    `CR_FLD_CUR:   begin r_cr_we_cur   = 1'b1; r_cr_cur   = iw_src_sr_val; end
+                    `CR_FLD_PERMS: begin r_cr_we_perms = 1'b1; r_cr_perms = iw_src_sr_val[23:0]; end
+                    `CR_FLD_ATTR:  begin r_cr_we_attr  = 1'b1; r_cr_attr  = iw_src_sr_val[23:0]; end
+                    `CR_FLD_TAG:   begin r_cr_we_tag   = 1'b1; r_cr_tag   = iw_src_sr_val[0]; end
+                endcase
             end
             
             `OPC_LUIui: begin
@@ -252,15 +365,13 @@ module stg_ex(
                 reg [4:0] carry_idx;
                 amt = iw_src_gp_val[4:0];
                 amt_mod = amt % `SIZE_DATA;
-                // Compute result regardless of flag updates
-                if (amt_mod == 5'd0)
+                if (amt_mod == 5'd0) begin
+                    // No-op: result unchanged, flags unchanged
                     r_result = iw_tgt_gp_val;
-                else
+                end else begin
                     r_result = (iw_tgt_gp_val << amt_mod) | (iw_tgt_gp_val >> (`SIZE_DATA - amt_mod));
-                // Flags are only updated if source amount is non-zero (per spec)
-                if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
-                    // For full-width multiples, the last bit shifted out corresponds to bit 0
-                    carry_idx = (amt_mod == 5'd0) ? 5'd0 : (`SIZE_DATA - amt_mod);
+                    // Last bit shifted out corresponds to bit SIZE-amt_mod
+                    carry_idx = (`SIZE_DATA - amt_mod);
                     r_fl[`FLAG_C] = (iw_tgt_gp_val >> carry_idx) & 1'b1;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
                     r_flags_we = 1'b1;
@@ -273,13 +384,13 @@ module stg_ex(
                 reg [4:0] carry_idx;
                 amt = iw_src_gp_val[4:0];
                 amt_mod = amt % `SIZE_DATA;
-                if (amt_mod == 5'd0)
+                if (amt_mod == 5'd0) begin
+                    // No-op: result unchanged, flags unchanged
                     r_result = iw_tgt_gp_val;
-                else
+                end else begin
                     r_result = (iw_tgt_gp_val >> amt_mod) | (iw_tgt_gp_val << (`SIZE_DATA - amt_mod));
-                if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
-                    // For full-width multiples, the last shift-out comes from bit SIZE-1
-                    carry_idx = (amt_mod == 5'd0) ? (`SIZE_DATA-1) : (amt_mod-1);
+                    // Last bit shifted out comes from bit amt_mod-1
+                    carry_idx = (amt_mod-1);
                     r_fl[`FLAG_C] = (iw_tgt_gp_val >> carry_idx) & 1'b1;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
                     r_flags_we = 1'b1;
@@ -330,43 +441,53 @@ module stg_ex(
                 r_flags_we = 1'b1;
             end
             `OPC_SHLur: begin
+                // Logical left shift by variable amount; trap on range per spec
                 reg [4:0] n;
                 reg [4:0] n_eff;
                 n = iw_src_gp_val[4:0];
-                if (n >= `SIZE_DATA) begin
-                    r_result = {`SIZE_DATA{1'b0}};
-                    // Flags updated only if amount is non-zero (true here)
-                    r_fl[`FLAG_C] = 1'b0;
-                    r_fl[`FLAG_Z] = 1'b1;
-                    r_flags_we = 1'b1;
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
+                    // Range trap: branch to handler base from uimm banks; save LR=PC+1
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
                 end else begin
                     n_eff = n;
                     r_result = iw_tgt_gp_val << n_eff;
-                    if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
-                        r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (`SIZE_DATA - n_eff)) & 1'b1);
-                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                        r_flags_we = 1'b1;
-                    end
+                    // Update flags (Z,C) only when amount is non-zero (true here)
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (`SIZE_DATA - n_eff)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
             end
             `OPC_SHRur: begin
+                // Logical right shift by variable amount; trap on range per spec
                 reg [4:0] n;
                 reg [4:0] n_eff;
                 n = iw_src_gp_val[4:0];
-                if (n >= `SIZE_DATA) begin
-                    r_result = {`SIZE_DATA{1'b0}};
-                    // Flags updated only if amount is non-zero (true here)
-                    r_fl[`FLAG_C] = 1'b0;
-                    r_fl[`FLAG_Z] = 1'b1;
-                    r_flags_we = 1'b1;
+                if (n == 5'd0) begin
+                    // No-op, flags unchanged
+                    r_result = iw_tgt_gp_val;
+                end else if (n >= `SIZE_DATA) begin
+                    // Range trap
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                    r_flags_we     = 1'b0;
                 end else begin
                     n_eff = n;
                     r_result = iw_tgt_gp_val >> n_eff;
-                    if (iw_src_gp_val != {`SIZE_DATA{1'b0}}) begin
-                        r_fl[`FLAG_C] = (n_eff == 5'd0) ? 1'b0 : ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
-                        r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
-                        r_flags_we = 1'b1;
-                    end
+                    // Update flags (Z,C) only when amount is non-zero (true here)
+                    r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n_eff-1)) & 1'b1);
+                    r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}});
+                    r_flags_we = 1'b1;
                 end
             end
             `OPC_CMPur: begin
@@ -853,6 +974,20 @@ module stg_ex(
     reg [`HBIT_ADDR:0]   r_sr_result_latch;
     reg                  r_branch_taken_latch;
     reg [`HBIT_ADDR:0]   r_branch_pc_latch;
+    // CR writeback latches
+    reg [`HBIT_TGT_CR:0] r_cr_write_addr_latch;
+    reg                  r_cr_we_base_latch;
+    reg [`HBIT_ADDR:0]   r_cr_base_latch;
+    reg                  r_cr_we_len_latch;
+    reg [`HBIT_ADDR:0]   r_cr_len_latch;
+    reg                  r_cr_we_cur_latch;
+    reg [`HBIT_ADDR:0]   r_cr_cur_latch;
+    reg                  r_cr_we_perms_latch;
+    reg [`HBIT_DATA:0]   r_cr_perms_latch;
+    reg                  r_cr_we_attr_latch;
+    reg [`HBIT_DATA:0]   r_cr_attr_latch;
+    reg                  r_cr_we_tag_latch;
+    reg                  r_cr_tag_latch;
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             r_pc_latch           <= `SIZE_ADDR'b0;
@@ -870,6 +1005,20 @@ module stg_ex(
             r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
+            // CR writeback latches
+            r_cr_write_addr_latch<= {(`HBIT_TGT_CR+1){1'b0}};
+            r_cr_we_base_latch   <= 1'b0;
+            r_cr_base_latch      <= {`SIZE_ADDR{1'b0}};
+            r_cr_we_len_latch    <= 1'b0;
+            r_cr_len_latch       <= {`SIZE_ADDR{1'b0}};
+            r_cr_we_cur_latch    <= 1'b0;
+            r_cr_cur_latch       <= {`SIZE_ADDR{1'b0}};
+            r_cr_we_perms_latch  <= 1'b0;
+            r_cr_perms_latch     <= {`SIZE_DATA{1'b0}};
+            r_cr_we_attr_latch   <= 1'b0;
+            r_cr_attr_latch      <= {`SIZE_DATA{1'b0}};
+            r_cr_we_tag_latch    <= 1'b0;
+            r_cr_tag_latch       <= 1'b0;
         end else if (iw_flush) begin
             r_pc_latch           <= `SIZE_ADDR'b0;
             r_instr_latch        <= `SIZE_DATA'b0;
@@ -886,6 +1035,19 @@ module stg_ex(
             r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
+            r_cr_write_addr_latch<= {(`HBIT_TGT_CR+1){1'b0}};
+            r_cr_we_base_latch   <= 1'b0;
+            r_cr_base_latch      <= {`SIZE_ADDR{1'b0}};
+            r_cr_we_len_latch    <= 1'b0;
+            r_cr_len_latch       <= {`SIZE_ADDR{1'b0}};
+            r_cr_we_cur_latch    <= 1'b0;
+            r_cr_cur_latch       <= {`SIZE_ADDR{1'b0}};
+            r_cr_we_perms_latch  <= 1'b0;
+            r_cr_perms_latch     <= {`SIZE_DATA{1'b0}};
+            r_cr_we_attr_latch   <= 1'b0;
+            r_cr_attr_latch      <= {`SIZE_DATA{1'b0}};
+            r_cr_we_tag_latch    <= 1'b0;
+            r_cr_tag_latch       <= 1'b0;
         end else if (iw_stall) begin
             r_pc_latch           <= r_pc_latch;
             r_instr_latch        <= r_instr_latch;
@@ -902,6 +1064,19 @@ module stg_ex(
             r_sr_result_latch    <= r_sr_result_latch;
             r_branch_taken_latch <= r_branch_taken_latch;
             r_branch_pc_latch    <= r_branch_pc_latch;
+            r_cr_write_addr_latch<= r_cr_write_addr_latch;
+            r_cr_we_base_latch   <= r_cr_we_base_latch;
+            r_cr_base_latch      <= r_cr_base_latch;
+            r_cr_we_len_latch    <= r_cr_we_len_latch;
+            r_cr_len_latch       <= r_cr_len_latch;
+            r_cr_we_cur_latch    <= r_cr_we_cur_latch;
+            r_cr_cur_latch       <= r_cr_cur_latch;
+            r_cr_we_perms_latch  <= r_cr_we_perms_latch;
+            r_cr_perms_latch     <= r_cr_perms_latch;
+            r_cr_we_attr_latch   <= r_cr_we_attr_latch;
+            r_cr_attr_latch      <= r_cr_attr_latch;
+            r_cr_we_tag_latch    <= r_cr_we_tag_latch;
+            r_cr_tag_latch       <= r_cr_tag_latch;
         end else begin
             r_pc_latch           <= iw_pc;
             r_instr_latch        <= iw_instr;
@@ -920,6 +1095,19 @@ module stg_ex(
             r_sr_result_latch    <= r_sr_result;
             r_branch_taken_latch <= r_branch_taken;
             r_branch_pc_latch    <= r_branch_pc;
+            r_cr_write_addr_latch<= r_cr_write_addr;
+            r_cr_we_base_latch   <= r_cr_we_base;
+            r_cr_base_latch      <= r_cr_base;
+            r_cr_we_len_latch    <= r_cr_we_len;
+            r_cr_len_latch       <= r_cr_len;
+            r_cr_we_cur_latch    <= r_cr_we_cur;
+            r_cr_cur_latch       <= r_cr_cur;
+            r_cr_we_perms_latch  <= r_cr_we_perms;
+            r_cr_perms_latch     <= r_cr_perms;
+            r_cr_we_attr_latch   <= r_cr_we_attr;
+            r_cr_attr_latch      <= r_cr_attr;
+            r_cr_we_tag_latch    <= r_cr_we_tag;
+            r_cr_tag_latch       <= r_cr_tag;
         end
     end
     assign ow_pc           = r_pc_latch;
@@ -937,4 +1125,18 @@ module stg_ex(
     assign ow_sr_result    = r_sr_result_latch;
     assign ow_branch_taken = r_branch_taken_latch;
     assign ow_branch_pc    = r_branch_pc_latch;
+    // CR writeback
+    assign ow_cr_write_addr = r_cr_write_addr_latch;
+    assign ow_cr_we_base    = r_cr_we_base_latch;
+    assign ow_cr_base       = r_cr_base_latch;
+    assign ow_cr_we_len     = r_cr_we_len_latch;
+    assign ow_cr_len        = r_cr_len_latch;
+    assign ow_cr_we_cur     = r_cr_we_cur_latch;
+    assign ow_cr_cur        = r_cr_cur_latch;
+    assign ow_cr_we_perms   = r_cr_we_perms_latch;
+    assign ow_cr_perms      = r_cr_perms_latch;
+    assign ow_cr_we_attr    = r_cr_we_attr_latch;
+    assign ow_cr_attr       = r_cr_attr_latch;
+    assign ow_cr_we_tag     = r_cr_we_tag_latch;
+    assign ow_cr_tag        = r_cr_tag_latch;
 endmodule

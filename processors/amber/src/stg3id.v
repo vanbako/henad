@@ -42,6 +42,8 @@ module stg_id(
         (w_opc == `OPC_STsi)      ||
         // CHERI: LD/ST (including cap) use signed offsets
         (w_opc == `OPC_LDcso)     || (w_opc == `OPC_STcso)     || (w_opc == `OPC_CLDcso)    || (w_opc == `OPC_CSTcso) ||
+        // CHERI: CSETBi immediates are signed
+        (w_opc == `OPC_CSETBi)    || (w_opc == `OPC_CSETBiv)   ||
         (w_opc == `OPC_BCCsr)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
         (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso);
@@ -52,6 +54,8 @@ module stg_id(
         (w_opc == `OPC_STui)      || (w_opc == `OPC_STsi)      ||
         // CHERI: LD/ST immediates
         (w_opc == `OPC_LDcso)     || (w_opc == `OPC_STcso)     || (w_opc == `OPC_CLDcso)    || (w_opc == `OPC_CSTcso) ||
+        // CHERI: CSETBi immediate
+        (w_opc == `OPC_CSETBi)    || (w_opc == `OPC_CSETBiv)   ||
         (w_opc == `OPC_JCCui)     || (w_opc == `OPC_BCCso)     || (w_opc == `OPC_BALso)     ||
         (w_opc == `OPC_SRJCCso)   || (w_opc == `OPC_SRADDsi)   || (w_opc == `OPC_SRSUBsi)   ||
         (w_opc == `OPC_SRSTso)    || (w_opc == `OPC_SRLDso)    ||
@@ -104,6 +108,7 @@ module stg_id(
     wire w_tgt_sr_we =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRADDsi)   ||
         (w_opc == `OPC_SRSUBsi)   || (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRMOVAur) ||
+        (w_opc == `OPC_CR2SR)     ||
         // SYSCALL writes LR with PC+1
         (w_opc == `OPC_SYSCALL);
 
@@ -163,7 +168,7 @@ module stg_id(
                 r_imm12_val = w_imm12_all;
             end
             // 14-bit immediates
-            `OPC_STsi, `OPC_SRADDsi, `OPC_SRSUBsi: begin
+            `OPC_STsi, `OPC_SRADDsi, `OPC_SRSUBsi, `OPC_CSETBi, `OPC_CSETBiv: begin
                 r_imm14_val = w_imm14_all;
             end
             // 10-bit immediate
@@ -241,10 +246,29 @@ module stg_id(
             `OPC_CSTcso: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
             // Capability ops that update cursor via AR write path
             `OPC_CINC, `OPC_CINCv, `OPC_CINCi, `OPC_CINCiv: begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
+            // Capability ops using CR source/target indices
+            // CMOV CRs->CRt: src at [11:10], tgt at [15:14]
+            `OPC_CMOV: begin
+                r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10];
+                r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14];
+            end
+            // CSETB* CRs, (DR/imm), CRt: src at [11:10], tgt at [15:14]
+            `OPC_CSETB, `OPC_CSETBi, `OPC_CSETBv, `OPC_CSETBiv: begin
+                r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10];
+                r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14];
+            end
+            // CANDP/CCLRT only need CRt index (at [15:14])
+            `OPC_CANDP, `OPC_CCLRT: begin
+                r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14];
+            end
             // Capability getters read CRs
             `OPC_CGETP, `OPC_CGETT: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[11:10]; end
             // OPCLASS_F SR/AR µops
             `OPC_SRMOVAur: begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; end
+            // CR2SR uses CRs at [13:12]
+            `OPC_CR2SR:    begin r_has_src_ar = 1'b1; r_src_ar = iw_instr[13:12]; end
+            // SR2CR writes CRt at [15:14]
+            `OPC_SR2CR:    begin r_has_tgt_ar = 1'b1; r_tgt_ar = iw_instr[15:14]; end
         endcase
     end
 
