@@ -66,8 +66,19 @@ module stg_mo(
                 r_sr_result_next = iw_mem_rdata[iw_mem_mp];
                 r_result = r_sr_result_next[23:0];
             end
+            `OPC_LDcso: begin
+                // 24-bit load from selected port
+                // is48 left at 0 (default); read low 24 bits
+                r_result = iw_mem_rdata[iw_mem_mp][23:0];
+            end
             `OPC_STui, `OPC_STsi: begin
                 // 24-bit store to the selected port for this cycle
+                ow_mem_we[iw_mem_mp] = 1'b1;
+                ow_mem_wdata[iw_mem_mp] = {24'b0, iw_result};
+                ow_mem_is48[iw_mem_mp] = 1'b0;
+            end
+            `OPC_STcso: begin
+                // 24-bit store with address supplied by MA
                 ow_mem_we[iw_mem_mp] = 1'b1;
                 ow_mem_wdata[iw_mem_mp] = {24'b0, iw_result};
                 ow_mem_is48[iw_mem_mp] = 1'b0;

@@ -251,7 +251,9 @@ module amber(
         .ow_read_data2     (w_sr_read_data2)
     );
 
-    // Address registers
+    // Address registers (legacy AR view)
+    // Internally backed by capability registers (CR). We expose the AR read
+    // and write paths but implement them as reads/writes to CR.cursor.
     wire [`HBIT_TGT_AR:0] w_ar_read_addr1;
     wire [`HBIT_TGT_AR:0] w_ar_read_addr2;
     wire [`HBIT_TGT_AR:0] w_ar_write_addr;
@@ -260,25 +262,11 @@ module amber(
     wire [`HBIT_ADDR:0]   w_ar_read_data1;
     wire [`HBIT_ADDR:0]   w_ar_read_data2;
 
-    // AR writes driven by WB stage
-
-    regar u_regar(
-        .iw_clk         (iw_clk),
-        .iw_rst         (iw_rst),
-        .iw_read_addr1  (w_ar_read_addr1),
-        .iw_read_addr2  (w_ar_read_addr2),
-        .iw_write_addr  (w_ar_write_addr),
-        .iw_write_data  (w_ar_write_data),
-        .iw_write_enable(w_ar_write_enable),
-        .ow_read_data1  (w_ar_read_data1),
-        .ow_read_data2  (w_ar_read_data2)
-    );
-
-    // Capability registers (CR0..CR3) — scaffold for CHERI execution
-    // For now, connect read ports to zero to avoid side effects; future stages
-    // will drive read addresses from decoded instructions.
-    wire [`HBIT_TGT_CR:0] w_cr_read_addr1 = {(`HBIT_TGT_CR+1){1'b0}};
-    wire [`HBIT_TGT_CR:0] w_cr_read_addr2 = {(`HBIT_TGT_CR+1){1'b0}};
+    // Capability registers (CR0..CR3)
+    // Map AR indices to CR indices; expose CR.cursor as AR read data and
+    // drive CR.cursor writes from AR write port.
+    wire [`HBIT_TGT_CR:0] w_cr_read_addr1;
+    wire [`HBIT_TGT_CR:0] w_cr_read_addr2;
     wire [`HBIT_ADDR:0]   w_cr_read_base1;
     wire [`HBIT_ADDR:0]   w_cr_read_len1;
     wire [`HBIT_ADDR:0]   w_cr_read_cur1;
@@ -309,13 +297,14 @@ module amber(
         .ow_read_perms2     (w_cr_read_perms2),
         .ow_read_attr2      (w_cr_read_attr2),
         .ow_read_tag2       (w_cr_read_tag2),
-        .iw_write_addr      ({(`HBIT_TGT_CR+1){1'b0}}),
+        // Write CR.cursor from AR write port; other fields unchanged here
+        .iw_write_addr      (w_ar_write_addr),
         .iw_write_en_base   (1'b0),
         .iw_write_base      ({(`HBIT_ADDR+1){1'b0}}),
         .iw_write_en_len    (1'b0),
         .iw_write_len       ({(`HBIT_ADDR+1){1'b0}}),
-        .iw_write_en_cur    (1'b0),
-        .iw_write_cur       ({(`HBIT_ADDR+1){1'b0}}),
+        .iw_write_en_cur    (w_ar_write_enable),
+        .iw_write_cur       (w_ar_write_data),
         .iw_write_en_perms  (1'b0),
         .iw_write_perms     ({(`HBIT_DATA+1){1'b0}}),
         .iw_write_en_attr   (1'b0),
@@ -323,6 +312,10 @@ module amber(
         .iw_write_en_tag    (1'b0),
         .iw_write_tag       (1'b0)
     );
+
+    // Present CR.cursor as legacy AR read data
+    assign w_ar_read_data1 = w_cr_read_cur1;
+    assign w_ar_read_data2 = w_cr_read_cur2;
 
     wire                w_stall;
     wire                w_hazard_stall;
@@ -489,6 +482,9 @@ module amber(
     assign w_gp_read_addr2 = w_tgt_gp;
     assign w_ar_read_addr1 = w_has_src_ar ? w_src_ar : {(`HBIT_TGT_AR+1){1'b0}};
     assign w_ar_read_addr2 = w_has_tgt_ar ? w_tgt_ar : {(`HBIT_TGT_AR+1){1'b0}};
+    // Map AR read indices into CR read ports
+    assign w_cr_read_addr1 = w_ar_read_addr1;
+    assign w_cr_read_addr2 = w_ar_read_addr2;
     assign w_sr_read_addr1 = w_src_sr;
     assign w_sr_read_addr2 = w_tgt_sr;
 
@@ -722,6 +718,19 @@ module amber(
         .iw_tgt_ar_val    (w_tgt_ar_val),
         .iw_src_sr_val    (w_src_sr_val_mux),
         .iw_tgt_sr_val    (w_tgt_sr_val),
+        // CR read views mapped from CR read ports 1/2 (driven by AR indices)
+        .iw_cr_s_base     (w_cr_read_base1),
+        .iw_cr_s_len      (w_cr_read_len1),
+        .iw_cr_s_cur      (w_cr_read_cur1),
+        .iw_cr_s_perms    (w_cr_read_perms1),
+        .iw_cr_s_attr     (w_cr_read_attr1),
+        .iw_cr_s_tag      (w_cr_read_tag1),
+        .iw_cr_t_base     (w_cr_read_base2),
+        .iw_cr_t_len      (w_cr_read_len2),
+        .iw_cr_t_cur      (w_cr_read_cur2),
+        .iw_cr_t_perms    (w_cr_read_perms2),
+        .iw_cr_t_attr     (w_cr_read_attr2),
+        .iw_cr_t_tag      (w_cr_read_tag2),
         .iw_flush         (w_branch_taken),
         .iw_stall         (w_stall)
     );

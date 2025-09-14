@@ -30,6 +30,8 @@
   - Each capability holds: base (48), length (48), perms (at least R/W/X/LC/SC/SB), sealed bit, otype, cursor (48), tag.
   - Default capabilities (CSR): `PCC` (code), `DDC` (default data), and `SCC` (shadow-call stack).
 
+Implementation note: the legacy AR file has been replaced by the capability register file. All AR reads/writes in the core now map to the CR cursor field (`CRx.cursor`). This keeps existing AR-based data paths working while enabling CHERI semantics incrementally (bounds, perms, tags) around the same indices (ARx ≡ CRx).
+
 ## Memory and CHERI
 
 - Address space: 48-bit physical addressing, BAU=24-bit. No I/D caches yet.

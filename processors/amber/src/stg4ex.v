@@ -2,6 +2,7 @@
 `include "src/sr.vh"
 `include "src/flags.vh"
 `include "src/opcodes.vh"
+`include "src/cr.vh"
 `include "src/cc.vh"
 
 module stg_ex(
@@ -46,6 +47,19 @@ module stg_ex(
     input wire  [`HBIT_ADDR:0]   iw_tgt_ar_val,
     input wire  [`HBIT_ADDR:0]   iw_src_sr_val,
     input wire  [`HBIT_ADDR:0]   iw_tgt_sr_val,
+    // CHERI: CR read views for the CR indices selected in ID
+    input wire  [`HBIT_ADDR:0]   iw_cr_s_base,
+    input wire  [`HBIT_ADDR:0]   iw_cr_s_len,
+    input wire  [`HBIT_ADDR:0]   iw_cr_s_cur,
+    input wire  [`HBIT_DATA:0]   iw_cr_s_perms,
+    input wire  [`HBIT_DATA:0]   iw_cr_s_attr,
+    input wire                   iw_cr_s_tag,
+    input wire  [`HBIT_ADDR:0]   iw_cr_t_base,
+    input wire  [`HBIT_ADDR:0]   iw_cr_t_len,
+    input wire  [`HBIT_ADDR:0]   iw_cr_t_cur,
+    input wire  [`HBIT_DATA:0]   iw_cr_t_perms,
+    input wire  [`HBIT_DATA:0]   iw_cr_t_attr,
+    input wire                   iw_cr_t_tag,
     input wire                   iw_flush,
     input wire                   iw_stall
 );
@@ -135,6 +149,93 @@ module stg_ex(
             endcase
         end
         case (iw_opc)
+            // CHERI: 24-bit loads/stores checked against CR
+            `OPC_LDcso: begin
+                reg [47:0] eff;
+                reg fault;
+                fault = 1'b0;
+                eff = iw_cr_s_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                if (!iw_cr_s_tag)                      fault = 1'b1;
+                if (iw_cr_s_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
+                if (!iw_cr_s_perms[`CR_PERM_R_BIT])    fault = 1'b1;
+                if (!((eff >= iw_cr_s_base) && (eff < (iw_cr_s_base + iw_cr_s_len)))) fault = 1'b1;
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_addr = eff;
+                end
+            end
+            `OPC_STcso: begin
+                reg [47:0] eff;
+                reg fault;
+                fault = 1'b0;
+                eff = iw_cr_t_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                if (!iw_cr_t_tag)                      fault = 1'b1;
+                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
+                if (!iw_cr_t_perms[`CR_PERM_W_BIT])    fault = 1'b1;
+                if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
+                end else begin
+                    r_addr   = eff;
+                    r_result = iw_src_gp_val;
+                end
+            end
+            `OPC_CINC, `OPC_CINCv: begin
+                // Update CRt.cursor via AR write path
+                reg signed [47:0] delta;
+                reg [47:0] newc;
+                reg fault;
+                delta = {{24{iw_src_gp_val[23]}}, iw_src_gp_val};
+                newc  = iw_cr_t_cur + delta;
+                fault = 1'b0;
+                if (iw_opc == `OPC_CINCv) begin
+                    if (!((newc >= iw_cr_t_base) && (newc < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                end
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                end else begin
+                    r_tgt_ar_we = 1'b1;
+                    r_ar_result = newc;
+                end
+            end
+            `OPC_CINCi, `OPC_CINCiv: begin
+                reg signed [47:0] delta;
+                reg [47:0] newc;
+                reg fault;
+                delta = {{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
+                newc  = iw_cr_t_cur + delta;
+                fault = 1'b0;
+                if (iw_opc == `OPC_CINCiv) begin
+                    if (!((newc >= iw_cr_t_base) && (newc < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                end
+                if (fault) begin
+                    r_branch_taken = 1'b1;
+                    r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+                    r_trap_lr_we   = 1'b1;
+                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                end else begin
+                    r_tgt_ar_we = 1'b1;
+                    r_ar_result = newc;
+                end
+            end
+            `OPC_CGETP: begin
+                r_result = iw_cr_s_perms;
+            end
+            `OPC_CGETT: begin
+                r_result = {23'b0, (iw_cr_s_tag ? 1'b1 : 1'b0)};
+            end
             
             `OPC_LUIui: begin
                 // r_ui_latch updated in sequential block

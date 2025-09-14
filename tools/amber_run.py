@@ -34,7 +34,6 @@ def build_source_list() -> list[str]:
         "amber_refill_gwddr.v",
         "cache.v",
         "mem.v",
-        "regar.v",
         "regcr.v",
         "regcsr.v",
         "reggp.v",
