@@ -131,11 +131,18 @@ module xt_translate_tb;
         // leave one idle tick to drop busy before next macro
         instr_in = { `OPC_NOP, 16'h0000 };
         tick();
-        // 6) SETSSP: SRMOVAur ARs -> SR[SSP]
+        // 6) KRET expands to SRSSP+=2; SRLDso LR, -2(SSP); SRJCCso LR+#1 (AL)
+        instr_in = { `OPC_KRET, 16'b0 };
+        tick(); if (instr_out !== pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_SSP, 14'd2)) $fatal;
+        tick(); if (instr_out !== pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_LR, `SR_IDX_SSP, -12'sd2)) $fatal;
+        tick(); if (instr_out !== pack_sr_cc_imm10(`OPC_SRJCCso, `SR_IDX_LR, 4'b0000, 10'sd1)) $fatal;
+        instr_in = { `OPC_NOP, 16'h0000 };
+        tick();
+        // 7) SETSSP: SRMOVAur ARs -> SR[SSP]
         instr_in = { `OPC_SETSSP, 2'b01, 14'b0 };
         tick(); if (instr_out !== { `OPC_SRMOVAur, `SR_IDX_SSP, 2'b01, 12'b0 }) $fatal;
-        
-        // 7) Pass-through ones (JCCui/BCCsr/BCCso/BALso)
+
+        // 8) Pass-through ones (JCCui/BCCsr/BCCso/BALso/HLT)
         instr_in = { `OPC_JCCui, 4'b1010, 12'h123 };
         tick(); if (instr_out !== instr_in) $fatal;
         instr_in = { `OPC_BCCsr, 4'h3, 4'b0001, 8'b0 };
@@ -143,6 +150,8 @@ module xt_translate_tb;
         instr_in = { `OPC_BCCso, 4'b0110, 12'hFE0 };
         tick(); if (instr_out !== instr_in) $fatal;
         instr_in = { `OPC_BALso, 16'h0001 };
+        tick(); if (instr_out !== instr_in) $fatal;
+        instr_in = { `OPC_HLT, 16'h0000 };
         tick(); if (instr_out !== instr_in) $fatal;
 
         $display("xt_translate_tb PASS");

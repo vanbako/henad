@@ -13,7 +13,9 @@ module stg_ex(
     input wire  [`HBIT_DATA:0]   iw_instr,
     output wire [`HBIT_DATA:0]   ow_instr,
     input wire  [`HBIT_OPC:0]    iw_opc,
+    input wire  [`HBIT_OPC:0]    iw_root_opc,
     output wire [`HBIT_OPC:0]    ow_opc,
+    output wire [`HBIT_OPC:0]    ow_root_opc,
     input wire                   iw_sgn_en,
     input wire                   iw_imm_en,
     input wire  [`HBIT_IMM14:0]  iw_imm14_val,
@@ -41,6 +43,7 @@ module stg_ex(
     output wire [`HBIT_ADDR:0]   ow_sr_result,
     output wire                  ow_branch_taken,
     output wire [`HBIT_ADDR:0]   ow_branch_pc,
+    output wire                  ow_halt,
     input wire  [`HBIT_DATA:0]   iw_src_gp_val,
     input wire  [`HBIT_DATA:0]   iw_tgt_gp_val,
     input wire  [`HBIT_ADDR:0]   iw_src_ar_val,
@@ -97,6 +100,7 @@ module stg_ex(
     reg [`HBIT_FLAG:0]  r_fl;
     reg                 r_branch_taken;
     reg [`HBIT_ADDR:0]  r_branch_pc;
+    reg                 r_halt;
     reg                  r_tgt_ar_we;
     reg                  r_tgt_sr_we;
     reg                  r_flags_we;
@@ -149,6 +153,7 @@ module stg_ex(
     end
 
     always @* begin
+        r_halt = 1'b0;
         if (!iw_stall) begin
             r_branch_taken = 1'b0;
             r_addr         = {`SIZE_ADDR{1'b0}};
@@ -1264,6 +1269,10 @@ module stg_ex(
                 r_branch_taken = 1'b1;
                 r_branch_pc    = iw_tgt_sr_val;
             end
+            `OPC_HLT: begin
+                r_halt         = 1'b1;
+                r_branch_taken = 1'b0;
+            end
             default: begin
                 r_result = `SIZE_DATA'b0;
                 r_fl     = `SIZE_FLAG'b0;
@@ -1279,6 +1288,7 @@ module stg_ex(
     reg [`HBIT_ADDR:0]   r_pc_latch;
     reg [`HBIT_DATA:0]   r_instr_latch;
     reg [`HBIT_OPC:0]    r_opc_latch;
+    reg [`HBIT_OPC:0]    r_root_opc_latch;
     reg [`HBIT_TGT_GP:0] r_tgt_gp_latch;
     reg                  r_tgt_gp_we_latch;
     reg [`HBIT_TGT_SR:0] r_tgt_sr_latch;
@@ -1291,6 +1301,7 @@ module stg_ex(
     reg [`HBIT_ADDR:0]   r_sr_result_latch;
     reg                  r_branch_taken_latch;
     reg [`HBIT_ADDR:0]   r_branch_pc_latch;
+    reg                  r_halt_latch;
     // CR writeback latches
     reg [`HBIT_TGT_CR:0] r_cr_write_addr_latch;
     reg                  r_cr_we_base_latch;
@@ -1310,6 +1321,7 @@ module stg_ex(
             r_pc_latch           <= `SIZE_ADDR'b0;
             r_instr_latch        <= `SIZE_DATA'b0;
             r_opc_latch          <= `SIZE_OPC'b0;
+            r_root_opc_latch     <= `SIZE_OPC'b0;
             r_tgt_gp_latch       <= `SIZE_TGT_GP'b0;
             r_tgt_gp_we_latch    <= 1'b0;
             r_tgt_sr_latch       <= `SIZE_TGT_SR'b0;
@@ -1322,6 +1334,7 @@ module stg_ex(
             r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
+            r_halt_latch         <= 1'b0;
             // CR writeback latches
             r_cr_write_addr_latch<= {(`HBIT_TGT_CR+1){1'b0}};
             r_cr_we_base_latch   <= 1'b0;
@@ -1340,6 +1353,7 @@ module stg_ex(
             r_pc_latch           <= `SIZE_ADDR'b0;
             r_instr_latch        <= `SIZE_DATA'b0;
             r_opc_latch          <= `SIZE_OPC'b0;
+            r_root_opc_latch     <= `SIZE_OPC'b0;
             r_tgt_gp_latch       <= `SIZE_TGT_GP'b0;
             r_tgt_gp_we_latch    <= 1'b0;
             r_tgt_sr_latch       <= `SIZE_TGT_SR'b0;
@@ -1352,6 +1366,7 @@ module stg_ex(
             r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
+            r_halt_latch         <= 1'b0;
             r_cr_write_addr_latch<= {(`HBIT_TGT_CR+1){1'b0}};
             r_cr_we_base_latch   <= 1'b0;
             r_cr_base_latch      <= {`SIZE_ADDR{1'b0}};
@@ -1369,6 +1384,7 @@ module stg_ex(
             r_pc_latch           <= r_pc_latch;
             r_instr_latch        <= r_instr_latch;
             r_opc_latch          <= r_opc_latch;
+            r_root_opc_latch     <= r_root_opc_latch;
             r_tgt_gp_latch       <= r_tgt_gp_latch;
             r_tgt_gp_we_latch    <= r_tgt_gp_we_latch;
             r_tgt_sr_latch       <= r_tgt_sr_latch;
@@ -1381,6 +1397,7 @@ module stg_ex(
             r_sr_result_latch    <= r_sr_result_latch;
             r_branch_taken_latch <= r_branch_taken_latch;
             r_branch_pc_latch    <= r_branch_pc_latch;
+            r_halt_latch         <= r_halt_latch;
             r_cr_write_addr_latch<= r_cr_write_addr_latch;
             r_cr_we_base_latch   <= r_cr_we_base_latch;
             r_cr_base_latch      <= r_cr_base_latch;
@@ -1398,6 +1415,7 @@ module stg_ex(
             r_pc_latch           <= iw_pc;
             r_instr_latch        <= iw_instr;
             r_opc_latch          <= iw_opc;
+            r_root_opc_latch     <= iw_root_opc;
             r_tgt_gp_latch       <= iw_tgt_gp;
             // Kill GP writeback if a trap is taken in EX
             r_tgt_gp_we_latch    <= (iw_tgt_gp_we & ~r_kill_gp_we);
@@ -1412,6 +1430,7 @@ module stg_ex(
             r_sr_result_latch    <= r_sr_result;
             r_branch_taken_latch <= r_branch_taken;
             r_branch_pc_latch    <= r_branch_pc;
+            r_halt_latch         <= r_halt;
             r_cr_write_addr_latch<= r_cr_write_addr;
             r_cr_we_base_latch   <= r_cr_we_base;
             r_cr_base_latch      <= r_cr_base;
@@ -1430,6 +1449,7 @@ module stg_ex(
     assign ow_pc           = r_pc_latch;
     assign ow_instr        = r_instr_latch;
     assign ow_opc          = r_opc_latch;
+    assign ow_root_opc     = r_root_opc_latch;
     assign ow_tgt_gp       = r_tgt_gp_latch;
     assign ow_tgt_gp_we    = r_tgt_gp_we_latch;
     assign ow_tgt_sr       = r_tgt_sr_latch;
@@ -1442,6 +1462,7 @@ module stg_ex(
     assign ow_sr_result    = r_sr_result_latch;
     assign ow_branch_taken = r_branch_taken_latch;
     assign ow_branch_pc    = r_branch_pc_latch;
+    assign ow_halt         = r_halt_latch;
     // CR writeback
     assign ow_cr_write_addr = r_cr_write_addr_latch;
     assign ow_cr_we_base    = r_cr_we_base_latch;

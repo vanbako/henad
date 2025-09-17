@@ -9,6 +9,7 @@ module stg_xt(
     output wire [`HBIT_ADDR:0] ow_pc,
     input wire  [`HBIT_DATA:0] iw_instr,
     output wire [`HBIT_DATA:0] ow_instr,
+    output wire [`HBIT_OPC:0]  ow_root_opc,
     input wire                 iw_flush,
     input wire                 iw_stall,
     // Export whether a macro expansion sequence is active
@@ -162,6 +163,8 @@ module stg_xt(
     reg  [5:0]          r_cnt;
     reg  [`HBIT_DATA:0] r_instr_list [0:MAX_SEQ-1];
     reg  [`HBIT_ADDR:0] r_pc_hold;
+    reg  [`HBIT_OPC:0]  r_root_seq;
+    reg  [`HBIT_OPC:0]  r_root_latch;
 
     
 
@@ -295,6 +298,7 @@ module stg_xt(
     reg  [5:0]          w_seq_len;
     reg  [`HBIT_DATA:0] w_seq_list [0:MAX_SEQ-1];
     integer ii;
+    reg [`HBIT_OPC:0]    r_root;
 
     // Combinational translation
     always @(*) begin
@@ -307,11 +311,13 @@ module stg_xt(
         w_seq_list[3] = {`SIZE_DATA{1'b0}};
 
         // Hold original PC during expansion sequences
-        r_pc = (r_busy) ? r_pc_hold : iw_pc;
+        r_pc   = (r_busy) ? r_pc_hold : iw_pc;
+        r_root = w_opc;
 
         if (r_busy) begin
             // Emit current micro-op from active sequence
             r_instr = r_instr_list[r_idx];
+            r_root  = r_root_seq;
 `ifndef SYNTHESIS
             // Debug: show micro-op being emitted from expansion
             $display("[XT] seq idx=%0d of %0d instr=%h", r_idx, r_cnt, r_instr);
@@ -443,11 +449,22 @@ module stg_xt(
                 end
                 // OPCLASS_9: privileged
                 `OPCLASS_9: begin
-                    if (w_subop == `SUBOP_SETSSP) begin
-                        r_instr = { `OPC_SRMOVAur, `SR_IDX_SSP, iw_instr[15:14], 12'b0 };
-                    end else begin
-                        r_instr = iw_instr;
-                    end
+                    case (w_subop)
+                        `SUBOP_SETSSP: begin
+                            r_instr = { `OPC_SRMOVAur, `SR_IDX_SSP, iw_instr[15:14], 12'b0 };
+                        end
+                        `SUBOP_KRET: begin
+                            w_seq_start   = 1'b1;
+                            w_seq_len     = 3'd3;
+                            w_seq_list[0] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_SSP, 14'd2);
+                            w_seq_list[1] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_LR, `SR_IDX_SSP, -12'sd2);
+                            w_seq_list[2] = pack_sr_cc_imm10(`OPC_SRJCCso, `SR_IDX_LR, 4'b0000, 10'sd1);
+                            r_instr       = w_seq_list[0];
+                        end
+                        default: begin
+                            r_instr = iw_instr;
+                        end
+                    endcase
                 end
                 `OPCLASS_F: begin
                     r_instr = iw_instr;
@@ -478,6 +495,8 @@ module stg_xt(
             end
             r_pc_latch    <= `SIZE_ADDR'b0;
             r_instr_latch <= `SIZE_DATA'b0;
+            r_root_seq    <= {(`HBIT_OPC+1){1'b0}};
+            r_root_latch  <= {(`HBIT_OPC+1){1'b0}};
         end else if (iw_flush) begin
             // Cancel any in-flight macro translation
             r_busy       <= 1'b0;
@@ -486,6 +505,8 @@ module stg_xt(
             r_pc_hold    <= {`SIZE_ADDR{1'b0}};
             r_pc_latch    <= `SIZE_ADDR'b0;
             r_instr_latch <= `SIZE_DATA'b0;
+            r_root_seq    <= {(`HBIT_OPC+1){1'b0}};
+            r_root_latch  <= {(`HBIT_OPC+1){1'b0}};
         end else if (iw_stall) begin
             r_pc_latch    <= r_pc_latch;
             r_instr_latch <= r_instr_latch;
@@ -494,10 +515,13 @@ module stg_xt(
             r_busy        <= r_busy;
             r_cnt         <= r_cnt;
             r_pc_hold     <= r_pc_hold;
+            r_root_seq    <= r_root_seq;
+            r_root_latch  <= r_root_latch;
         end else begin
             // Latch current outputs
             r_pc_latch    <= r_pc;
             r_instr_latch <= r_instr;
+            r_root_latch  <= r_root;
             // Advance or start sequence machinery
             if (r_busy) begin
                 if ((r_idx + 6'd1) < r_cnt) begin
@@ -517,17 +541,20 @@ module stg_xt(
                 for (ii = 0; ii < MAX_SEQ; ii = ii + 1) begin
                     r_instr_list[ii] <= w_seq_list[ii];
                 end
+                r_root_seq <= w_opc;
             end else begin
                 // No sequence, maintain idle state
                 r_busy <= 1'b0;
                 r_idx  <= 6'd0;
                 r_cnt  <= 6'd0;
+                r_root_seq <= w_opc;
             end
         end
     end
 
     assign ow_pc        = r_pc_latch;
     assign ow_instr     = r_instr_latch;
+    assign ow_root_opc  = r_root_latch;
     assign ow_busy      = r_busy;
     assign ow_seq_start = w_seq_start;
 endmodule

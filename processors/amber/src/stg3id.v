@@ -8,8 +8,10 @@ module stg_id(
     input wire  [`HBIT_ADDR:0]    iw_pc,
     output wire [`HBIT_ADDR:0]    ow_pc,
     input wire  [`HBIT_DATA:0]    iw_instr,
+    input wire  [`HBIT_OPC:0]     iw_root_opc,
     output wire [`HBIT_DATA:0]    ow_instr,
     output wire [`HBIT_OPC:0]     ow_opc,
+    output wire [`HBIT_OPC:0]     ow_root_opc,
     output wire                   ow_sgn_en,
     output wire                   ow_imm_en,
     output wire [`HBIT_IMM14:0]   ow_imm14_val,
@@ -276,6 +278,7 @@ module stg_id(
     reg [`HBIT_ADDR:0]   r_pc_latch;
     reg [`HBIT_DATA:0]   r_instr_latch;
     reg [`HBIT_OPC:0]    r_opc_latch;
+    reg [`HBIT_OPC:0]    r_root_opc_latch;
     reg                  r_sgn_en_latch;
     reg                  r_imm_en_latch;
     reg [`HBIT_IMM14:0]  r_imm14_val_latch;
@@ -301,6 +304,7 @@ module stg_id(
             r_pc_latch         <= `SIZE_ADDR'b0;
             r_instr_latch      <= `SIZE_DATA'b0;
             r_opc_latch        <= `SIZE_OPC'b0;
+            r_root_opc_latch   <= `SIZE_OPC'b0;
             r_sgn_en_latch     <= 1'b0;
             r_imm_en_latch     <= 1'b0;
             r_imm14_val_latch  <= `SIZE_IMM14'b0;
@@ -324,6 +328,7 @@ module stg_id(
             r_pc_latch         <= `SIZE_ADDR'b0;
             r_instr_latch      <= `SIZE_DATA'b0;
             r_opc_latch        <= `SIZE_OPC'b0;
+            r_root_opc_latch   <= `SIZE_OPC'b0;
             r_sgn_en_latch     <= 1'b0;
             r_imm_en_latch     <= 1'b0;
             r_imm14_val_latch  <= `SIZE_IMM14'b0;
@@ -347,6 +352,7 @@ module stg_id(
             r_pc_latch         <= r_pc_latch;
             r_instr_latch      <= r_instr_latch;
             r_opc_latch        <= r_opc_latch;
+            r_root_opc_latch   <= r_root_opc_latch;
             r_sgn_en_latch     <= r_sgn_en_latch;
             r_imm_en_latch     <= r_imm_en_latch;
             r_imm14_val_latch  <= r_imm14_val_latch;
@@ -370,6 +376,7 @@ module stg_id(
             r_pc_latch         <= iw_pc;
             r_instr_latch      <= iw_instr;
             r_opc_latch        <= w_opc;
+            r_root_opc_latch   <= iw_root_opc;
             r_sgn_en_latch     <= w_sgn_en;
             r_imm_en_latch     <= w_imm_en;
             r_imm14_val_latch  <= r_imm14_val;
@@ -395,6 +402,7 @@ module stg_id(
     assign ow_pc         = r_pc_latch;
     assign ow_instr      = r_instr_latch;
     assign ow_opc        = r_opc_latch;
+    assign ow_root_opc   = r_root_opc_latch;
     assign ow_sgn_en     = r_sgn_en_latch;
     assign ow_imm_en     = r_imm_en_latch;
     assign ow_imm14_val  = r_imm14_val_latch;

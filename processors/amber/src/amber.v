@@ -344,6 +344,8 @@ module amber(
             r_ia_pc <= `SIZE_ADDR'b0;
         end else if (w_branch_taken_eff) begin
             r_ia_pc <= w_branch_pc;
+        end else if (r_core_halt) begin
+            r_ia_pc <= r_ia_pc;
         end else if (w_stall) begin
             r_ia_pc <= r_ia_pc;
         end else begin
@@ -397,6 +399,7 @@ module amber(
         .ow_pc      (w_xtid_pc),
         .iw_instr   (w_ifxt_instr),
         .ow_instr   (w_xtid_instr),
+        .ow_root_opc(w_root_opc_xtid),
         .iw_flush   (w_branch_taken_eff),
         .iw_stall   (w_stall),
         .ow_busy    (w_xt_busy),
@@ -404,6 +407,8 @@ module amber(
     );
 
     wire [`HBIT_OPC:0]    w_opc;
+    wire [`HBIT_OPC:0]    w_root_opc_xtid;
+    wire [`HBIT_OPC:0]    w_root_opc;
     wire                  w_sgn_en;
     wire                  w_imm_en;
     wire [`HBIT_IMM14:0]  w_imm14_val;
@@ -430,8 +435,10 @@ module amber(
         .iw_pc        (w_xtid_pc),
         .ow_pc        (w_idex_pc),
         .iw_instr     (w_xtid_instr),
+        .iw_root_opc  (w_root_opc_xtid),
         .ow_instr     (w_idex_instr),
         .ow_opc       (w_opc),
+        .ow_root_opc  (w_root_opc),
         .ow_sgn_en    (w_sgn_en),
         .ow_imm_en    (w_imm_en),
         .ow_imm14_val (w_imm14_val),
@@ -456,6 +463,8 @@ module amber(
     );
 
     wire [`HBIT_OPC:0]    w_exma_opc;
+    wire                  w_exma_halt;
+    wire [`HBIT_OPC:0]    w_exma_root_opc;
     wire [`HBIT_TGT_GP:0] w_exma_tgt_gp;
     wire                  w_exma_tgt_gp_we;
     wire [`HBIT_TGT_SR:0] w_exma_tgt_sr;
@@ -482,6 +491,7 @@ module amber(
     wire                  w_exma_cr_tag;
 
     wire [`HBIT_OPC:0]    w_mamo_opc;
+    wire [`HBIT_OPC:0]    w_mamo_root_opc;
     wire [`HBIT_TGT_GP:0] w_mamo_tgt_gp;
     wire                  w_mamo_tgt_gp_we;
     wire [`HBIT_TGT_SR:0] w_mamo_tgt_sr;
@@ -507,6 +517,7 @@ module amber(
     wire                  w_mamo_cr_tag;
 
     wire [`HBIT_OPC:0]    w_mowb_opc;
+    wire [`HBIT_OPC:0]    w_mowb_root_opc;
     wire [`HBIT_TGT_GP:0] w_mowb_tgt_gp;
     wire                  w_mowb_tgt_gp_we;
     wire [`HBIT_TGT_SR:0] w_mowb_tgt_sr;
@@ -590,6 +601,7 @@ module amber(
 
     // Privilege mode: 1 = kernel, 0 = user
     reg r_mode_kernel;
+    reg r_core_halt;
     // Drive CSR read addr from current EX instruction when CSRRD
     assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[11:0] : {(`HBIT_TGT_CSR+1){1'b0}};
     assign w_csr_read_addr2 = {(`HBIT_TGT_CSR+1){1'b0}};
@@ -667,12 +679,20 @@ module amber(
                 r_mode_kernel <= w_csr_write_data[0];
             // Trap entry/return: update mode on taken branch of SYSCALL/KRET
             if (w_branch_taken) begin
-                if (w_exma_opc == `OPC_SYSCALL) begin
+                if (w_exma_root_opc == `OPC_SYSCALL) begin
                     r_mode_kernel <= 1'b1;
-                end else if (w_exma_opc == `OPC_KRET) begin
+                end else if (w_exma_root_opc == `OPC_KRET) begin
                     r_mode_kernel <= 1'b0;
                 end
             end
+        end
+    end
+
+    always @(posedge iw_clk or posedge iw_rst) begin
+        if (iw_rst) begin
+            r_core_halt <= 1'b0;
+        end else if (w_exma_halt) begin
+            r_core_halt <= 1'b1;
         end
     end
 
@@ -735,7 +755,7 @@ module amber(
         .ow_stall         (w_hazard_stall)
     );
     // Global stall is OR of hazard and cache refills
-    assign w_stall = w_hazard_stall | w_ic_stall | w_dc_stall;
+    assign w_stall = w_hazard_stall | w_ic_stall | w_dc_stall | r_core_halt;
 `ifndef SYNTHESIS
     always @(posedge iw_clk) begin
         if (w_branch_taken_eff) begin
@@ -752,7 +772,9 @@ module amber(
         .iw_instr         (w_idex_instr),
         .ow_instr         (w_exma_instr),
         .iw_opc           (w_opc),
+        .iw_root_opc      (w_root_opc),
         .ow_opc           (w_exma_opc),
+        .ow_root_opc      (w_exma_root_opc),
         .iw_sgn_en        (w_sgn_en),
         .iw_imm_en        (w_imm_en),
         .iw_imm14_val     (w_imm14_val),
@@ -780,6 +802,7 @@ module amber(
         .ow_sr_result     (w_exma_sr_result),
         .ow_branch_taken  (w_branch_taken),
         .ow_branch_pc     (w_branch_pc),
+        .ow_halt          (w_exma_halt),
         .iw_src_gp_val    (w_src_gp_val),
         .iw_tgt_gp_val    (w_tgt_gp_val),
         .iw_src_ar_val    (w_src_ar_val),
@@ -827,7 +850,9 @@ module amber(
         .iw_instr    (w_exma_instr),
         .ow_instr    (w_mamo_instr),
         .iw_opc      (w_exma_opc),
+        .iw_root_opc (w_exma_root_opc),
         .ow_opc      (w_mamo_opc),
+        .ow_root_opc (w_mamo_root_opc),
         .iw_tgt_gp   (w_exma_tgt_gp),
         .iw_tgt_gp_we(w_exma_tgt_gp_we),
         .ow_tgt_gp   (w_mamo_tgt_gp),
@@ -886,7 +911,9 @@ module amber(
         .iw_instr    (w_mamo_instr),
         .ow_instr    (w_mowb_instr),
         .iw_opc      (w_mamo_opc),
+        .iw_root_opc (w_mamo_root_opc),
         .ow_opc      (w_mowb_opc),
+        .ow_root_opc (w_mowb_root_opc),
         .iw_tgt_gp   (w_mamo_tgt_gp),
         .iw_tgt_gp_we(w_mamo_tgt_gp_we),
         .ow_tgt_gp   (w_mowb_tgt_gp),
@@ -940,6 +967,7 @@ module amber(
     );
 
     wire [`HBIT_OPC:0]    w_wb_opc;
+    wire [`HBIT_OPC:0]    w_wb_root_opc;
     wire [`HBIT_TGT_GP:0] w_wb_tgt_gp;
     wire [`HBIT_TGT_SR:0] w_wb_tgt_sr;
     wire [`HBIT_DATA:0]   w_wb_result;
@@ -958,7 +986,9 @@ module amber(
         .ow_sr_write_data  (w_sr_write_data),
         .ow_sr_write_enable(w_sr_write_enable),
         .iw_opc            (w_mowb_opc),
+        .iw_root_opc       (w_mowb_root_opc),
         .ow_opc            (w_wb_opc),
+        .ow_root_opc       (w_wb_root_opc),
         .iw_tgt_gp         (w_mowb_tgt_gp),
         .iw_tgt_gp_we      (w_mowb_tgt_gp_we),
         .ow_tgt_gp         (w_wb_tgt_gp),
