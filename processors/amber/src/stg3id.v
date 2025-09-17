@@ -115,7 +115,8 @@ module stg_id(
         (w_opc == `OPC_SYSCALL);
 
     wire w_has_tgt_sr =
-        w_tgt_sr_we               || (w_opc == `OPC_SRSTso);
+        w_tgt_sr_we               || (w_opc == `OPC_SRSTso) ||
+        (w_opc == `OPC_SRJCCso);
 
     // Has GP source
     wire w_has_src_gp =
@@ -141,6 +142,7 @@ module stg_id(
     wire w_has_src_sr =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRJCCso) ||
         (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRSTso)  ||
+        (w_opc == `OPC_SR2CR)     ||
         w_uses_flags;
 
     // Default field extraction based on spec bit locations
