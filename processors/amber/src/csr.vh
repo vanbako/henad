@@ -1,15 +1,15 @@
 `ifndef CSR_VH
 `define CSR_VH
 
-// Named CSR indices (12-bit). Extend as needed.
-`define CSR_IDX_STATUS   12'h000
-`define CSR_IDX_CAUSE    12'h001
-`define CSR_IDX_EPC_LO   12'h002  // low 24 bits of EPC
-`define CSR_IDX_EPC_HI   12'h003  // high 24 bits of EPC
-`define CSR_IDX_CYCLE_L  12'h004
-`define CSR_IDX_CYCLE_H  12'h005
-`define CSR_IDX_INSTRET_L 12'h006
-`define CSR_IDX_INSTRET_H 12'h007
+// Core status / control CSR indices (12-bit)
+`define CSR_IDX_PSTATE_LO 12'h000
+`define CSR_IDX_PSTATE_HI 12'h001
+`define CSR_IDX_LR_LO     12'h004
+`define CSR_IDX_LR_HI     12'h005
+`define CSR_IDX_SSP_LO    12'h006
+`define CSR_IDX_SSP_HI    12'h007
+`define CSR_IDX_PC_LO     12'h008
+`define CSR_IDX_PC_HI     12'h009
 
 // Async 24-bit math engine CSRs
 // Control: [0] START, [5:1] OP
@@ -38,13 +38,8 @@
 `define CSR_IDX_MATH_RES1   12'h015 // MUL: product[47:24]; DIV: remainder; otherwise 0
 `define CSR_IDX_MATH_OPC    12'h016 // Optional third operand (e.g., clamp min)
 
-// CSR[STATUS] bit assignments (low 24-bit data field)
-// [0] MODE: 1=kernel, 0=user
-`define CSR_STATUS_MODE_BIT 0
-
-`endif
 // Default Capability Windows (addresses per design/csr.md)
-// DDC window: 0x020–0x028
+// DDC window: 0x020-0x028
 `define CSR_IDX_DDC_BASE_LO 12'h020
 `define CSR_IDX_DDC_BASE_HI 12'h021
 `define CSR_IDX_DDC_LEN_LO  12'h022
@@ -55,7 +50,7 @@
 `define CSR_IDX_DDC_ATTR    12'h027
 `define CSR_IDX_DDC_TAG     12'h028
 
-// PCC window: 0x030–0x038
+// PCC window: 0x030-0x038
 `define CSR_IDX_PCC_BASE_LO 12'h030
 `define CSR_IDX_PCC_BASE_HI 12'h031
 `define CSR_IDX_PCC_LEN_LO  12'h032
@@ -66,7 +61,7 @@
 `define CSR_IDX_PCC_ATTR    12'h037
 `define CSR_IDX_PCC_TAG     12'h038
 
-// SCC window: 0x040–0x048
+// SCC window: 0x040-0x048
 `define CSR_IDX_SCC_BASE_LO 12'h040
 `define CSR_IDX_SCC_BASE_HI 12'h041
 `define CSR_IDX_SCC_LEN_LO  12'h042
@@ -76,3 +71,5 @@
 `define CSR_IDX_SCC_PERMS   12'h046
 `define CSR_IDX_SCC_ATTR    12'h047
 `define CSR_IDX_SCC_TAG     12'h048
+
+`endif

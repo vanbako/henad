@@ -32,7 +32,15 @@ module stg_wb(
     input wire  [`HBIT_DATA:0]   iw_result,
     input wire  [`HBIT_ADDR:0]   iw_sr_result,
     input wire  [`HBIT_ADDR:0]   iw_ar_result,
+    input wire                   iw_sr_aux_we,
+    input wire  [`HBIT_TGT_SR:0] iw_sr_aux_addr,
+    input wire  [`HBIT_ADDR:0]   iw_sr_aux_result,
+    input wire                   iw_trap_pending,
     output wire [`HBIT_DATA:0]   ow_result,
+    output wire                  ow_sr_aux_we,
+    output wire [`HBIT_TGT_SR:0] ow_sr_aux_addr,
+    output wire [`HBIT_ADDR:0]   ow_sr_aux_result,
+    output wire                  ow_trap_pending,
     // CR writeback controls toward regcr
     input wire  [`HBIT_TGT_CR:0] iw_cr_write_addr,
     input wire                   iw_cr_we_base,
@@ -102,6 +110,10 @@ module stg_wb(
     reg [`HBIT_TGT_GP:0] r_tgt_gp_latch;
     reg [`HBIT_TGT_SR:0] r_tgt_sr_latch;
     reg [`HBIT_DATA:0]   r_result_latch;
+    reg                  r_sr_aux_we_latch;
+    reg [`HBIT_TGT_SR:0] r_sr_aux_addr_latch;
+    reg [`HBIT_ADDR:0]   r_sr_aux_result_latch;
+    reg                  r_trap_pending_latch;
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             r_pc_latch     <= `SIZE_ADDR'b0;
@@ -111,6 +123,10 @@ module stg_wb(
             r_tgt_gp_latch <= `SIZE_TGT_GP'b0;
             r_tgt_sr_latch <= `SIZE_TGT_SR'b0;
             r_result_latch <= `SIZE_DATA'b0;
+            r_sr_aux_we_latch <= 1'b0;
+            r_sr_aux_addr_latch <= {(`HBIT_TGT_SR+1){1'b0}};
+            r_sr_aux_result_latch <= {`SIZE_ADDR{1'b0}};
+            r_trap_pending_latch <= 1'b0;
         end
         else begin
             r_pc_latch     <= iw_pc;
@@ -120,6 +136,10 @@ module stg_wb(
             r_tgt_gp_latch <= iw_tgt_gp;
             r_tgt_sr_latch <= iw_tgt_sr;
             r_result_latch <= iw_result;
+            r_sr_aux_we_latch <= iw_sr_aux_we;
+            r_sr_aux_addr_latch <= iw_sr_aux_addr;
+            r_sr_aux_result_latch <= iw_sr_aux_result;
+            r_trap_pending_latch <= iw_trap_pending;
         end
     end
     assign ow_pc     = r_pc_latch;
@@ -129,4 +149,8 @@ module stg_wb(
     assign ow_tgt_gp = r_tgt_gp_latch;
     assign ow_tgt_sr = r_tgt_sr_latch;
     assign ow_result = r_result_latch;
+    assign ow_sr_aux_we = r_sr_aux_we_latch;
+    assign ow_sr_aux_addr = r_sr_aux_addr_latch;
+    assign ow_sr_aux_result = r_sr_aux_result_latch;
+    assign ow_trap_pending = r_trap_pending_latch;
 endmodule

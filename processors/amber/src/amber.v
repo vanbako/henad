@@ -2,6 +2,7 @@
 `include "src/sr.vh"
 `include "src/opcodes.vh"
 `include "src/csr.vh"
+`include "src/pstate.vh"
 
 module amber(
     input wire iw_clk,
@@ -239,6 +240,17 @@ module amber(
     wire                  w_sr_write_pc_enable;
     wire [`HBIT_ADDR:0]   w_sr_read_data1;
     wire [`HBIT_ADDR:0]   w_sr_read_data2;
+    wire [`HBIT_ADDR:0]   w_sr_pstate;
+
+    wire csrwr_pstate_lo = (w_wb_opc == `OPC_CSRWR) && (w_wb_instr[11:0] == `CSR_IDX_PSTATE_LO);
+    wire csrwr_pstate_hi = (w_wb_opc == `OPC_CSRWR) && (w_wb_instr[11:0] == `CSR_IDX_PSTATE_HI);
+    wire csrwr_pstate    = csrwr_pstate_lo | csrwr_pstate_hi;
+    wire [`HBIT_ADDR:0] csr_pstate_new = csrwr_pstate_lo
+        ? { w_sr_pstate[47:24], w_wb_result }
+        : { w_wb_result, w_sr_pstate[23:0] };
+    wire                  w_sr_aux_we_final   = w_wb_sr_aux_we | csrwr_pstate;
+    wire [`HBIT_TGT_SR:0] w_sr_aux_addr_final = csrwr_pstate ? `SR_IDX_PSTATE : w_wb_sr_aux_addr;
+    wire [`HBIT_ADDR:0]   w_sr_aux_result_final = csrwr_pstate ? csr_pstate_new : w_wb_sr_aux_result;
 
     regsr u_regsr(
         .iw_clk            (iw_clk),
@@ -248,8 +260,12 @@ module amber(
         .iw_write_addr     (w_sr_write_addr),
         .iw_write_data     (w_sr_write_data),
         .iw_write_enable   (w_sr_write_enable),
+        .iw_w2_enable      (w_wb_sr_aux_we),
+        .iw_w2_addr        (w_wb_sr_aux_addr),
+        .iw_w2_data        (w_wb_sr_aux_result),
         .ow_read_data1     (w_sr_read_data1),
-        .ow_read_data2     (w_sr_read_data2)
+        .ow_read_data2     (w_sr_read_data2),
+        .ow_pstate         (w_sr_pstate)
     );
 
     // Address registers (legacy AR view)
@@ -475,6 +491,10 @@ module amber(
     wire [`HBIT_DATA:0]   w_exma_result;
     wire [`HBIT_ADDR:0]   w_exma_sr_result;
     wire [`HBIT_ADDR:0]   w_exma_ar_result;
+    wire                  w_exma_sr_aux_we;
+    wire [`HBIT_TGT_SR:0] w_exma_sr_aux_addr;
+    wire [`HBIT_ADDR:0]   w_exma_sr_aux_result;
+    wire                  w_exma_trap_pending;
     // CR writeback buses EX->MA
     wire [`HBIT_TGT_CR:0] w_exma_cr_write_addr;
     wire                  w_exma_cr_we_base;
@@ -501,6 +521,10 @@ module amber(
     wire                  w_mamo_tgt_ar_we;
     wire [`HBIT_ADDR:0]   w_mamo_sr_result;
     wire [`HBIT_ADDR:0]   w_mamo_ar_result;
+    wire                  w_mamo_sr_aux_we;
+    wire [`HBIT_TGT_SR:0] w_mamo_sr_aux_addr;
+    wire [`HBIT_ADDR:0]   w_mamo_sr_aux_result;
+    wire                  w_mamo_trap_pending;
     // CR writeback buses MA->MO
     wire [`HBIT_TGT_CR:0] w_mamo_cr_write_addr;
     wire                  w_mamo_cr_we_base;
@@ -527,6 +551,10 @@ module amber(
     wire                  w_mowb_tgt_ar_we;
     wire [`HBIT_ADDR:0]   w_mowb_sr_result;
     wire [`HBIT_ADDR:0]   w_mowb_ar_result;
+    wire                  w_mowb_sr_aux_we;
+    wire [`HBIT_TGT_SR:0] w_mowb_sr_aux_addr;
+    wire [`HBIT_ADDR:0]   w_mowb_sr_aux_result;
+    wire                  w_mowb_trap_pending;
     // CR writeback buses MO->WB
     wire [`HBIT_TGT_CR:0] w_wb_cr_write_addr;
     wire                  w_wb_cr_we_base;
@@ -606,13 +634,15 @@ module amber(
     assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[11:0] : {(`HBIT_TGT_CSR+1){1'b0}};
     assign w_csr_read_addr2 = {(`HBIT_TGT_CSR+1){1'b0}};
     // Effective CSR read data overrides for dynamic fields:
-    // - STATUS[0] reflects live kernel/user mode bit
+    // - PSTATE mirrors live architectural state (handled via sr file)
     // - PCC_CUR mirrors live PC (split across LO/HI)
     wire csr_is_read   = (w_opc == `OPC_CSRRD);
     wire [`HBIT_TGT_CSR:0] csr_idx = w_idex_instr[11:0];
     wire [`HBIT_DATA:0] w_csr_read_data1_eff =
-        (csr_is_read && (csr_idx == `CSR_IDX_STATUS))
-            ? { w_csr_read_data1[`HBIT_DATA:1], r_mode_kernel }
+        (csr_is_read && (csr_idx == `CSR_IDX_PSTATE_LO))
+            ? w_sr_pstate[23:0]
+        : (csr_is_read && (csr_idx == `CSR_IDX_PSTATE_HI))
+            ? w_sr_pstate[47:24]
         : (csr_is_read && (csr_idx == `CSR_IDX_PCC_CUR_LO))
             ? r_pcc_cur[23:0]
         : (csr_is_read && (csr_idx == `CSR_IDX_PCC_CUR_HI))
@@ -675,11 +705,13 @@ module amber(
             r_mode_kernel <= 1'b1;
         end else begin
             // CSR writes to STATUS allowed only in kernel; update mode bit from bit[0]
-            if (w_csr_write_enable && (w_csr_write_addr == `CSR_IDX_STATUS) && r_mode_kernel)
-                r_mode_kernel <= w_csr_write_data[0];
+            if (w_csr_write_enable && (w_csr_write_addr == `CSR_IDX_PSTATE_LO) && r_mode_kernel)
+                r_mode_kernel <= w_csr_write_data[`PSTATE_BIT_MODE];
             // Trap entry/return: update mode on taken branch of SYSCALL/KRET
             if (w_branch_taken) begin
-                if (w_exma_root_opc == `OPC_SYSCALL) begin
+                if (w_exma_trap_pending) begin
+                    r_mode_kernel <= 1'b1;
+                end else if (w_exma_root_opc == `OPC_SYSCALL) begin
                     r_mode_kernel <= 1'b1;
                 end else if (w_exma_root_opc == `OPC_KRET) begin
                     r_mode_kernel <= 1'b0;
@@ -800,8 +832,12 @@ module amber(
         .ow_result        (w_exma_result),
         .ow_ar_result     (w_exma_ar_result),
         .ow_sr_result     (w_exma_sr_result),
+        .ow_sr_aux_we     (w_exma_sr_aux_we),
+        .ow_sr_aux_addr   (w_exma_sr_aux_addr),
+        .ow_sr_aux_result (w_exma_sr_aux_result),
         .ow_branch_taken  (w_branch_taken),
         .ow_branch_pc     (w_branch_pc),
+        .ow_trap_pending  (w_exma_trap_pending),
         .ow_halt          (w_exma_halt),
         .iw_src_gp_val    (w_src_gp_val),
         .iw_tgt_gp_val    (w_tgt_gp_val),
@@ -809,6 +845,7 @@ module amber(
         .iw_tgt_ar_val    (w_tgt_ar_val),
         .iw_src_sr_val    (w_src_sr_val_mux),
         .iw_tgt_sr_val    (w_tgt_sr_val),
+        .iw_pstate_val    (w_sr_pstate),
         // CR writeback controls out of EX
         .ow_cr_write_addr (w_exma_cr_write_addr),
         .ow_cr_we_base    (w_exma_cr_we_base),
@@ -823,6 +860,7 @@ module amber(
         .ow_cr_attr       (w_exma_cr_attr),
         .ow_cr_we_tag     (w_exma_cr_we_tag),
         .ow_cr_tag        (w_exma_cr_tag),
+        .iw_mode_kernel   (r_mode_kernel),
         // CR read views mapped from CR read ports 1/2 (driven by AR indices)
         .iw_cr_s_base     (w_cr_read_base1),
         .iw_cr_s_len      (w_cr_read_len1),
@@ -874,6 +912,14 @@ module amber(
         .ow_sr_result(w_mamo_sr_result),
         .iw_ar_result(w_exma_ar_result),
         .ow_ar_result(w_mamo_ar_result),
+        .iw_sr_aux_we  (w_exma_sr_aux_we),
+        .iw_sr_aux_addr(w_exma_sr_aux_addr),
+        .iw_sr_aux_result(w_exma_sr_aux_result),
+        .iw_trap_pending(w_exma_trap_pending),
+        .ow_sr_aux_we  (w_mamo_sr_aux_we),
+        .ow_sr_aux_addr(w_mamo_sr_aux_addr),
+        .ow_sr_aux_result(w_mamo_sr_aux_result),
+        .ow_trap_pending(w_mamo_trap_pending),
         // CR writeback forward EX->MA
         .iw_cr_write_addr (w_exma_cr_write_addr),
         .iw_cr_we_base    (w_exma_cr_we_base),
@@ -937,6 +983,14 @@ module amber(
         .ow_sr_result(w_mowb_sr_result),
         .iw_ar_result(w_mamo_ar_result),
         .ow_ar_result(w_mowb_ar_result),
+        .iw_sr_aux_we  (w_mamo_sr_aux_we),
+        .iw_sr_aux_addr(w_mamo_sr_aux_addr),
+        .iw_sr_aux_result(w_mamo_sr_aux_result),
+        .iw_trap_pending(w_mamo_trap_pending),
+        .ow_sr_aux_we  (w_mowb_sr_aux_we),
+        .ow_sr_aux_addr(w_mowb_sr_aux_addr),
+        .ow_sr_aux_result(w_mowb_sr_aux_result),
+        .ow_trap_pending(w_mowb_trap_pending),
         // CR writeback forward MA->MO
         .iw_cr_write_addr (w_mamo_cr_write_addr),
         .iw_cr_we_base    (w_mamo_cr_we_base),
@@ -971,6 +1025,10 @@ module amber(
     wire [`HBIT_TGT_GP:0] w_wb_tgt_gp;
     wire [`HBIT_TGT_SR:0] w_wb_tgt_sr;
     wire [`HBIT_DATA:0]   w_wb_result;
+    wire                  w_wb_sr_aux_we;
+    wire [`HBIT_TGT_SR:0] w_wb_sr_aux_addr;
+    wire [`HBIT_ADDR:0]   w_wb_sr_aux_result;
+    wire                  w_wb_trap_pending;
 
     stg_wb u_stg_wb(
         .iw_clk            (iw_clk),
@@ -1003,6 +1061,10 @@ module amber(
         .iw_result         (w_mowb_result),
         .iw_sr_result      (w_mowb_sr_result),
         .iw_ar_result      (w_mowb_ar_result),
+        .iw_sr_aux_we      (w_mowb_sr_aux_we),
+        .iw_sr_aux_addr    (w_mowb_sr_aux_addr),
+        .iw_sr_aux_result  (w_mowb_sr_aux_result),
+        .iw_trap_pending   (w_mowb_trap_pending),
         .ow_result         (w_wb_result),
         // CR writeback forward MO->WB
         .iw_cr_write_addr  (w_wb_cr_write_addr),
@@ -1018,6 +1080,10 @@ module amber(
         .iw_cr_attr        (w_wb_cr_attr),
         .iw_cr_we_tag      (w_wb_cr_we_tag),
         .iw_cr_tag         (w_wb_cr_tag),
+        .ow_sr_aux_we      (w_wb_sr_aux_we),
+        .ow_sr_aux_addr    (w_wb_sr_aux_addr),
+        .ow_sr_aux_result  (w_wb_sr_aux_result),
+        .ow_trap_pending   (w_wb_trap_pending),
         .ow_cr_write_addr  (),
         .ow_cr_we_base     (),
         .ow_cr_base        (),

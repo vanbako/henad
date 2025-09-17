@@ -41,8 +41,12 @@ module stg_ex(
     output wire [`HBIT_DATA:0]   ow_result,
     output wire [`HBIT_ADDR:0]   ow_ar_result,
     output wire [`HBIT_ADDR:0]   ow_sr_result,
+    output wire                  ow_sr_aux_we,
+    output wire [`HBIT_TGT_SR:0] ow_sr_aux_addr,
+    output wire [`HBIT_ADDR:0]   ow_sr_aux_result,
     output wire                  ow_branch_taken,
     output wire [`HBIT_ADDR:0]   ow_branch_pc,
+    output wire                  ow_trap_pending,
     output wire                  ow_halt,
     input wire  [`HBIT_DATA:0]   iw_src_gp_val,
     input wire  [`HBIT_DATA:0]   iw_tgt_gp_val,
@@ -50,6 +54,7 @@ module stg_ex(
     input wire  [`HBIT_ADDR:0]   iw_tgt_ar_val,
     input wire  [`HBIT_ADDR:0]   iw_src_sr_val,
     input wire  [`HBIT_ADDR:0]   iw_tgt_sr_val,
+    input wire  [`HBIT_ADDR:0]   iw_pstate_val,
     // CR writeback controls (to regcr via top-level)
     output wire [`HBIT_TGT_CR:0] ow_cr_write_addr,
     output wire                  ow_cr_we_base,
@@ -78,6 +83,7 @@ module stg_ex(
     input wire  [`HBIT_DATA:0]   iw_cr_t_attr,
     input wire                   iw_cr_t_tag,
     input wire                   iw_flush,
+    input wire                   iw_mode_kernel,
     input wire                   iw_stall
 );
     // Upper immediate banks for LUIui x∈{0,1,2}
@@ -106,7 +112,16 @@ module stg_ex(
     reg                  r_flags_we;
     // Trap control: request LR write and kill GP write when taking a trap
     reg                  r_trap_lr_we;
+    reg [`HBIT_ADDR:0]   r_trap_lr_value;
+    reg [7:0]            r_trap_cause;
+    reg [15:0]           r_trap_info;
+    reg                  r_trap_pending;
     reg                  r_kill_gp_we;
+    reg [`HBIT_ADDR:0]   r_pstate_next;
+    reg                  r_pstate_dirty;
+    reg                  r_sr_aux_we;
+    reg [`HBIT_TGT_SR:0] r_sr_aux_addr;
+    reg [`HBIT_ADDR:0]   r_sr_aux_result;
     // CR writeback controls
     reg [`HBIT_TGT_CR:0] r_cr_write_addr;
     reg                  r_cr_we_base;
@@ -163,7 +178,16 @@ module stg_ex(
             r_tgt_ar_we    = 1'b0;
             r_tgt_sr_we    = 1'b0;
             r_trap_lr_we   = 1'b0;
+            r_trap_lr_value= {`SIZE_ADDR{1'b0}};
+            r_trap_cause   = `PSTATE_CAUSE_NONE;
+            r_trap_info    = 16'd0;
+            r_trap_pending = 1'b0;
             r_kill_gp_we   = 1'b0;
+            r_pstate_next  = iw_pstate_val;
+            r_pstate_dirty = 1'b0;
+            r_sr_aux_we    = 1'b0;
+            r_sr_aux_addr  = {(`HBIT_TGT_SR+1){1'b0}};
+            r_sr_aux_result= {`SIZE_ADDR{1'b0}};
             // Defaults for CR writebacks
             r_cr_write_addr = {(`HBIT_TGT_CR+1){1'b0}};
             r_cr_we_base  = 1'b0; r_cr_base  = {`SIZE_ADDR{1'b0}};
@@ -209,38 +233,64 @@ module stg_ex(
             // CHERI: 24-bit loads/stores checked against CR
             `OPC_LDcso: begin
                 reg [47:0] eff;
-                reg fault;
+                reg [7:0]  cause;
+                reg        fault;
+                cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
                 eff = iw_cr_s_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
-                if (!iw_cr_s_tag)                      fault = 1'b1;
-                if (iw_cr_s_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
-                if (!iw_cr_s_perms[`CR_PERM_R_BIT])    fault = 1'b1;
-                if (!((eff >= iw_cr_s_base) && (eff < (iw_cr_s_base + iw_cr_s_len)))) fault = 1'b1;
+                if (!iw_cr_s_tag) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_TAG;
+                end else if (iw_cr_s_attr[`CR_ATTR_SEALED_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_SEAL;
+                end else if (!iw_cr_s_perms[`CR_PERM_R_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end else if (!((eff >= iw_cr_s_base) && (eff < (iw_cr_s_base + iw_cr_s_len)))) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_OOB;
+                end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end else begin
                     r_addr = eff;
                 end
             end
             `OPC_STcso: begin
                 reg [47:0] eff;
-                reg fault;
+                reg [7:0]  cause;
+                reg        fault;
+                cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
                 eff = iw_cr_t_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
-                if (!iw_cr_t_tag)                      fault = 1'b1;
-                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
-                if (!iw_cr_t_perms[`CR_PERM_W_BIT])    fault = 1'b1;
-                if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                if (!iw_cr_t_tag) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_TAG;
+                end else if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_SEAL;
+                end else if (!iw_cr_t_perms[`CR_PERM_W_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end else if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_OOB;
+                end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end else begin
                     r_addr   = eff;
                     r_result = iw_src_gp_val;
@@ -263,7 +313,9 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_CAP_OOB;
                 end else begin
                     // Drive both AR path and CR direct write to ensure commit
                     r_tgt_ar_we   = 1'b1;
@@ -295,7 +347,9 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_CAP_OOB;
                 end else begin
                     r_tgt_ar_we     = 1'b1;
                     r_ar_result     = newc;
@@ -325,7 +379,8 @@ module stg_ex(
                 // Set bounds: base := CRs.cursor, len := DRs or imm
                 reg signed [47:0] newlen;
                 reg [47:0] newbase;
-                reg fault;
+                reg [7:0]  cause;
+                reg        fault;
                 // Use forwarded AR view for CRs.cursor for proper bypassing
                 newbase = iw_src_ar_val;
                 if ((iw_opc == `OPC_CSETBi) || (iw_opc == `OPC_CSETBiv))
@@ -333,18 +388,29 @@ module stg_ex(
                 else
                     newlen = {{24{iw_src_gp_val[23]}}, iw_src_gp_val};
                 fault = 1'b0;
+                cause = `PSTATE_CAUSE_NONE;
                 // Require SB permission on target capability to change bounds
-                if (!iw_cr_t_perms[`CR_PERM_SB_BIT]) fault = 1'b1;
+                if (!iw_cr_t_perms[`CR_PERM_SB_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end
                 // Checked variants: length must be > 0 and current cursor must fit
-                if ((iw_opc == `OPC_CSETBv) || (iw_opc == `OPC_CSETBiv)) begin
-                    if (newlen <= 0) fault = 1'b1;
-                    if (!((iw_cr_t_cur >= newbase) && (iw_cr_t_cur < (newbase + newlen[47:0])))) fault = 1'b1;
+                if (!fault && ((iw_opc == `OPC_CSETBv) || (iw_opc == `OPC_CSETBiv))) begin
+                    if (newlen <= 0) begin
+                        fault = 1'b1;
+                        cause = `PSTATE_CAUSE_CAP_CFG;
+                    end else if (!((iw_cr_t_cur >= newbase) && (iw_cr_t_cur < (newbase + newlen[47:0])))) begin
+                        fault = 1'b1;
+                        cause = `PSTATE_CAUSE_CAP_OOB;
+                    end
                 end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end else begin
                     r_cr_write_addr = iw_tgt_ar;
                     r_cr_we_base    = 1'b1; r_cr_base = newbase;
@@ -375,20 +441,33 @@ module stg_ex(
                 reg [47:0] eff;
                 reg [47:0] last;
                 reg [47:0] bound;
+                reg [7:0]  cause;
                 reg        fault;
+                cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
                 eff   = iw_cr_s_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
                 last  = eff + 48'd10; // exclusive upper bound (covers words [0..9])
                 bound = iw_cr_s_base + iw_cr_s_len;
-                if (!iw_cr_s_tag)                         fault = 1'b1;
-                if (iw_cr_s_attr[`CR_ATTR_SEALED_BIT])    fault = 1'b1;
-                if (!iw_cr_s_perms[`CR_PERM_LC_BIT])      fault = 1'b1;
-                if (!( (eff >= iw_cr_s_base) && (last <= bound) )) fault = 1'b1;
+                if (!iw_cr_s_tag) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_TAG;
+                end else if (iw_cr_s_attr[`CR_ATTR_SEALED_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_SEAL;
+                end else if (!iw_cr_s_perms[`CR_PERM_LC_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end else if (!((eff >= iw_cr_s_base) && (last <= bound))) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_OOB;
+                end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end
             end
             `OPC_CSTcso: begin
@@ -396,20 +475,33 @@ module stg_ex(
                 reg [47:0] eff;
                 reg [47:0] last;
                 reg [47:0] bound;
+                reg [7:0]  cause;
                 reg        fault;
+                cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
                 eff   = iw_cr_t_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
                 last  = eff + 48'd10;
                 bound = iw_cr_t_base + iw_cr_t_len;
-                if (!iw_cr_t_tag)                         fault = 1'b1;
-                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT])    fault = 1'b1;
-                if (!iw_cr_t_perms[`CR_PERM_SC_BIT])      fault = 1'b1;
-                if (!( (eff >= iw_cr_t_base) && (last <= bound) )) fault = 1'b1;
+                if (!iw_cr_t_tag) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_TAG;
+                end else if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_SEAL;
+                end else if (!iw_cr_t_perms[`CR_PERM_SC_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end else if (!((eff >= iw_cr_t_base) && (last <= bound))) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_OOB;
+                end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end
             end
             // Micro-ops: CR2SR and SR2CR
@@ -541,9 +633,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_RANGE;
                 end else begin
                     n_eff = n;
                     r_result = iw_tgt_gp_val << n_eff;
@@ -566,9 +660,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_RANGE;
                 end else begin
                     n_eff = n;
                     r_result = iw_tgt_gp_val >> n_eff;
@@ -603,7 +699,7 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                 end else begin
                     r_addr   = eff;
@@ -624,7 +720,7 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                 end else begin
                     r_addr   = eff;
@@ -655,9 +751,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0; // do not write FL when trapping
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_OVF;
                 end else begin
                     r_flags_we = 1'b1;
                 end
@@ -682,9 +780,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_OVF;
                 end else begin
                     r_flags_we = 1'b1;
                 end
@@ -707,9 +807,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_OVF;
                 end else begin
                     r_flags_we = 1'b1;
                 end
@@ -752,9 +854,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0; // do not update flags on trap
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_RANGE;
                 end else begin
                     n_eff = n;
                     r_result = $signed(iw_tgt_gp_val) >>> n_eff;
@@ -810,8 +914,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_result = r_ir;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -823,8 +929,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_result = iw_tgt_gp_val + r_ir;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -837,8 +945,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_result = iw_tgt_gp_val - r_ir;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -851,8 +961,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_result = iw_tgt_gp_val & r_ir;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -864,8 +976,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_result = iw_tgt_gp_val | r_ir;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -877,8 +991,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_result = iw_tgt_gp_val ^ r_ir;
                     r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
@@ -891,8 +1007,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     reg [4:0] n;
                     n = r_ir[4:0];
@@ -923,9 +1041,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_RANGE;
                 end else begin
                     r_result = iw_tgt_gp_val << n;
                     r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (`SIZE_DATA - n)) & 1'b1);
@@ -939,8 +1059,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     // Rotate left by immediate (use low 5 bits of r_ir)
                     reg [4:0] amt;
@@ -964,8 +1086,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     // Rotate right by immediate (use low 5 bits of r_ir)
                     reg [4:0] amt;
@@ -989,8 +1113,10 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     reg [4:0] n;
                     n = r_ir[4:0];
@@ -1021,9 +1147,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_RANGE;
                 end else begin
                     r_result = iw_tgt_gp_val >> n;
                     r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
@@ -1036,7 +1164,7 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                 end else begin
                     r_fl[`FLAG_Z] = (iw_tgt_gp_val == r_ir) ? 1'b1 : 1'b0;
@@ -1051,7 +1179,7 @@ module stg_ex(
                         r_branch_taken = 1'b1;
                         r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                         r_trap_lr_we   = 1'b1;
-                        r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                        r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                         r_kill_gp_we   = 1'b1;
                     end else begin
                         // Assemble 48-bit absolute from banks and imm12
@@ -1111,7 +1239,7 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
                 end else begin
@@ -1137,7 +1265,7 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
                 end else begin
@@ -1178,9 +1306,11 @@ module stg_ex(
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
-                    r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                    r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_RANGE;
                 end else begin
                     r_result = $signed(iw_tgt_gp_val) >>> n;
                     r_fl[`FLAG_C] = ((iw_tgt_gp_val >> (n-1)) & 1'b1);
@@ -1252,7 +1382,8 @@ module stg_ex(
             // Privileged/trap entry: SYSCALL/SWI
             `OPC_SYSCALL: begin
                 // Save return PC (PC+1) into LR via SR write path
-                r_sr_result    = iw_pc + `SIZE_ADDR'd1;
+                r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                r_trap_lr_we   = 1'b1;
                 // Branch to absolute 48-bit target assembled from LUI banks + imm12
                 r_branch_taken = 1'b1;
                 if (!(r_uimm_bank0_valid & r_uimm_bank1_valid & r_uimm_bank2_valid)) begin
@@ -1260,6 +1391,8 @@ module stg_ex(
                     r_branch_pc  = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we = 1'b1; // LR already set above
                     r_kill_gp_we = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_UIMM_STATE;
                 end else begin
                     r_branch_pc  = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, iw_imm12_val };
                 end
@@ -1278,10 +1411,33 @@ module stg_ex(
                 r_fl     = `SIZE_FLAG'b0;
             end
         endcase
-        // After computing r_fl, if flags updated then write to SR[FL]
+        // After computing r_fl, apply flag updates to PSTATE
         if (r_flags_we) begin
-            r_tgt_sr_we = 1'b1;
-            r_sr_result = { {(`SIZE_ADDR-`SIZE_FLAG){1'b0}}, r_fl };
+            r_pstate_next[`PSTATE_BIT_Z] = r_fl[`FLAG_Z];
+            r_pstate_next[`PSTATE_BIT_N] = r_fl[`FLAG_N];
+            r_pstate_next[`PSTATE_BIT_C] = r_fl[`FLAG_C];
+            r_pstate_next[`PSTATE_BIT_V] = r_fl[`FLAG_V];
+            r_pstate_dirty = 1'b1;
+        end
+        // Ensure mode bit tracks current privilege when updating
+        if (iw_mode_kernel != iw_pstate_val[`PSTATE_BIT_MODE]) begin
+            r_pstate_next[`PSTATE_BIT_MODE] = iw_mode_kernel;
+            r_pstate_dirty = 1'b1;
+        end
+        if (r_trap_pending) begin
+            r_pstate_next[`PSTATE_BIT_TPE] = 1'b1;
+            r_pstate_next[`PSTATE_BIT_MODE] = 1'b1; // enter kernel on trap
+            r_pstate_next[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO] = r_trap_cause;
+            r_pstate_next[`PSTATE_INFO_HI:`PSTATE_INFO_LO]  = r_trap_info;
+            r_pstate_dirty = 1'b1;
+        end
+        if (r_trap_lr_we) begin
+            r_sr_result = r_trap_lr_value;
+        end
+        if (r_pstate_dirty) begin
+            r_sr_aux_we     = 1'b1;
+            r_sr_aux_addr   = `SR_IDX_PSTATE;
+            r_sr_aux_result = r_pstate_next;
         end
     end
 
@@ -1301,7 +1457,12 @@ module stg_ex(
     reg [`HBIT_ADDR:0]   r_sr_result_latch;
     reg                  r_branch_taken_latch;
     reg [`HBIT_ADDR:0]   r_branch_pc_latch;
+    reg                  r_trap_pending_latch;
     reg                  r_halt_latch;
+    // SR aux writeback (PSTATE)
+    reg                  r_sr_aux_we_latch;
+    reg [`HBIT_TGT_SR:0] r_sr_aux_addr_latch;
+    reg [`HBIT_ADDR:0]   r_sr_aux_result_latch;
     // CR writeback latches
     reg [`HBIT_TGT_CR:0] r_cr_write_addr_latch;
     reg                  r_cr_we_base_latch;
@@ -1334,7 +1495,12 @@ module stg_ex(
             r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
+            r_trap_pending_latch <= 1'b0;
+            r_trap_pending_latch <= 1'b0;
             r_halt_latch         <= 1'b0;
+            r_sr_aux_we_latch    <= 1'b0;
+            r_sr_aux_addr_latch  <= {(`HBIT_TGT_SR+1){1'b0}};
+            r_sr_aux_result_latch<= {`SIZE_ADDR{1'b0}};
             // CR writeback latches
             r_cr_write_addr_latch<= {(`HBIT_TGT_CR+1){1'b0}};
             r_cr_we_base_latch   <= 1'b0;
@@ -1366,7 +1532,11 @@ module stg_ex(
             r_sr_result_latch    <= `SIZE_ADDR'b0;
             r_branch_taken_latch <= 1'b0;
             r_branch_pc_latch    <= `SIZE_ADDR'b0;
+            r_trap_pending_latch <= 1'b0;
             r_halt_latch         <= 1'b0;
+            r_sr_aux_we_latch    <= 1'b0;
+            r_sr_aux_addr_latch  <= {(`HBIT_TGT_SR+1){1'b0}};
+            r_sr_aux_result_latch<= {`SIZE_ADDR{1'b0}};
             r_cr_write_addr_latch<= {(`HBIT_TGT_CR+1){1'b0}};
             r_cr_we_base_latch   <= 1'b0;
             r_cr_base_latch      <= {`SIZE_ADDR{1'b0}};
@@ -1398,6 +1568,10 @@ module stg_ex(
             r_branch_taken_latch <= r_branch_taken_latch;
             r_branch_pc_latch    <= r_branch_pc_latch;
             r_halt_latch         <= r_halt_latch;
+            r_trap_pending_latch <= r_trap_pending_latch;
+            r_sr_aux_we_latch    <= r_sr_aux_we_latch;
+            r_sr_aux_addr_latch  <= r_sr_aux_addr_latch;
+            r_sr_aux_result_latch<= r_sr_aux_result_latch;
             r_cr_write_addr_latch<= r_cr_write_addr_latch;
             r_cr_we_base_latch   <= r_cr_we_base_latch;
             r_cr_base_latch      <= r_cr_base_latch;
@@ -1431,6 +1605,10 @@ module stg_ex(
             r_branch_taken_latch <= r_branch_taken;
             r_branch_pc_latch    <= r_branch_pc;
             r_halt_latch         <= r_halt;
+            r_trap_pending_latch <= r_trap_pending;
+            r_sr_aux_we_latch    <= r_sr_aux_we;
+            r_sr_aux_addr_latch  <= r_sr_aux_addr;
+            r_sr_aux_result_latch<= r_sr_aux_result;
             r_cr_write_addr_latch<= r_cr_write_addr;
             r_cr_we_base_latch   <= r_cr_we_base;
             r_cr_base_latch      <= r_cr_base;
@@ -1460,8 +1638,12 @@ module stg_ex(
     assign ow_result       = r_result_latch;
     assign ow_ar_result    = r_ar_result_latch;
     assign ow_sr_result    = r_sr_result_latch;
+    assign ow_sr_aux_we    = r_sr_aux_we_latch;
+    assign ow_sr_aux_addr  = r_sr_aux_addr_latch;
+    assign ow_sr_aux_result= r_sr_aux_result_latch;
     assign ow_branch_taken = r_branch_taken_latch;
     assign ow_branch_pc    = r_branch_pc_latch;
+    assign ow_trap_pending = r_trap_pending_latch;
     assign ow_halt         = r_halt_latch;
     // CR writeback
     assign ow_cr_write_addr = r_cr_write_addr_latch;
