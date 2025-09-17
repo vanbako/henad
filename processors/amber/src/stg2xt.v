@@ -395,7 +395,7 @@ module stg_xt(
                         `SUBOP_PUSHur: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 6'd6;
-                            w_seq_list[0] = pack_cinci(iw_instr[15:14], 14'sd-1);
+                            w_seq_list[0] = pack_cinci(iw_instr[15:14], -14'sd1);
                             w_seq_list[1] = pack_nop();
                             w_seq_list[2] = pack_nop();
                             w_seq_list[3] = pack_nop();
@@ -406,7 +406,7 @@ module stg_xt(
                         `SUBOP_PUSHAur: begin
                             w_seq_start   = 1'b1;
                             w_seq_len     = 6'd59;
-                            w_seq_list[0] = pack_cinci(iw_instr[15:14], 14'sd-12);
+                            w_seq_list[0] = pack_cinci(iw_instr[15:14], -14'sd12);
                             w_seq_list[1] = pack_nop();
                             w_seq_list[2] = pack_nop();
                             w_seq_list[3] = pack_nop();
@@ -422,7 +422,7 @@ module stg_xt(
                             w_seq_list[2] = pack_nop();
                             w_seq_list[3] = pack_nop();
                             w_seq_list[4] = pack_nop();
-                            w_seq_list[5] = pack_ldcso(iw_instr[15:12], iw_instr[11:10], 14'sd-1);
+                            w_seq_list[5] = pack_ldcso(iw_instr[15:12], iw_instr[11:10], -14'sd1);
                             r_instr       = w_seq_list[0];
                         end
                         `SUBOP_POPAur: begin
@@ -433,7 +433,7 @@ module stg_xt(
                             w_seq_list[2] = pack_nop();
                             w_seq_list[3] = pack_nop();
                             w_seq_list[4] = pack_nop();
-                            emit_cap_load_sequence(5, iw_instr[13:12], iw_instr[15:14], 14'sd-12);
+                            emit_cap_load_sequence(5, iw_instr[13:12], iw_instr[15:14], -14'sd12);
                             r_instr       = w_seq_list[0];
                         end
                         default: begin

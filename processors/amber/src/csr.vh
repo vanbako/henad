@@ -1,15 +1,15 @@
 `ifndef CSR_VH
 `define CSR_VH
 
-// Named CSR indices (8-bit). Extend as needed.
-`define CSR_IDX_STATUS   8'h00
-`define CSR_IDX_CAUSE    8'h01
-`define CSR_IDX_EPC_LO   8'h02  // low 24 bits of EPC
-`define CSR_IDX_EPC_HI   8'h03  // high 24 bits of EPC
-`define CSR_IDX_CYCLE_L  8'h04
-`define CSR_IDX_CYCLE_H  8'h05
-`define CSR_IDX_INSTRET_L 8'h06
-`define CSR_IDX_INSTRET_H 8'h07
+// Named CSR indices (12-bit). Extend as needed.
+`define CSR_IDX_STATUS   12'h000
+`define CSR_IDX_CAUSE    12'h001
+`define CSR_IDX_EPC_LO   12'h002  // low 24 bits of EPC
+`define CSR_IDX_EPC_HI   12'h003  // high 24 bits of EPC
+`define CSR_IDX_CYCLE_L  12'h004
+`define CSR_IDX_CYCLE_H  12'h005
+`define CSR_IDX_INSTRET_L 12'h006
+`define CSR_IDX_INSTRET_H 12'h007
 
 // Async 24-bit math engine CSRs
 // Control: [0] START, [5:1] OP
@@ -30,13 +30,13 @@
 //   0x1D CLAMP12_U, 0x1E CLAMP12_S (lane-wise; OPA clamped to [OPC(min), OPB(max)])
 // Status:  [0] READY, [1] BUSY, [2] DIV0, other bits reserved
 // Operands/Results are 24-bit wide
-`define CSR_IDX_MATH_CTRL   8'h10
-`define CSR_IDX_MATH_STATUS 8'h11
-`define CSR_IDX_MATH_OPA    8'h12
-`define CSR_IDX_MATH_OPB    8'h13
-`define CSR_IDX_MATH_RES0   8'h14 // MUL: product[23:0]; DIV: quotient; MOD/SQRT: result
-`define CSR_IDX_MATH_RES1   8'h15 // MUL: product[47:24]; DIV: remainder; otherwise 0
-`define CSR_IDX_MATH_OPC    8'h16 // Optional third operand (e.g., clamp min)
+`define CSR_IDX_MATH_CTRL   12'h010
+`define CSR_IDX_MATH_STATUS 12'h011
+`define CSR_IDX_MATH_OPA    12'h012
+`define CSR_IDX_MATH_OPB    12'h013
+`define CSR_IDX_MATH_RES0   12'h014 // MUL: product[23:0]; DIV: quotient; MOD/SQRT: result
+`define CSR_IDX_MATH_RES1   12'h015 // MUL: product[47:24]; DIV: remainder; otherwise 0
+`define CSR_IDX_MATH_OPC    12'h016 // Optional third operand (e.g., clamp min)
 
 // CSR[STATUS] bit assignments (low 24-bit data field)
 // [0] MODE: 1=kernel, 0=user
@@ -45,34 +45,34 @@
 `endif
 // Default Capability Windows (addresses per design/csr.md)
 // DDC window: 0x020–0x028
-`define CSR_IDX_DDC_BASE_LO 8'h20
-`define CSR_IDX_DDC_BASE_HI 8'h21
-`define CSR_IDX_DDC_LEN_LO  8'h22
-`define CSR_IDX_DDC_LEN_HI  8'h23
-`define CSR_IDX_DDC_CUR_LO  8'h24
-`define CSR_IDX_DDC_CUR_HI  8'h25
-`define CSR_IDX_DDC_PERMS   8'h26
-`define CSR_IDX_DDC_ATTR    8'h27
-`define CSR_IDX_DDC_TAG     8'h28
+`define CSR_IDX_DDC_BASE_LO 12'h020
+`define CSR_IDX_DDC_BASE_HI 12'h021
+`define CSR_IDX_DDC_LEN_LO  12'h022
+`define CSR_IDX_DDC_LEN_HI  12'h023
+`define CSR_IDX_DDC_CUR_LO  12'h024
+`define CSR_IDX_DDC_CUR_HI  12'h025
+`define CSR_IDX_DDC_PERMS   12'h026
+`define CSR_IDX_DDC_ATTR    12'h027
+`define CSR_IDX_DDC_TAG     12'h028
 
 // PCC window: 0x030–0x038
-`define CSR_IDX_PCC_BASE_LO 8'h30
-`define CSR_IDX_PCC_BASE_HI 8'h31
-`define CSR_IDX_PCC_LEN_LO  8'h32
-`define CSR_IDX_PCC_LEN_HI  8'h33
-`define CSR_IDX_PCC_CUR_LO  8'h34
-`define CSR_IDX_PCC_CUR_HI  8'h35
-`define CSR_IDX_PCC_PERMS   8'h36
-`define CSR_IDX_PCC_ATTR    8'h37
-`define CSR_IDX_PCC_TAG     8'h38
+`define CSR_IDX_PCC_BASE_LO 12'h030
+`define CSR_IDX_PCC_BASE_HI 12'h031
+`define CSR_IDX_PCC_LEN_LO  12'h032
+`define CSR_IDX_PCC_LEN_HI  12'h033
+`define CSR_IDX_PCC_CUR_LO  12'h034
+`define CSR_IDX_PCC_CUR_HI  12'h035
+`define CSR_IDX_PCC_PERMS   12'h036
+`define CSR_IDX_PCC_ATTR    12'h037
+`define CSR_IDX_PCC_TAG     12'h038
 
 // SCC window: 0x040–0x048
-`define CSR_IDX_SCC_BASE_LO 8'h40
-`define CSR_IDX_SCC_BASE_HI 8'h41
-`define CSR_IDX_SCC_LEN_LO  8'h42
-`define CSR_IDX_SCC_LEN_HI  8'h43
-`define CSR_IDX_SCC_CUR_LO  8'h44
-`define CSR_IDX_SCC_CUR_HI  8'h45
-`define CSR_IDX_SCC_PERMS   8'h46
-`define CSR_IDX_SCC_ATTR    8'h47
-`define CSR_IDX_SCC_TAG     8'h48
+`define CSR_IDX_SCC_BASE_LO 12'h040
+`define CSR_IDX_SCC_BASE_HI 12'h041
+`define CSR_IDX_SCC_LEN_LO  12'h042
+`define CSR_IDX_SCC_LEN_HI  12'h043
+`define CSR_IDX_SCC_CUR_LO  12'h044
+`define CSR_IDX_SCC_CUR_HI  12'h045
+`define CSR_IDX_SCC_PERMS   12'h046
+`define CSR_IDX_SCC_ATTR    12'h047
+`define CSR_IDX_SCC_TAG     12'h048

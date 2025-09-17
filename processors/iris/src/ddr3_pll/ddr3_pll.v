@@ -1,19 +1,18 @@
 module ddr3_pll(
     clkin,
     init_clk,
-    clkout0
+    clkout0,
+    lock
 );
-
 
 input clkin;
 input init_clk;
 output clkout0;
-wire lock;
+output lock;
 wire [5:0] icpsel;
 wire [2:0] lpfres;
 wire pll_lock;
 wire pll_rst;
-
 
     ddr3_pll_MOD u_pll(
         .clkout0(clkout0),
@@ -24,7 +23,6 @@ wire pll_rst;
         .lpfres(lpfres),
         .lpfcap(2'b00)
     );
-
 
     PLL_INIT u_pll_init(
         .CLKIN(init_clk),
@@ -37,6 +35,5 @@ wire pll_rst;
     );
     defparam u_pll_init.CLK_PERIOD = 20;
     defparam u_pll_init.MULTI_FAC = 16;
-
 
 endmodule

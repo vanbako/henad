@@ -65,8 +65,8 @@
 `define HBIT_TGT_CR  `HBIT_ADDR_CR
 `define HBIT_SRC_SR  `HBIT_ADDR_SR
 
-// CSR file: 24-bit data, 8-bit index (up to 256 CSRs)
-`define SIZE_TGT_CSR  8
-`define HBIT_TGT_CSR  7
+// CSR file: 24-bit data, 12-bit index (up to 4096 CSRs)
+`define SIZE_TGT_CSR  12
+`define HBIT_TGT_CSR  11
 
 `endif

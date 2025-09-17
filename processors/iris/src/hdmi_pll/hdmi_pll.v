@@ -1,22 +1,24 @@
 module hdmi_pll(
     clkin,
     init_clk,
-    clkout0
+    clkout0,
+    clkout1,
+    lock
 );
-
 
 input clkin;
 input init_clk;
 output clkout0;
-wire lock;
+output clkout1;
+output lock;
 wire [5:0] icpsel;
 wire [2:0] lpfres;
 wire pll_lock;
 wire pll_rst;
 
-
     hdmi_pll_MOD u_pll(
         .clkout0(clkout0),
+        .clkout1(clkout1),
         .lock(pll_lock),
         .clkin(clkin),
         .reset(pll_rst),
@@ -24,7 +26,6 @@ wire pll_rst;
         .lpfres(lpfres),
         .lpfcap(2'b00)
     );
-
 
     PLL_INIT u_pll_init(
         .CLKIN(init_clk),
@@ -36,7 +37,6 @@ wire pll_rst;
         .LPFRES(lpfres)
     );
     defparam u_pll_init.CLK_PERIOD = 20;
-    defparam u_pll_init.MULTI_FAC = 16;
-
+    defparam u_pll_init.MULTI_FAC = 37;
 
 endmodule

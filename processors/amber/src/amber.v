@@ -591,13 +591,13 @@ module amber(
     // Privilege mode: 1 = kernel, 0 = user
     reg r_mode_kernel;
     // Drive CSR read addr from current EX instruction when CSRRD
-    assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[7:0] : {(`HBIT_TGT_CSR+1){1'b0}};
+    assign w_csr_read_addr1 = (w_opc == `OPC_CSRRD) ? w_idex_instr[11:0] : {(`HBIT_TGT_CSR+1){1'b0}};
     assign w_csr_read_addr2 = {(`HBIT_TGT_CSR+1){1'b0}};
     // Effective CSR read data overrides for dynamic fields:
     // - STATUS[0] reflects live kernel/user mode bit
     // - PCC_CUR mirrors live PC (split across LO/HI)
     wire csr_is_read   = (w_opc == `OPC_CSRRD);
-    wire [7:0] csr_idx = w_idex_instr[7:0];
+    wire [`HBIT_TGT_CSR:0] csr_idx = w_idex_instr[11:0];
     wire [`HBIT_DATA:0] w_csr_read_data1_eff =
         (csr_is_read && (csr_idx == `CSR_IDX_STATUS))
             ? { w_csr_read_data1[`HBIT_DATA:1], r_mode_kernel }
@@ -611,7 +611,7 @@ module amber(
 
     // CSR write driven in WB when CSRWR retires
     assign w_csr_write_enable = (w_wb_opc == `OPC_CSRWR);
-    assign w_csr_write_addr   = w_wb_instr[7:0];
+    assign w_csr_write_addr   = w_wb_instr[11:0];
     assign w_csr_write_data   = w_wb_result;
 
     // Mirror PCC window into local registers for fetch gating; keep PCC.cursor synced to PC

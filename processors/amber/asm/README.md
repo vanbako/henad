@@ -95,7 +95,7 @@ start:
   `JSRur ARt`, `JSRui #imm12`, `BSRsr DRt`, `BSRso label|expr`, `RET`.
   - Macros: `JCCui CC, abs_expr` and `JSRui abs_expr` expand into `LUIui #2/#1/#0` + `JCCui/JSRui` for 48-bit absolute targets.
 - OP8 (stack ops): `PUSHur DRs, ARt`, `PUSHAur ARs, ARt`, `POPur ARs, DRt`, `POPAur ARs, ARt`.
-- OP9 (CSR): `CSRRD #csr8, DRt`, `CSRWR DRs, #csr8`.
+- OP9 (CSR): `CSRRD #csr12, DRt`, `CSRWR DRs, #csr12`.
   - Built-in CSR aliases include: `STATUS`, `CAUSE`, `EPC_LO`, `EPC_HI`, `CYCLE_L`, `CYCLE_H`, `INSTRET_L`, `INSTRET_H`.
   - Async Int24 Math CSR aliases: `MATH_CTRL`, `MATH_STATUS`, `MATH_OPA`, `MATH_OPB`, `MATH_OPC`, `MATH_RES0`, `MATH_RES1`.
   - Math control constants: `MATH_CTRL_START` and pre-shifted `MATH_OP_*` (e.g. `MATH_OP_DIVU`, `MATH_OP_MULS`, `MATH_OP_SQRTU`, `MATH_OP_CLAMP_S`, plus add/sub/neg/12-bit diad variants).

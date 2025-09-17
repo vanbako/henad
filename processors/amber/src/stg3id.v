@@ -205,6 +205,7 @@ module stg_id(
         r_src_gp_sel = `SIZE_SRC_GP'b0;
         if (w_has_src_gp) begin
             case (w_opc)
+                `OPC_CSRWR: r_src_gp_sel = iw_instr[15:12];
                 // STcso encodes DRs at [13:10]
                 `OPC_STcso, `OPC_CINC, `OPC_CINCv, `OPC_CSETB, `OPC_CSETBv, `OPC_CANDP: r_src_gp_sel = iw_instr[13:10];
                 default: r_src_gp_sel = iw_instr[11:8];

@@ -432,11 +432,11 @@ SPECS.update({
 SPECS.update({
     # Read CSR[index] -> DRt
     "CSRRD": InstructionSpec(
-        "CSRRD", 0x8, 0x0, ["IMM8", "DRt"], {"DRt": (15, 12), "IMM8": (7, 0)}
+        "CSRRD", 0x8, 0x0, ["IMM12", "DRt"], {"DRt": (15, 12), "IMM12": (11, 0)}
     ),
     # Write DRs -> CSR[index]
     "CSRWR": InstructionSpec(
-        "CSRWR", 0x8, 0x1, ["DRs", "IMM8"], {"DRs": (13, 10), "IMM8": (7, 0)}
+        "CSRWR", 0x8, 0x1, ["DRs", "IMM12"], {"DRs": (15, 12), "IMM12": (11, 0)}
     ),
 })
 

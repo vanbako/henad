@@ -10,7 +10,7 @@ Notes on math control:
     CSRWR DRx, #MATH_CTRL_START + MATH_OP_DIVU
 """
 
-# Core CSR indices (8-bit)
+# Core CSR indices (12-bit)
 BUILTIN_SYMBOLS = {
     # General CSRs
     "STATUS":      0x00,
