@@ -30,7 +30,6 @@ def find_testbenches(pattern: str | None) -> list[Path]:
     # Exclude legacy benches that target pre-CHERI/AR opcodes
     exclude = {
         "ex_ar_alu_tb.v",   # legacy AR ALU ops (removed)
-        "hazards_forwards_tb.v",  # depends on legacy AR + SRHLT
     }
     benches = [p for p in benches if p.name not in exclude]
     if pattern:

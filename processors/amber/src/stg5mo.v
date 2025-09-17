@@ -49,6 +49,10 @@ module stg_mo(
     input wire  [`HBIT_TGT_SR:0] iw_sr_aux_addr,
     input wire  [`HBIT_ADDR:0]   iw_sr_aux_result,
     input wire                   iw_trap_pending,
+    output wire                  ow_sr_aux_we,
+    output wire [`HBIT_TGT_SR:0] ow_sr_aux_addr,
+    output wire [`HBIT_ADDR:0]   ow_sr_aux_result,
+    output wire                  ow_trap_pending,
     // Forward CR writeback controls to WB
     input wire  [`HBIT_TGT_CR:0] iw_cr_write_addr,
     input wire                   iw_cr_we_base,

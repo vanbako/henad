@@ -3,6 +3,7 @@
 `include "src/sizes.vh"
 `include "src/opcodes.vh"
 `include "src/cc.vh"
+`include "src/sr.vh"
 
 module hazards_forwards_tb;
     reg clk;
@@ -17,115 +18,222 @@ module hazards_forwards_tb;
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
-    // Program:
-    //  0: MOVsi  #7  -> DR0           ; DR0=7
-    //  1: MOVsi  #1  -> DR2           ; DR2=1
-    //  2: MOVsi  #5  -> DR1           ; DR1=5
-    //  3: ADDur  DR0 + DR1 -> DR1     ; exma forward on tgt, DR1=12
-    //  4: ADDur  DR1 + DR2 -> DR2     ; exma forward on src, DR2=13
-    //  5: MOVsi  #9  -> DR3
-    //  6: NOP
-    //  7: ADDur  DR0 + DR3 -> DR3     ; mamo forward on tgt, DR3=16
-    //  8: MOVsi  #2  -> DR4
-    //  9: NOP
-    // 10: NOP
-    // 11: ADDur  DR0 + DR4 -> DR4     ; mowb forward on tgt, DR4=9
-    // 12: ADDAsi AR0 += #20            ; AR0=20
-    // 13: STui   (AR0) <= #0x055       ; memory hazard (3-cycle stall)
-    // 14: NOP
-    // 15: NOP
-    // 16: MOVsi  #0  -> DR5           ; sets Z=1 (flags forward source for next)
-    // 17: JCCui  EQ, #19              ; branch over next MOV if Z==1
-    // 18: MOVsi  #9  -> DR6           ; should be skipped
-    // 19: MOVsi  #7  -> DR6           ; taken path, DR6=7
-    // 20: ADDAsi AR0 += #1             ; AR0=21
-    // 21: ADDAsi AR0 += #2             ; AR0=23 (tgt AR forward)
-    // 22: MOVDur L(AR0) -> DR7         ; src AR forward, DR7=23
-    // 23: SRHLT
+    // Helpers -----------------------------------------------------------------
+    localparam [`HBIT_DATA:0] INSTR_NOP = { `OPC_NOP, 16'h0000 };
+    localparam [7:0] LEGACY_OP_ADDASI = 8'h67;
+    localparam [7:0] LEGACY_OP_MOVDUR = 8'h62;
+
+
+    function automatic [`HBIT_DATA:0] pack_movsi;
+        input [3:0]         tgt_gp;
+        input signed [11:0] imm12;
+        begin
+            pack_movsi = { `OPC_MOVsi, tgt_gp, imm12[11:0] };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_addur;
+        input [3:0] src_gp;
+        input [3:0] tgt_gp;
+        begin
+            pack_addur = { `OPC_ADDur, tgt_gp, src_gp, 8'b0 };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_addasi;
+        input signed [11:0] imm12;
+        input [1:0]         tgt_ar;
+        begin
+            pack_addasi = { LEGACY_OP_ADDASI, tgt_ar, imm12[11:0] };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_stui;
+        input [1:0]  tgt_ar;
+        input [11:0] imm12;
+        begin
+            pack_stui = { `OPC_STui, tgt_ar, imm12 };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_movdur;
+        input [3:0] tgt_gp;
+        input [1:0] src_ar;
+        input       high_sel;
+        begin
+            pack_movdur = { LEGACY_OP_MOVDUR, tgt_gp, src_ar, high_sel, 9'b0 };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_jccui;
+        input [3:0]  cc;
+        input [11:0] imm12;
+        begin
+            pack_jccui = { `OPC_JCCui, cc, imm12 };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_bccso;
+        input [3:0]  cc;
+        input signed [11:0] imm12;
+        begin
+            pack_bccso = { `OPC_BCCso, cc, imm12[11:0] };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_sr_imm14;
+        input [`HBIT_OPC:0] opc;
+        input [1:0]         tgt_sr;
+        input signed [13:0] imm14;
+        begin
+            pack_sr_imm14 = { opc, tgt_sr, imm14[13:0] };
+        end
+    endfunction
+
+    function automatic [`HBIT_DATA:0] pack_sr_sr_imm12;
+        input [`HBIT_OPC:0] opc;
+        input [1:0]         tgt_sr;
+        input [1:0]         src_sr;
+        input signed [11:0] imm12;
+        begin
+            pack_sr_sr_imm12 = { opc, tgt_sr, src_sr, imm12[11:0] };
+        end
+    endfunction
+
+    integer idx;
     initial begin
-        // small delay to ensure memories exist
+        // Small delay to ensure memories exist
         #1;
-        // MOVsi enc: 0x30 | DRt | imm12
-        u_amber.u_imem.r_mem[ 0] = 24'h300007; // DR0 <- 7
-        u_amber.u_imem.r_mem[ 1] = 24'h302001; // DR2 <- 1
-        u_amber.u_imem.r_mem[ 2] = 24'h301005; // DR1 <- 5
-        // ADDur enc: 0x03 | DRt | DRs << 8
-        u_amber.u_imem.r_mem[ 3] = 24'h031000; // DR1 <- DR1 + DR0 = 12 (forward tgt from EXMA)
-        u_amber.u_imem.r_mem[ 4] = 24'h032100; // DR2 <- DR2 + DR1 = 13 (forward src from EXMA)
-        u_amber.u_imem.r_mem[ 5] = 24'h303009; // DR3 <- 9
-        u_amber.u_imem.r_mem[ 6] = 24'h000000; // NOP
-        u_amber.u_imem.r_mem[ 7] = 24'h033000; // DR3 <- DR3 + DR0 = 16 (forward from MAMO)
-        u_amber.u_imem.r_mem[ 8] = 24'h304002; // DR4 <- 2
-        u_amber.u_imem.r_mem[ 9] = 24'h000000; // NOP
-        u_amber.u_imem.r_mem[10] = 24'h000000; // NOP
-        u_amber.u_imem.r_mem[11] = 24'h034000; // DR4 <- DR4 + DR0 = 9 (forward from MOWB)
-        // ADDAsi enc: 0x67 | ARt | imm12 (signed)
-        u_amber.u_imem.r_mem[12] = 24'h670014; // AR0 += 20  => 20
-        // STui enc: 0x42 | ARt | imm12 (zero-extended)
-        u_amber.u_imem.r_mem[13] = 24'h420055; // *(AR0)=0x000055 (triggers hazard)
-        u_amber.u_imem.r_mem[14] = 24'h000000; // NOP
-        u_amber.u_imem.r_mem[15] = 24'h000000; // NOP
-        u_amber.u_imem.r_mem[16] = 24'h305000; // DR5 <- 0 (Z=1)
-        // JCCui enc: 0x72 | CC<<12 | imm12 (absolute PC)
-        u_amber.u_imem.r_mem[17] = 24'h721013; // if EQ -> PC=19
-        u_amber.u_imem.r_mem[18] = 24'h306009; // DR6 <- 9 (should be skipped)
-        u_amber.u_imem.r_mem[19] = 24'h306007; // DR6 <- 7
-        u_amber.u_imem.r_mem[20] = 24'h670001; // AR0 += 1  => 21
-        u_amber.u_imem.r_mem[21] = 24'h670002; // AR0 += 2  => 23 (tgt AR forward)
-        // MOVDur enc: 0x62 | DRt | ARs<<10 | Hbit<<9
-        u_amber.u_imem.r_mem[22] = 24'h627000; // DR7 <- L(AR0) = 23 (src AR forward)
-        u_amber.u_imem.r_mem[23] = 24'hA00000; // SRHLT
+        for (idx = 0; idx < 64; idx = idx + 1)
+            u_amber.u_imem.r_mem[idx] = INSTR_NOP;
+
+        // Program -------------------------------------------------------------
+        u_amber.u_imem.r_mem[ 0] = pack_movsi(4'd0, 12'sd7);          // DR0 <- 7
+        u_amber.u_imem.r_mem[ 1] = pack_movsi(4'd2, 12'sd1);          // DR2 <- 1
+        u_amber.u_imem.r_mem[ 2] = pack_movsi(4'd1, 12'sd5);          // DR1 <- 5
+        u_amber.u_imem.r_mem[ 3] = pack_movsi(4'd8, 12'sd3);          // DR8 <- 3
+        u_amber.u_imem.r_mem[ 4] = pack_addur(4'd0, 4'd1);            // DR1 <- DR1 + DR0 (EXMA tgt)
+        u_amber.u_imem.r_mem[ 5] = pack_addur(4'd1, 4'd2);            // DR2 <- DR2 + DR1 (EXMA src)
+        u_amber.u_imem.r_mem[ 6] = pack_movsi(4'd3, 12'sd9);          // DR3 <- 9
+        u_amber.u_imem.r_mem[ 7] = INSTR_NOP;
+        u_amber.u_imem.r_mem[ 8] = pack_addur(4'd0, 4'd3);            // DR3 <- DR3 + DR0 (MAMO tgt)
+        u_amber.u_imem.r_mem[ 9] = INSTR_NOP;
+        u_amber.u_imem.r_mem[10] = pack_addur(4'd3, 4'd8);            // DR8 <- DR8 + DR3 (MAMO src)
+        u_amber.u_imem.r_mem[11] = pack_movsi(4'd4, 12'sd2);          // DR4 <- 2
+        u_amber.u_imem.r_mem[12] = pack_movsi(4'd9, 12'sd4);          // DR9 <- 4
+        u_amber.u_imem.r_mem[13] = INSTR_NOP;
+        u_amber.u_imem.r_mem[14] = INSTR_NOP;
+        u_amber.u_imem.r_mem[15] = pack_addur(4'd0, 4'd4);            // DR4 <- DR4 + DR0 (MOWB tgt)
+        u_amber.u_imem.r_mem[16] = pack_addur(4'd4, 4'd9);            // DR9 <- DR9 + DR4 (MOWB src)
+        u_amber.u_imem.r_mem[17] = pack_addasi(12'sd20, 2'd0);        // AR0 += 20
+        u_amber.u_imem.r_mem[18] = pack_stui(2'd0, 12'h055);          // *(AR0) = 0x55 (hazard #1)
+        u_amber.u_imem.r_mem[19] = INSTR_NOP;
+        u_amber.u_imem.r_mem[20] = INSTR_NOP;
+        u_amber.u_imem.r_mem[21] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_LR, 14'sd5);    // LR += 5
+        u_amber.u_imem.r_mem[22] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_LR, -14'sd2);   // LR += -2 (tgt fwd)
+        u_amber.u_imem.r_mem[23] = INSTR_NOP;                                           // observe writeback
+        u_amber.u_imem.r_mem[24] = pack_sr_sr_imm12(`OPC_SRLDso, `SR_IDX_LR, `SR_IDX_SSP, 12'sd0); // LR <- mem (hazard #2)
+        u_amber.u_imem.r_mem[25] = pack_sr_imm14(`OPC_SRADDsi, `SR_IDX_LR, 14'sd1);    // LR += 1 (load fwd)
+        u_amber.u_imem.r_mem[26] = pack_movsi(4'd5, 12'sd0);          // DR5 <- 0 (sets Z)
+        u_amber.u_imem.r_mem[27] = pack_bccso(`CC_EQ, 12'd2);        // branch if Z -> skip next instruction
+        u_amber.u_imem.r_mem[28] = pack_movsi(4'd6, 12'sd9);          // DR6 <- 9 (fallthrough)
+        u_amber.u_imem.r_mem[29] = pack_movsi(4'd6, 12'sd7);          // DR6 <- 7 (taken)
+        u_amber.u_imem.r_mem[30] = pack_addasi(12'sd1, 2'd0);         // AR0 += 1
+        u_amber.u_imem.r_mem[31] = pack_addasi(12'sd2, 2'd0);         // AR0 += 2 (AR tgt fwd)
+        u_amber.u_imem.r_mem[32] = pack_movdur(4'd7, 2'd0, 1'b0);     // DR7 <- L(AR0) (AR src fwd)
+        u_amber.u_imem.r_mem[33] = { `OPC_HLT, 16'h0000 };
+
+        // Seed uIMM banks so JCCui absolute target works without traps
+        u_amber.u_stg_ex.r_uimm_bank0_valid = 1'b1;
+        u_amber.u_stg_ex.r_uimm_bank1_valid = 1'b1;
+        u_amber.u_stg_ex.r_uimm_bank2_valid = 1'b1;
+        u_amber.u_stg_ex.r_uimm_bank0 = 12'd0;
+        u_amber.u_stg_ex.r_uimm_bank1 = 12'd0;
+        u_amber.u_stg_ex.r_uimm_bank2 = 12'd0;
+
+        // Prefill data memory for forwarding checks
+        u_amber.u_dmem.r_mem[23] = 24'd23;        // for MOVDur
+        u_amber.u_dmem.r_mem[30] = 24'h000012;    // SRLDso low 24 bits
+        u_amber.u_dmem.r_mem[31] = 24'h000000;    // SRLDso high 24 bits
+
+        // Seed SR base registers for SRLDso
+        u_amber.u_regsr.r_sr[`SR_IDX_SSP] = 48'd30;
+        u_amber.u_regsr.r_sr[`SR_IDX_LR]  = 48'd0;
     end
 
-    // Reset + run
+
+    initial begin
+        @(negedge rst);
+        u_amber.u_stg_ex.r_uimm_bank0_valid = 1'b1;
+        u_amber.u_stg_ex.r_uimm_bank1_valid = 1'b1;
+        u_amber.u_stg_ex.r_uimm_bank2_valid = 1'b1;
+        u_amber.u_stg_ex.r_uimm_bank0 = 12'd0;
+        u_amber.u_stg_ex.r_uimm_bank1 = 12'd0;
+        u_amber.u_stg_ex.r_uimm_bank2 = 12'd0;
+    end
+    // Reset + run -------------------------------------------------------------
     integer tick;
     initial begin
         rst = 1'b1; tick = 0;
         repeat (2) @(posedge clk);
         rst = 1'b0;
-        // Run long enough for program to complete
-        repeat (300) @(posedge clk);
-        $display("Timeout waiting for SRHLT");
+        repeat (400) @(posedge clk);
+        $display("Timeout waiting for HLT");
         $fatal;
     end
 
-    // Track stalls and assert policy: exactly 3 cycles, PC holds constant
+    // Stall tracking ----------------------------------------------------------
     reg prev_stall;
     integer stall_len;
+    integer stall_count;
     reg [47:0] stall_pc;
-    initial begin prev_stall = 1'b0; stall_len = 0; stall_pc = 0; end
+    initial begin
+        prev_stall = 1'b0;
+        stall_len = 0;
+        stall_count = 0;
+        stall_pc = 0;
+    end
+
     always @(posedge clk) begin
         if (rst) begin
-            prev_stall <= 1'b0; stall_len <= 0; stall_pc <= 0;
+            prev_stall  <= 1'b0;
+            stall_len   <= 0;
+            stall_count <= 0;
+            stall_pc    <= 0;
         end else begin
-            if (u_amber.w_stall) begin
+            if (u_amber.w_hazard_stall) begin
                 if (!prev_stall) begin
-                    stall_len <= 0;
+                    stall_len <= 1;
                     stall_pc  <= u_amber.r_ia_pc;
                 end else begin
                     if (u_amber.r_ia_pc !== stall_pc) begin
                         $display("ERROR: PC changed during stall: %h -> %h", stall_pc, u_amber.r_ia_pc);
                         $fatal;
                     end
+                    stall_len <= stall_len + 1;
                 end
-                stall_len <= stall_len + 1;
             end else if (prev_stall) begin
                 if (stall_len !== 3) begin
                     $display("ERROR: Stall length %0d (expected 3)", stall_len);
                     $fatal;
                 end else begin
                     $display("Stall observed: length=3, PC=%h held", stall_pc);
+                    stall_count <= stall_count + 1;
                 end
+                stall_len <= 0;
             end
-            prev_stall <= u_amber.w_stall;
+            prev_stall <= u_amber.w_hazard_stall;
         end
     end
 
-    // Detect SRHLT at WB and then validate architectural state
+    // Detect HLT and validate architectural state --------------------------------
     always @(posedge clk) begin
         if (!rst) begin
-            // SRHLT flows to WB with OPC_A.SUBOP_SRHLT
-            if (u_amber.w_wb_opc == `OPC_SRHLT) begin
+            if (u_amber.w_wb_opc == `OPC_HLT) begin
+                if (stall_count !== 2) begin
+                    $display("STALL count FAIL: saw %0d events (expected 2)", stall_count);
+                    $fatal;
+                end
                 // Forwarding results
                 if (u_amber.u_reggp.r_gp[1] !== 24'd12) begin
                     $display("FORWARD GP tgt (EXMA) FAIL: DR1=%0d exp=12", u_amber.u_reggp.r_gp[1]);
@@ -139,23 +247,33 @@ module hazards_forwards_tb;
                     $display("FORWARD GP tgt (MAMO) FAIL: DR3=%0d exp=16", u_amber.u_reggp.r_gp[3]);
                     $fatal;
                 end
+                if (u_amber.u_reggp.r_gp[8] !== 24'd19) begin
+                    $display("FORWARD GP src (MAMO) FAIL: DR8=%0d exp=19", u_amber.u_reggp.r_gp[8]);
+                    $fatal;
+                end
                 if (u_amber.u_reggp.r_gp[4] !== 24'd9) begin
                     $display("FORWARD GP tgt (MOWB) FAIL: DR4=%0d exp=9", u_amber.u_reggp.r_gp[4]);
                     $fatal;
                 end
-                // Branch with forwarded flags (Z from MOVsi DR5,#0)
+                if (u_amber.u_reggp.r_gp[9] !== 24'd13) begin
+                    $display("FORWARD GP src (MOWB) FAIL: DR9=%0d exp=13", u_amber.u_reggp.r_gp[9]);
+                    $fatal;
+                end
                 if (u_amber.u_reggp.r_gp[6] !== 24'd7) begin
                     $display("FORWARD SR flags to branch FAIL: DR6=%0d exp=7", u_amber.u_reggp.r_gp[6]);
                     $fatal;
                 end
-                // AR forwarding and AR->DR move
                 if (u_amber.u_reggp.r_gp[7] !== 24'd23) begin
                     $display("FORWARD AR src/tgt FAIL: DR7=%0d exp=23", u_amber.u_reggp.r_gp[7]);
                     $fatal;
                 end
-                // Store landed at memory[AR0] (word address 20)
+                // Memory and SR results
                 if (u_amber.u_dmem.r_mem[20] !== 24'h000055) begin
                     $display("STORE verify FAIL: mem[20]=%h exp=000055", u_amber.u_dmem.r_mem[20]);
+                    $fatal;
+                end
+                if (u_amber.u_regsr.r_sr[`SR_IDX_LR] !== 48'd19) begin
+                    $display("SR load+forward FAIL: LR=%0d exp=19", u_amber.u_regsr.r_sr[`SR_IDX_LR]);
                     $fatal;
                 end
                 $display("All hazard+forward checks PASSED");
@@ -167,4 +285,3 @@ module hazards_forwards_tb;
     // Simple progress counter (optional)
     always @(posedge clk) if (!rst) tick <= tick + 1;
 endmodule
-
