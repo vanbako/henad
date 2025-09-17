@@ -194,6 +194,7 @@ module dcache_16x16_24(
     reg [IDX_BITS-1:0] miss_idx;
     reg [TAG_BITS-1:0] miss_tag;
     reg [OFF_BITS-1:0] miss_cnt;     // request counter
+    reg [OFF_BITS-1:0] miss_req_cnt; // request pointer
     reg [47:0]         base_addr;
     assign ow_stall = miss_active;
 
@@ -212,8 +213,9 @@ module dcache_16x16_24(
         b_wdata = 48'b0;
         b_is48  = 1'b0;
         if (miss_active) begin
-            b_addr = base_addr + {44'b0, miss_cnt};
-            b_req  = ~miss_issue; // request next beat when not issued
+            b_addr = base_addr + {44'b0, miss_req_cnt};
+            if (!miss_issue && (miss_req_cnt <= {OFF_BITS{1'b1}}))
+                b_req  = 1'b1;
             // writes are blocked during refill
         end else if (pend_store) begin
             b_addr  = pend_store_addr;
@@ -284,6 +286,7 @@ module dcache_16x16_24(
             miss_idx    <= {IDX_BITS{1'b0}};
             miss_tag    <= {TAG_BITS{1'b0}};
             miss_cnt    <= {OFF_BITS{1'b0}};
+            miss_req_cnt <= {OFF_BITS{1'b0}};
             miss_issue  <= 1'b0;
             base_addr   <= 48'b0;
             miss_need_second <= 1'b0;
@@ -305,6 +308,13 @@ module dcache_16x16_24(
             if (!miss_active) begin
                 // Only consider as read if not writing on that port
                 if (miss0 || miss1) begin
+`ifndef SYNTHESIS
+                    integer dbg_port;
+                    reg [47:0] dbg_addr;
+                    dbg_port = (miss0 === 1'b1) ? 0 : 1;
+                    dbg_addr = (dbg_port == 0) ? f_addr[0] : f_addr[1];
+                    $display("[DC] MISS port=%0d addr=%0d idx=%0d off=%0d", dbg_port, dbg_addr, (dbg_port==0 ? idx_p0 : idx_p1), (dbg_port==0 ? off_p0 : off_p1));
+`endif
                     miss_active <= 1'b1;
                     // Choose the port to service (prefer p0)
                     if (miss0) begin
@@ -324,6 +334,7 @@ module dcache_16x16_24(
                         miss_tag2 <= tag1_nxt;
                     end
                     miss_cnt    <= {OFF_BITS{1'b0}};
+                    miss_req_cnt <= {OFF_BITS{1'b0}};
                     miss_issue  <= 1'b0; // prime for first request
                 end else begin
                     // No miss; look for store to push to backing (write-through)
@@ -387,6 +398,7 @@ module dcache_16x16_24(
                             miss_tag    <= miss_tag2;
                             base_addr   <= {miss_tag2, miss_idx2, {OFF_BITS{1'b0}}};
                             miss_cnt    <= {OFF_BITS{1'b0}};
+                            miss_req_cnt <= {OFF_BITS{1'b0}};
                             miss_issue  <= 1'b0; // prime for first beat
                             // keep miss_active asserted
                         end else begin
@@ -399,8 +411,11 @@ module dcache_16x16_24(
                     end
                 end else begin
                     // Waiting for data; remember we issued the request
-                    if (!miss_issue)
+                    if (!miss_issue) begin
                         miss_issue <= 1'b1;
+                        if (miss_req_cnt != {OFF_BITS{1'b1}})
+                            miss_req_cnt <= miss_req_cnt + 1'b1;
+                    end
                 end
             end
         end

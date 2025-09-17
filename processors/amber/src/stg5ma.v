@@ -173,6 +173,14 @@ module stg_ma(
     assign ow_cr_cur        = r_cr_cur_latch;
     assign ow_cr_we_perms   = r_cr_we_perms_latch;
     assign ow_cr_perms      = r_cr_perms_latch;
+`ifndef SYNTHESIS
+    always @(posedge iw_clk) begin
+        if (!iw_rst && (iw_opc == `OPC_SRLDso)) begin
+            $display("[MA] SRLDso addr=%0d mem_mp=%0d", iw_addr, r_mem_mp_latch);
+        end
+    end
+`endif
+
     assign ow_cr_we_attr    = r_cr_we_attr_latch;
     assign ow_cr_attr       = r_cr_attr_latch;
     assign ow_cr_we_tag     = r_cr_we_tag_latch;
