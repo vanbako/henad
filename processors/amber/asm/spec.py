@@ -448,6 +448,10 @@ SPECS.update({
     "SYSCALL": InstructionSpec("SYSCALL", 0x9, 0x2, ["IMM12"], {"IMM12": (11, 0)}),
     # Kernel return
     "KRET":    InstructionSpec("KRET",    0x9, 0x3, [], {}),
+    # MMU/TLB management
+    "TLBINV_ALL":  InstructionSpec("TLBINV_ALL",  0x9, 0x4, [], {}),
+    "TLBINV_ASID": InstructionSpec("TLBINV_ASID", 0x9, 0x5, ["DRs"], {"DRs": (15, 12)}),
+    "TLBINV_PAGE": InstructionSpec("TLBINV_PAGE", 0x9, 0x6, ["SRs"], {"SRs": (15, 14)}),
 })
 
 # OPCLASS F: SR ops

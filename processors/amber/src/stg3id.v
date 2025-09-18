@@ -136,12 +136,13 @@ module stg_id(
         (w_opc == `OPC_STcso)     ||
         // CHERI: CINC/CINCv and CSETB read DRs
         (w_opc == `OPC_CINC)      || (w_opc == `OPC_CINCv)     || (w_opc == `OPC_CSETB)   || (w_opc == `OPC_CSETBv) ||
-        (w_opc == `OPC_CANDP);
+        (w_opc == `OPC_CANDP)     ||
+        (w_opc == `OPC_TLBINV_ASID) || (w_opc == `OPC_TLBINV_PAGE);
 
     // Has SR source
     wire w_has_src_sr =
         (w_opc == `OPC_SRMOVur)   || (w_opc == `OPC_SRJCCso) ||
-        (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRSTso)  ||
+        (w_opc == `OPC_SRLDso)    || (w_opc == `OPC_SRSTso)  || (w_opc == `OPC_TLBINV_PAGE) ||
         (w_opc == `OPC_SR2CR)     ||
         w_uses_flags;
 

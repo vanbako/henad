@@ -72,4 +72,27 @@
 `define CSR_IDX_SCC_ATTR    12'h047
 `define CSR_IDX_SCC_TAG     12'h048
 
+// MMU CSR window (0x100-0x113)
+`define CSR_IDX_MMU_CFG          12'h100
+`define CSR_IDX_MMU_STATUS       12'h101
+`define CSR_IDX_MMU_ROOT_LO      12'h102
+`define CSR_IDX_MMU_ROOT_HI      12'h103
+`define CSR_IDX_MMU_ASID         12'h104
+`define CSR_IDX_MMU_WALK_BASE_LO 12'h105
+`define CSR_IDX_MMU_WALK_BASE_HI 12'h106
+`define CSR_IDX_MMU_WALK_LEN_LO  12'h107
+`define CSR_IDX_MMU_WALK_LEN_HI  12'h108
+`define CSR_IDX_MMU_PORTMASK0    12'h109
+`define CSR_IDX_MMU_PORTMASK1    12'h10A
+`define CSR_IDX_MMU_PORTMASK2    12'h10B
+`define CSR_IDX_MMU_FAULT_VA_LO  12'h10C
+`define CSR_IDX_MMU_FAULT_VA_HI  12'h10D
+`define CSR_IDX_MMU_TLBIDX       12'h10E
+`define CSR_IDX_MMU_TLBDATA_LO   12'h10F
+`define CSR_IDX_MMU_TLBDATA_HI   12'h110
+`define CSR_IDX_MMU_TLBMETA      12'h111
+// Helper CSRs for manual TLB fills (temporary until walker)
+`define CSR_IDX_MMU_TLBVPN_LO    12'h112
+`define CSR_IDX_MMU_TLBVPN_HI    12'h113
+
 `endif

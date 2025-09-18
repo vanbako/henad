@@ -84,6 +84,9 @@ module stg_ex(
     input wire                   iw_cr_t_tag,
     input wire                   iw_flush,
     input wire                   iw_mode_kernel,
+    input wire                   iw_mmu_d_fault,
+    input wire  [2:0]            iw_mmu_d_fault_code,
+    input wire  [`HBIT_ADDR:0]   iw_mmu_d_fault_va,
     input wire                   iw_stall
 );
     // Upper immediate banks for LUIui x∈{0,1,2}
@@ -1510,6 +1513,22 @@ module stg_ex(
                 r_fl     = `SIZE_FLAG'b0;
             end
         endcase
+        if (iw_mmu_d_fault) begin
+            r_branch_taken = 1'b1;
+            r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
+            r_trap_lr_we   = 1'b1;
+            r_trap_lr_value= iw_pc + `SIZE_ADDR'd1;
+            r_kill_gp_we   = 1'b1;
+            r_trap_pending = 1'b1;
+            case (iw_mmu_d_fault_code)
+                3'd0: r_trap_cause = `PSTATE_CAUSE_MMU_VINV;
+                3'd1: r_trap_cause = `PSTATE_CAUSE_MMU_PERM;
+                3'd2: r_trap_cause = `PSTATE_CAUSE_MMU_PORT;
+                3'd3: r_trap_cause = `PSTATE_CAUSE_MMU_PTAB;
+                default: r_trap_cause = `PSTATE_CAUSE_MMU_VINV;
+            endcase
+            r_trap_info = iw_mmu_d_fault_va[15:0];
+        end
         // After computing r_fl, apply flag updates to PSTATE
         if (r_flags_we) begin
             r_pstate_next[`PSTATE_BIT_Z] = r_fl[`FLAG_Z];
