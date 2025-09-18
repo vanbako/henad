@@ -98,7 +98,6 @@ module stg_ex(
     reg [`HBIT_DATA:0]  r_se_imm12_val;
     reg [`HBIT_DATA:0]  r_se_imm14_val;
     reg [`HBIT_DATA:0]  r_se_imm10_val;
-    reg [`HBIT_DATA:0]  r_se_imm16_val;
     reg [`HBIT_ADDR:0]  r_addr;
     reg [`HBIT_DATA:0]  r_result;
     reg [`HBIT_ADDR:0]  r_ar_result;
@@ -138,6 +137,22 @@ module stg_ex(
     reg                  r_cr_tag;
     // Current flags come from SR[FL] via SR read port 1 (forwarded)
     wire [`HBIT_FLAG:0]  w_fl_in = iw_src_sr_val[`HBIT_FLAG:0];
+
+    function automatic [`HBIT_ADDR:0] extend_data_to_addr(input [`HBIT_DATA:0] value);
+        extend_data_to_addr = {{(`SIZE_ADDR-`SIZE_DATA){value[`HBIT_DATA]}}, value};
+    endfunction
+
+    function automatic [`HBIT_ADDR:0] extend_imm12_to_addr(input [`HBIT_IMM12:0] value);
+        extend_imm12_to_addr = {{(`SIZE_ADDR-`SIZE_IMM12){value[`HBIT_IMM12]}}, value};
+    endfunction
+
+    function automatic [`HBIT_ADDR:0] extend_imm16_to_addr(input [`HBIT_IMM16:0] value);
+        extend_imm16_to_addr = {{(`SIZE_ADDR-`SIZE_IMM16){value[`HBIT_IMM16]}}, value};
+    endfunction
+
+    function automatic [`HBIT_ADDR:0] extend_imm10_to_addr(input [`HBIT_IMM10:0] value);
+        extend_imm10_to_addr = {{(`SIZE_ADDR-`SIZE_IMM10){value[`HBIT_IMM10]}}, value};
+    endfunction
     // Latch for upper immediate banks (cleared on reset/flush)
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
@@ -205,8 +220,6 @@ module stg_ex(
         r_se_imm12_val  = {{12{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val};
         r_se_imm14_val  = {{10{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
         r_se_imm10_val  = {{14{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
-        // Sign-extend 16-bit immediate to full 48-bit address domain
-        r_se_imm16_val  = {{32{iw_imm16_val[`HBIT_IMM16]}}, iw_imm16_val};
         if ((iw_opc == `OPC_BCCsr  ||
              iw_opc == `OPC_JCCui  || iw_opc == `OPC_BCCso ||
              iw_opc == `OPC_SRJCCso)) begin
@@ -932,7 +945,8 @@ module stg_ex(
             end
             `OPC_BCCsr: begin
                 if (r_branch_taken)
-                    r_branch_pc = iw_pc + $signed(iw_tgt_gp_val);
+                    r_branch_pc = $signed(iw_pc) +
+                                   $signed(extend_data_to_addr(iw_tgt_gp_val));
             end
             `OPC_MOVui: begin
                 if (!r_uimm_bank0_valid) begin
@@ -1367,7 +1381,8 @@ module stg_ex(
             end
             `OPC_BCCso: begin
                 if (r_branch_taken)
-                    r_branch_pc = iw_pc + $signed(r_se_imm12_val);
+                    r_branch_pc = $signed(iw_pc) +
+                                   $signed(extend_imm12_to_addr(iw_imm12_val));
             end
             `OPC_SRMOVur: begin
                 r_sr_result = (iw_src_sr == `SR_IDX_PC) ? iw_pc : iw_src_sr_val;
@@ -1383,7 +1398,8 @@ module stg_ex(
             end
             `OPC_SRJCCso: begin
                 if (r_branch_taken) begin
-                    r_branch_pc = $signed(iw_tgt_sr_val) + $signed({{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val});
+                    r_branch_pc = $signed(iw_tgt_sr_val) +
+                                   $signed(extend_imm10_to_addr(iw_imm10_val));
                 end
             end
             `OPC_SRLDso: begin
@@ -1407,7 +1423,8 @@ module stg_ex(
             `OPC_BALso: begin
                 // Unconditional PC-relative branch by signed imm16
                 r_branch_taken = 1'b1;
-                r_branch_pc    = $signed(iw_pc) + $signed(r_se_imm16_val);
+                r_branch_pc    = $signed(iw_pc) +
+                                  $signed(extend_imm16_to_addr(iw_imm16_val));
             end
             // Privileged/trap entry: SYSCALL/SWI
             `OPC_SYSCALL: begin
