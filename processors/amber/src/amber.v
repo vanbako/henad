@@ -883,6 +883,7 @@ module amber(
     stg_ma u_stg_ma(
         .iw_clk      (iw_clk),
         .iw_rst      (iw_rst),
+        .iw_stall    (w_stall),
         .iw_pc       (w_exma_pc),
         .ow_pc       (w_mamo_pc),
         .iw_instr    (w_exma_instr),
@@ -1099,5 +1100,4 @@ module amber(
         .ow_cr_tag         ()
     );
 endmodule
-
 
