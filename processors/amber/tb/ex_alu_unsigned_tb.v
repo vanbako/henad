@@ -4,6 +4,8 @@
 `include "src/cc.vh"
 `include "src/sizes.vh"
 `include "src/flags.vh"
+`include "src/pstate.vh"
+`include "src/sr.vh"
 
 module ex_alu_unsigned_tb;
     reg                    clk;
@@ -41,6 +43,11 @@ module ex_alu_unsigned_tb;
     wire [`HBIT_ADDR:0]    ex_sr_result;
     wire                   branch_taken;
     wire [`HBIT_ADDR:0]    branch_pc;
+    wire                   sr_aux_we;
+    wire [`HBIT_TGT_SR:0]  sr_aux_addr;
+    wire [`HBIT_ADDR:0]    sr_aux_result;
+    reg  [`HBIT_ADDR:0]    pstate;
+    reg                    mode_kernel;
     reg  [`HBIT_DATA:0]    src_gp_val;
     reg  [`HBIT_DATA:0]    tgt_gp_val;
     reg  [`HBIT_ADDR:0]    src_ar_val;
@@ -84,6 +91,9 @@ module ex_alu_unsigned_tb;
         .ow_result(ex_result),
         .ow_ar_result(ex_ar_result),
         .ow_sr_result(ex_sr_result),
+        .ow_sr_aux_we(sr_aux_we),
+        .ow_sr_aux_addr(sr_aux_addr),
+        .ow_sr_aux_result(sr_aux_result),
         .ow_branch_taken(branch_taken),
         .ow_branch_pc(branch_pc),
         .iw_src_gp_val(src_gp_val),
@@ -92,7 +102,9 @@ module ex_alu_unsigned_tb;
         .iw_tgt_ar_val(tgt_ar_val),
         .iw_src_sr_val(src_sr_val),
         .iw_tgt_sr_val(tgt_sr_val),
+        .iw_pstate_val(pstate),
         .iw_flush(flush),
+        .iw_mode_kernel(mode_kernel),
         .iw_stall(stall)
     );
 
@@ -101,6 +113,49 @@ module ex_alu_unsigned_tb;
     initial begin
         clk = 0; forever #5 clk = ~clk; end
 
+    task automatic expect_flags;
+        input        expect_we;
+        input        exp_z;
+        input        exp_n;
+        input        exp_c;
+        input        exp_v;
+        input [127:0] label;
+        if (expect_we) begin
+            if (sr_aux_we !== 1'b1) begin
+                $display("FAIL (%s): expected flag update", label);
+                $fatal;
+            end
+            if (sr_aux_addr !== `SR_IDX_PSTATE) begin
+                $display("FAIL (%s): flag addr mismatch %0d", label, sr_aux_addr);
+                $fatal;
+            end
+            if (sr_aux_result[`PSTATE_BIT_Z] !== exp_z ||
+                sr_aux_result[`PSTATE_BIT_N] !== exp_n ||
+                sr_aux_result[`PSTATE_BIT_C] !== exp_c ||
+                sr_aux_result[`PSTATE_BIT_V] !== exp_v) begin
+                $display("FAIL (%s): flags ZNCV=%0d%0d%0d%0d", label,
+                         sr_aux_result[`PSTATE_BIT_Z],
+                         sr_aux_result[`PSTATE_BIT_N],
+                         sr_aux_result[`PSTATE_BIT_C],
+                         sr_aux_result[`PSTATE_BIT_V]);
+                $fatal;
+            end
+        end else begin
+            if (sr_aux_we !== 1'b0) begin
+                $display("FAIL (%s): unexpected flag update", label);
+                $fatal;
+            end
+        end
+    endtask
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            pstate <= {(`HBIT_ADDR+1){1'b0}};
+        end else if (sr_aux_we) begin
+            pstate <= sr_aux_result;
+        end
+    end
+
     initial begin
         rst = 1; stall = 0; flush = 0;
         pc = 0; instr = 0; opc = 0; sgn_en = 0; imm_en = 0;
@@ -108,12 +163,15 @@ module ex_alu_unsigned_tb;
         cc = 0; tgt_gp = 0; tgt_gp_we = 1; tgt_sr = 0; tgt_sr_we = 0; tgt_ar = 0;
         src_gp = 0; src_ar = 0; src_sr = 0;
         src_gp_val = 0; tgt_gp_val = 0; src_ar_val = 0; tgt_ar_val = 0; src_sr_val = 0; tgt_sr_val = 0;
+        pstate = {(`HBIT_ADDR+1){1'b0}};
+        mode_kernel = 1'b1;
 
         #12 rst = 0;
 
         // MOVur: DRt = DRs
         opc = `OPC_MOVur; src_gp_val = 24'h123456; tgt_gp_val = 24'hDEADBE; step();
         if (ex_result !== 24'h123456) $fatal;
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MOVur flags");
 
         // MCCur: take when CC=EQ and Z=1
         // Provide flags via SR[FL]
@@ -121,23 +179,26 @@ module ex_alu_unsigned_tb;
         src_sr_val = {44'b0, 4'b0001}; // Z=1
         cc = `CC_EQ; opc = `OPC_MCCur; src_gp_val = 24'hAAAAAA; tgt_gp_val = 24'hBBBBBB; step();
         if (ex_result !== 24'hAAAAAA) $fatal;
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MCCur take flags");
         // Not taken when Z=0
         src_sr_val = {44'b0, 4'b0000}; step();
         if (ex_result !== 24'hBBBBBB) $fatal;
+        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "MCCur skip flags");
 
         // ADDur: result and flags Z,C
         opc = `OPC_ADDur; src_gp_val = 24'h000001; tgt_gp_val = 24'hFFFFFF; step();
         if (ex_result !== 24'h000000) $fatal;
-        if (!ex_tgt_sr_we || ex_sr_result[0] !== 1'b1 /*Z*/ || ex_sr_result[2] !== 1'b1 /*C*/) $fatal;
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b1, 1'b0, "ADDur flags");
 
         // SUBur: 0 - 1 => borrow (C=1) and Z=0
         opc = `OPC_SUBur; src_gp_val = 24'h000001; tgt_gp_val = 24'h000000; step();
         if (ex_result !== 24'hFFFFFF) $fatal;
-        if (!ex_tgt_sr_we || ex_sr_result[0] !== 1'b0 || ex_sr_result[2] !== 1'b1) $fatal;
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SUBur flags");
 
         // NOTur
         opc = `OPC_NOTur; tgt_gp_val = 24'h00FF00; step();
         if (ex_result !== 24'hFF00FF) $fatal;
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "NOTur flags");
 
         // AND/OR/XOR
         opc = `OPC_ANDur; src_gp_val = 24'h0F0F0F; tgt_gp_val = 24'h33CC33; step(); if (ex_result !== 24'h030C03) $fatal;
@@ -160,10 +221,11 @@ module ex_alu_unsigned_tb;
 
         // CMPur: Z=1, C=1 when equal
         opc = `OPC_CMPur; src_gp_val = 24'h123456; tgt_gp_val = 24'h123456; step();
-        if (!ex_tgt_sr_we || ex_sr_result[0] !== 1'b1 || ex_sr_result[2] !== 1'b0) $fatal; // C=0 since !(src<tgt)
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "CMPur flags");
 
         // TSTur: Z reflects zero
-        opc = `OPC_TSTur; tgt_gp_val = 24'h000000; step(); if (!ex_tgt_sr_we || ex_sr_result[0] !== 1'b1) $fatal;
+        opc = `OPC_TSTur; tgt_gp_val = 24'h000000; step();
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "TSTur flags");
 
         // ---- Immediate (OPCLASS_1) ----
         // LUIui bank0=0xABC; MOVui low=0xDEF => ir=0xABCDEF
@@ -187,7 +249,7 @@ module ex_alu_unsigned_tb;
 
         // CMPui: compare target vs imm
         tgt_gp_val = 24'h001000; opc = `OPC_CMPui; imm12_val = 12'h001; step();
-        if (!ex_tgt_sr_we) $fatal;
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "CMPui flags");
 
         $display("ex_alu_unsigned_tb PASS");
         $finish;
