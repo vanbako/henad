@@ -1242,6 +1242,8 @@ module stg_ex(
                     r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_OVF;
                 end else begin
                     r_flags_we = 1'b1;
                 end
@@ -1268,6 +1270,8 @@ module stg_ex(
                     r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
                     r_flags_we     = 1'b0;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = `PSTATE_CAUSE_ARITH_OVF;
                 end else begin
                     r_flags_we = 1'b1;
                 end
