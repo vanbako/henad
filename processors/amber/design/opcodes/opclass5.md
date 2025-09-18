@@ -90,9 +90,9 @@
 
 - ## CSETB DRs, CRt
 
-| operation                           | 繕op               | isa                  |
-|-------------------------------------|-------------------|----------------------|
-| CRt.length = zero_extend(DRs)       | CSETB DRs, CRt    | cap_setbounds ds, ct |
+| operation                                          | 發p               | isa                  |
+|----------------------------------------------------|-------------------|----------------------|
+| CRt.base = CRt.cursor; CRt.len = sign_extend(DRs)  | CSETB DRs, CRt    | cap_setbounds ds, ct |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
@@ -108,9 +108,9 @@
 
 - ## CSETBv DRs, CRt (trap on invalid bounds)
 
-| operation                           | 繕op               | isa                    |
-|-------------------------------------|-------------------|------------------------|
-| CRt.length = zero_extend(DRs)       | CSETBv DRs, CRt   | cap_setbounds.v ds, ct |
+| operation                                          | 發p               | isa                    |
+|----------------------------------------------------|-------------------|------------------------|
+| CRt.base = CRt.cursor; CRt.len = sign_extend(DRs)  | CSETBv DRs, CRt   | cap_setbounds.v ds, ct |
 
 | bit range | description | value      |
 |-----------|-------------|------------|
@@ -120,15 +120,15 @@
 | [13-10]   | DRs         |            |
 | [ 9- 0]   | reserved    | 0000000000 |
 
-| z | n | c | v | trap condition                                                |
-|---|---|---|---|---------------------------------------------------------------|
-| - | - | - | - | zero length, or base+length overflow beyond 48-bit, or sealed |
+| z | n | c | v | trap condition                                             |
+|---|---|---|---|------------------------------------------------------------|
+| - | - | - | - | new len <= 0 (CAP_CFG) or cursor outside new bounds (CAP_OOB) |
 
 - ## CSETBi #imm14, CRt
 
-| operation                       | 繕op                | isa                 |
-|---------------------------------|--------------------|---------------------|
-| CRt.length = sign_extend(imm14) | CSETBi #imm14, CRt | cap_setbounds imm14 |
+| operation                                          | 發p                | isa                 |
+|----------------------------------------------------|--------------------|---------------------|
+| CRt.base = CRt.cursor; CRt.len = sign_extend(imm14) | CSETBi #imm14, CRt | cap_setbounds imm14 |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -143,9 +143,9 @@
 
 - ## CSETBiv #imm14, CRt (trap on invalid bounds)
 
-| operation                       | 繕op                 | isa                       |
-|---------------------------------|---------------------|---------------------------|
-| CRt.length = sign_extend(imm14) | CSETBiv #imm14, CRt | cap_setbounds.v imm14, ct |
+| operation                                          | 發p                 | isa                       |
+|----------------------------------------------------|---------------------|---------------------------|
+| CRt.base = CRt.cursor; CRt.len = sign_extend(imm14) | CSETBiv #imm14, CRt | cap_setbounds.v imm14, ct |
 
 | bit range | description | value |
 |-----------|-------------|-------|
@@ -154,9 +154,14 @@
 | [15-14]   | CRt         |       |
 | [13- 0]   | imm14       |       |
 
-| z | n | c | v | trap condition                                                |
-|---|---|---|---|---------------------------------------------------------------|
-| - | - | - | - | zero length, or base+length overflow beyond 48-bit, or sealed |
+| z | n | c | v | trap condition                                             |
+|---|---|---|---|------------------------------------------------------------|
+| - | - | - | - | new len <= 0 (CAP_CFG) or cursor outside new bounds (CAP_OOB) |
+
+Notes:
+- All CSETB* forms require SB permission on CRt; violation raises a capability-permission fault.
+- Trap variants perform the validations noted above; the plain forms apply the update without checks beyond the permission gate.
+- CRt.cur is left unchanged; the updated base equals the prior cursor value.
 
 - ## CGETP CRs, DRt
 

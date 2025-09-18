@@ -99,25 +99,25 @@ The exact encoding of causes is reported in `PSTATE.cause` and surfaced via the 
 
 Amber’s memory path supports 24/48-bit accesses today. A full architectural capability is >128 bits (3×48 + 24 + 24 + 1 = 193b). We propose a packed, BAU-friendly layout and a simple µ-sequence using existing 48-bit SR load/store micro-ops.
 
-Memory layout (10×24-bit words, little-endian per field):
+Memory layout (12�24-bit words, written as six 48-bit lanes; the low 24-bit half carries the architectural field and the upper half is zero unless noted):
 - [0] BASE_LO24, [1] BASE_HI24
 - [2] LEN_LO24,  [3] LEN_HI24
 - [4] CUR_LO24,  [5] CUR_HI24
-- [6] PERMS_24
-- [7] ATTR_24
-- [8] TAG_24 (bit0 = architectural tag, rest zero)
-- [9] RESERVED_24 (zero for future use / checksum)
+- [6] PERMS_LO24, [7] PERMS_HI24 (currently zero; stored via 48-bit lane)
+- [8] ATTR_LO24,  [9] ATTR_HI24 (currently zero)
+- [10] TAG_LO24 (bit0 = architectural tag, remaining bits zero)
+- [11] TAG_HI24 (reserved; currently zero)
 
-µ-sequence expansion (in `stg2xt`) for `CSTcso CRs, #off(CRt)`:
+�-sequence expansion (in `stg2xt`) for `CSTcso CRs, #off(CRt)`:
 - EX: compute `eff = CRt.cur + off`; check `tag && !sealed && SC && in-bounds` on CRt.
-- For fields in order: {BASE, LEN, CUR} (48b each), then {PERMS, ATTR} (24b) and TAG.
-  1. Emit new µ-op `CR2SR fld, CRs, SRtmp` to present a 48/24b slice on SRtmp.
-  2. Emit `SRSTso SRtmp, #k(PC)` to store 48b at `eff + k`. For 24b fields, a 24b store variant or `SRSTso` with upper cleared.
-- TAG: write 1b in low bit of a 24b word via SRtmp.
+- Field order: {BASE, LEN, CUR, PERMS, ATTR, TAG}. Each macro step emits a 48-bit SR transfer; 24-bit fields occupy the low half and zero the upper half, while the tag lane sets bit0 and keeps the remaining bits clear.
+  1. Emit new �-op `CR2SR fld, CRs, SRtmp` to present the selected field on `SRtmp`.
+  2. Emit `SRSTso SRtmp, #k(PC)` to write the 48-bit lane at `eff + k`. (Offsets advance in steps of two BAUs because each lane spans two 24-bit words.)
+- TAG lane: drive bit0 high via `SRtmp`; the high 24-bit word remains zero for future extensions.
 
-µ-sequence for `CLDcso #off(CRs), CRt` (reverse of above):
+�-sequence for `CLDcso #off(CRs), CRt` (reverse of above):
 - EX: compute `eff = CRs.cur + off`; check `tag && !sealed && LC && in-bounds` on CRs.
-- For fields in order, emit `SRLDso SRtmp, #k(PC)`, then `SR2CR fld, SRtmp, CRt` to update CRt’s slices.
+- For each lane, emit `SRLDso SRtmp, #k(PC)` to fetch the 48-bit value, then `SR2CR fld, SRtmp, CRt` to update CRt. The low 24 bits populate the architectural field; the high 24-bit half is ignored (reserved).
 
 Notes
 - The `CR2SR/SR2CR` micro-ops are narrow, single-cycle register transfers between the CR file and the SR port in EX, with writeback in WB (mirroring existing SR/AR paths). They reuse the new CR writeback bus already present for CHERI ops.
