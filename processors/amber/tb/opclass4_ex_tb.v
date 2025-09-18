@@ -330,22 +330,22 @@ module opclass4_ex_tb;
         opc = `OPC_STui;
         set_cr_t(48'd300, 48'd16, 48'd304, PERM_W, 24'd0, 1'b0);
         imm12_val = 12'h055;
-        expect_trap(`PSTATE_CAUSE_CAP_TAG, "STui missing tag", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_TAG, "STui missing tag");
 
         opc = `OPC_STui;
         set_cr_t(48'd300, 48'd16, 48'd304, PERM_W, ATTR_SEALED, 1'b1);
         imm12_val = 12'h0AA;
-        expect_trap(`PSTATE_CAUSE_CAP_SEAL, "STui sealed", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_SEAL, "STui sealed");
 
         opc = `OPC_STui;
         set_cr_t(48'd300, 48'd16, 48'd304, 24'd0, 24'd0, 1'b1);
         imm12_val = 12'h0FF;
-        expect_trap(`PSTATE_CAUSE_CAP_PERM, "STui missing W perm", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_PERM, "STui missing W perm");
 
         opc = `OPC_STui;
         set_cr_t(48'd300, 48'd4, 48'd304, PERM_W, 24'd0, 1'b1);
         imm12_val = 12'h100;
-        expect_trap(`PSTATE_CAUSE_CAP_OOB, "STui cursor out of bounds", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_OOB, "STui cursor out of bounds");
 
         // STsi sign-extended stores
         set_cr_t(48'd400, 48'd32, 48'd408, PERM_W, 24'd0, 1'b1);
@@ -374,17 +374,17 @@ module opclass4_ex_tb;
         opc = `OPC_STsi;
         set_cr_t(48'd400, 48'd32, 48'd408, PERM_W, 24'd0, 1'b0);
         imm14_val = 14'd0;
-        expect_trap(`PSTATE_CAUSE_CAP_TAG, "STsi missing tag", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_TAG, "STsi missing tag");
 
         opc = `OPC_STsi;
         set_cr_t(48'd400, 48'd32, 48'd408, 24'd0, 24'd0, 1'b1);
         imm14_val = 14'd0;
-        expect_trap(`PSTATE_CAUSE_CAP_PERM, "STsi missing W perm", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_PERM, "STsi missing W perm");
 
         opc = `OPC_STsi;
         set_cr_t(48'd400, 48'd8, 48'd408, PERM_W, 24'd0, 1'b1);
         imm14_val = 14'd0;
-        expect_trap(`PSTATE_CAUSE_CAP_OOB, "STsi cursor out of bounds", 1'b0, 1'b0);
+        expect_trap(`PSTATE_CAUSE_CAP_OOB, "STsi cursor out of bounds");
 
         // CLDcso capability loads
         opc = `OPC_CLDcso;

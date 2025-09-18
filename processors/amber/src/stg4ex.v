@@ -688,19 +688,32 @@ module stg_ex(
             `OPC_STui: begin
                 // CHERI-checked store: 24-bit immediate to (CRt.cursor)
                 reg [47:0] eff;
-                reg fault;
+                reg [7:0]  cause;
+                reg        fault;
+                eff   = iw_cr_t_cur; // no offset
+                cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
-                eff = iw_cr_t_cur; // no offset
-                if (!iw_cr_t_tag)                      fault = 1'b1;
-                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
-                if (!iw_cr_t_perms[`CR_PERM_W_BIT])    fault = 1'b1;
-                if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                if (!iw_cr_t_tag) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_TAG;
+                end else if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_SEAL;
+                end else if (!iw_cr_t_perms[`CR_PERM_W_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end else if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_OOB;
+                end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
                     r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end else begin
                     r_addr   = eff;
                     r_result = r_ir; // zero-extended 24-bit immediate
@@ -709,19 +722,32 @@ module stg_ex(
             `OPC_STsi: begin
                 // CHERI-checked store: 24-bit sign-extended immediate to (CRt.cursor)
                 reg [47:0] eff;
-                reg fault;
+                reg [7:0]  cause;
+                reg        fault;
+                eff   = iw_cr_t_cur; // no offset
+                cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
-                eff = iw_cr_t_cur; // no offset
-                if (!iw_cr_t_tag)                      fault = 1'b1;
-                if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) fault = 1'b1;
-                if (!iw_cr_t_perms[`CR_PERM_W_BIT])    fault = 1'b1;
-                if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                if (!iw_cr_t_tag) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_TAG;
+                end else if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_SEAL;
+                end else if (!iw_cr_t_perms[`CR_PERM_W_BIT]) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_PERM;
+                end else if (!((eff >= iw_cr_t_base) && (eff < (iw_cr_t_base + iw_cr_t_len)))) begin
+                    fault = 1'b1;
+                    cause = `PSTATE_CAUSE_CAP_OOB;
+                end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
                     r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
                     r_kill_gp_we   = 1'b1;
+                    r_trap_pending = 1'b1;
+                    r_trap_cause   = cause;
                 end else begin
                     r_addr   = eff;
                     r_result = r_se_imm14_val;
