@@ -345,24 +345,76 @@ module stg_ex(
                 reg signed [47:0] delta;
                 reg [47:0] newc;
                 reg fault;
+                reg [7:0] fault_cause;
                 delta = {{34{iw_imm14_val[`HBIT_IMM14]}}, iw_imm14_val};
                 // Use forwarded AR view of CRt.cursor for immediate form as well
                 newc  = iw_tgt_ar_val + delta;
                 fault = 1'b0;
+                fault_cause = `PSTATE_CAUSE_CAP_OOB;
 `ifndef SYNTHESIS
                 $display("[EX] CINC%sv imm=%0d cur=%0d -> newc=%0d",
                     (iw_opc==`OPC_CINCiv)?"iv":"i", $signed(iw_imm14_val), iw_cr_t_cur, newc);
 `endif
                 if (iw_opc == `OPC_CINCiv) begin
-                    if (!((newc >= iw_cr_t_base) && (newc < (iw_cr_t_base + iw_cr_t_len)))) fault = 1'b1;
+                    if (!((newc >= iw_cr_t_base) && (newc < (iw_cr_t_base + iw_cr_t_len)))) begin
+                        fault = 1'b1;
+                        fault_cause = `PSTATE_CAUSE_CAP_OOB;
+                    end
+                end
+                if (!fault) begin
+                    if (iw_root_opc == `OPC_PUSHAur) begin
+                        reg [47:0] span_end;
+                        reg [47:0] bound;
+                        span_end = newc + 48'd12;
+                        bound    = iw_cr_t_base + iw_cr_t_len;
+                        if (!iw_cr_t_tag) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_TAG;
+                        end else if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_SEAL;
+                        end else if (!iw_cr_t_perms[`CR_PERM_SC_BIT]) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_PERM;
+                        end else if (!((newc >= iw_cr_t_base) && (span_end <= bound))) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_OOB;
+                        end
+                    end else if (iw_root_opc == `OPC_POPAur) begin
+                        reg [47:0] span_start;
+                        reg [47:0] span_end;
+                        reg [47:0] bound;
+                        if (!iw_cr_t_tag) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_TAG;
+                        end else if (iw_cr_t_attr[`CR_ATTR_SEALED_BIT]) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_SEAL;
+                        end else if (!iw_cr_t_perms[`CR_PERM_LC_BIT]) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_PERM;
+                        end else if (newc < 48'd12) begin
+                            fault = 1'b1;
+                            fault_cause = `PSTATE_CAUSE_CAP_OOB;
+                        end else begin
+                            span_start = newc - 48'd12;
+                            span_end   = newc;
+                            bound      = iw_cr_t_base + iw_cr_t_len;
+                            if (!((span_start >= iw_cr_t_base) && (span_end <= bound))) begin
+                                fault = 1'b1;
+                                fault_cause = `PSTATE_CAUSE_CAP_OOB;
+                            end
+                        end
+                    end
                 end
                 if (fault) begin
                     r_branch_taken = 1'b1;
                     r_branch_pc    = { r_uimm_bank2, r_uimm_bank1, r_uimm_bank0, 12'h000 };
                     r_trap_lr_we   = 1'b1;
                     r_trap_lr_value = iw_pc + `SIZE_ADDR'd1;
+                    r_kill_gp_we   = 1'b1;
                     r_trap_pending = 1'b1;
-                    r_trap_cause   = `PSTATE_CAUSE_CAP_OOB;
+                    r_trap_cause   = fault_cause;
                 end else begin
                     r_tgt_ar_we     = 1'b1;
                     r_ar_result     = newc;
