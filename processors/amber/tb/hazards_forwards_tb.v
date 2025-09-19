@@ -155,7 +155,6 @@ module hazards_forwards_tb;
     integer idx;
     initial begin
         // Small delay to ensure memories exist
-        #1;
         for (idx = 0; idx < 64; idx = idx + 1)
             u_amber.u_imem.r_mem[idx] = INSTR_NOP;
 
@@ -212,17 +211,6 @@ module hazards_forwards_tb;
         u_amber.u_regsr.r_sr[`SR_IDX_SSP] = 48'd30;
         u_amber.u_regsr.r_sr[`SR_IDX_LR]  = 48'd0;
 
-        // Provide a default capability for CR0 so cursor operations have valid permissions
-        u_amber.u_regcr.r_base[0]  = 48'd0;
-        u_amber.u_regcr.r_len[0]   = 48'd4096;
-        u_amber.u_regcr.r_cur[0]   = 48'd0;
-        u_amber.u_regcr.r_perms[0] = (24'd1 << `CR_PERM_R_BIT) |
-                                     (24'd1 << `CR_PERM_W_BIT) |
-                                     (24'd1 << `CR_PERM_LC_BIT) |
-                                     (24'd1 << `CR_PERM_SC_BIT);
-        u_amber.u_regcr.r_attr[0]  = 24'd0;
-        u_amber.u_regcr.r_tag[0]   = 1'b1;
-
     end
 
 
@@ -234,6 +222,22 @@ module hazards_forwards_tb;
         u_amber.u_stg_ex.r_uimm_bank0 = 12'd0;
         u_amber.u_stg_ex.r_uimm_bank1 = 12'd0;
         u_amber.u_stg_ex.r_uimm_bank2 = 12'd0;
+        // Provide a default capability for CR0 so cursor operations have valid permissions
+        u_amber.u_regcr.r_base[0]  = 48'd0;
+        u_amber.u_regcr.r_len[0]   = 48'd4096;
+        u_amber.u_regcr.r_cur[0]   = 48'd0;
+        u_amber.u_regcr.r_perms[0] = (24'd1 << `CR_PERM_R_BIT) |
+                                     (24'd1 << `CR_PERM_W_BIT) |
+                                     (24'd1 << `CR_PERM_LC_BIT) |
+                                     (24'd1 << `CR_PERM_SC_BIT);
+        u_amber.u_regcr.r_attr[0]  = 24'd0;
+        u_amber.u_regcr.r_tag[0]   = 1'b1;
+        // Warm the I-cache line covering addresses 0..15 now that reset released.
+        for (idx = 0; idx < 16; idx = idx + 1) begin
+            u_amber.u_icache.data[{4'd0, idx[3:0]}] = u_amber.u_imem.r_mem[idx];
+        end
+        u_amber.u_icache.valid[0] = 1'b1;
+        u_amber.u_icache.tag[0]   = {40{1'b0}};
     end
     // Reset + run -------------------------------------------------------------
     integer tick;

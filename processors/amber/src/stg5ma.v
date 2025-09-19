@@ -157,7 +157,7 @@ module stg_ma(
             r_tgt_sr_we_latch <= iw_tgt_sr_we;
             r_tgt_ar_latch    <= iw_tgt_ar;
             r_tgt_ar_we_latch <= iw_tgt_ar_we;
-            if (w_is_mem_op && (!iw_stall || !r_prev_stall))
+            if (w_is_mem_op)
                 r_mem_mp_latch <= ~r_mem_mp_latch;
             r_result_latch    <= iw_result;
             r_sr_result_latch <= iw_sr_result;
