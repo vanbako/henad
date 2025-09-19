@@ -379,4 +379,13 @@ module hazards_forwards_tb;
 
     // Simple progress counter (optional)
     always @(posedge clk) if (!rst) tick <= tick + 1;
+
+    // Debug: observe branch target calculations in EX stage
+    always @(posedge clk) begin
+        if (!rst && u_amber.w_exma_opc == `OPC_BCCso) begin
+            $display("[DBG BCCso] pc=%0d instr=%h imm12=%h branch_pc=%h taken=%b stall=%b", 
+                     u_amber.w_exma_pc, u_amber.w_exma_instr, u_amber.u_stg_ex.iw_imm12_val,
+                     u_amber.u_stg_ex.r_branch_pc, u_amber.u_stg_ex.r_branch_taken, u_amber.w_hazard_stall);
+        end
+    end
 endmodule
