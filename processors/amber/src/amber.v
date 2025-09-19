@@ -116,7 +116,7 @@ module amber(
     assign dmem_we_arr[1]    = dc_b_we;
     assign dmem_addr_arr[0]  = {(`HBIT_ADDR+1){1'b0}};
     // Use combinational address for write-throughs; latched address for refills
-    assign dmem_addr_arr[1]  = (dc_b_we ? dc_b_addr : dc_b_addr_q);
+    assign dmem_addr_arr[1]  = (dc_b_we ? dc_b_addr : (dc_b_req ? dc_b_addr : dc_b_addr_q));
     assign dmem_wdata_arr[0] = {(`HBIT_ADDR+1){1'b0}};
     assign dmem_wdata_arr[1] = dc_b_wdata;
     assign dmem_is48_arr[0]  = 1'b0;

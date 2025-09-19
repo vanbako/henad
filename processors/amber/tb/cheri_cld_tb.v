@@ -47,12 +47,20 @@ module cheri_cld_tb;
         u_amber.u_dmem.r_mem[511]  = 24'd0;         // tag hi
 
         // Program: CLDcso #0(CR0), CR1; HLT
-        u_amber.u_imem.r_mem[0] = { `OPC_CLDcso, 2'b01, 2'b00, 10'd0 };
+        // encoding: {opc, CRt[1:0]=CR1, CRs[1:0]=CR0, reserved[1:0]=0, imm10=0}
+        u_amber.u_imem.r_mem[0] = { `OPC_CLDcso, 2'b01, 4'b0000, 10'd0 };
         u_amber.u_imem.r_mem[1] = { `OPC_HLT, 16'd0 };
 
         repeat (400) @(posedge r_clk);
-        $display("DEBUG: CR1.base=%h len=%h cur=%h", u_amber.u_regcr.r_base[1], u_amber.u_regcr.r_len[1], u_amber.u_regcr.r_cur[1]);
-        $display("DEBUG: CACHE idx15 off4=%h off5=%h", u_amber.u_dcache.data[{4'd15, 4'd4}], u_amber.u_dcache.data[{4'd15, 4'd5}]);
+
+        if (u_amber.u_dcache.data[{4'd15, 4'd4}] !== 24'd42) begin
+            $display("FAIL: cache lane low half mismatch: %h", u_amber.u_dcache.data[{4'd15, 4'd4}]);
+            $finish;
+        end
+        if (u_amber.u_dcache.data[{4'd15, 4'd5}] !== 24'd7) begin
+            $display("FAIL: cache lane high half mismatch: %h", u_amber.u_dcache.data[{4'd15, 4'd5}]);
+            $finish;
+        end
 
         if (u_amber.u_regcr.r_base[1] !== {24'd7, 24'd42}) begin $display("FAIL: CLD base mismatch: %h", u_amber.u_regcr.r_base[1]); $finish; end
         if (u_amber.u_regcr.r_len[1]  !== {24'd9, 24'd88}) begin $display("FAIL: CLD len mismatch: %h", u_amber.u_regcr.r_len[1]); $finish; end

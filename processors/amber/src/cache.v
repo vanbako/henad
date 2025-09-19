@@ -205,6 +205,9 @@ module dcache_16x16_24(
     reg [`HBIT_ADDR:0] pend_store_addr;
     reg [`HBIT_ADDR:0] pend_store_wdata;
     reg                pend_store_is48;
+    reg                refill_prev_valid;
+    reg [OFF_BITS-1:0] refill_prev_idx;
+    reg [23:0]         refill_prev_data;
 
     always @(*) begin
         b_addr  = 48'b0;
@@ -233,7 +236,6 @@ module dcache_16x16_24(
         end
     end
 `endif
-
     // Read datapath to front (registered like mem.v)
     reg [47:0] rd_p0, rd_p1;
     always @(*) begin
@@ -296,6 +298,9 @@ module dcache_16x16_24(
             pend_store_addr  <= 48'b0;
             pend_store_wdata <= 48'b0;
             pend_store_is48  <= 1'b0;
+            refill_prev_valid <= 1'b0;
+            refill_prev_idx   <= {OFF_BITS{1'b0}};
+            refill_prev_data  <= 24'b0;
             for (j = 0; j < (1<<IDX_BITS); j = j + 1) begin
                 valid[j] <= 1'b0;
                 tag[j]   <= {TAG_BITS{1'b0}};
@@ -336,6 +341,7 @@ module dcache_16x16_24(
                     miss_cnt    <= {OFF_BITS{1'b0}};
                     miss_req_cnt <= {OFF_BITS{1'b0}};
                     miss_issue  <= 1'b0; // prime for first request
+                    refill_prev_valid <= 1'b0;
                 end else begin
                     // No miss; look for store to push to backing (write-through)
                     pend_store <= 1'b0;
@@ -381,14 +387,22 @@ module dcache_16x16_24(
                         valid[idx_p1] <= 1'b1;
                         tag[idx_p1]   <= tag_p1;
                     end
+                    refill_prev_valid <= 1'b0;
                 end
             end else begin
                 // Refill in progress: capture when data valid
                 if (b_valid) begin
-                    data[{miss_idx, miss_cnt}] <= b_rdata[23:0];
+                    if (refill_prev_valid) begin
+                        data[{miss_idx, refill_prev_idx}] <= refill_prev_data;
+                    end
+                    refill_prev_valid <= 1'b1;
+                    refill_prev_idx   <= miss_cnt;
+                    refill_prev_data  <= b_rdata[23:0];
                     miss_issue <= 1'b0;
                     if (miss_cnt == {OFF_BITS{1'b1}}) begin
                         // Completed current line
+                        data[{miss_idx, miss_cnt}] <= b_rdata[23:0];
+                        refill_prev_valid <= 1'b0;
                         valid[miss_idx] <= 1'b1;
                         tag[miss_idx]   <= miss_tag;
                         if (miss_need_second) begin
@@ -400,7 +414,6 @@ module dcache_16x16_24(
                             miss_cnt    <= {OFF_BITS{1'b0}};
                             miss_req_cnt <= {OFF_BITS{1'b0}};
                             miss_issue  <= 1'b0; // prime for first beat
-                            // keep miss_active asserted
                         end else begin
                             miss_active <= 1'b0;
                             // stores postponed during refill will be attempted next
