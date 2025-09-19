@@ -339,6 +339,8 @@ module amber(
     wire                w_bubble;
     wire                w_branch_taken;
     wire [`HBIT_ADDR:0] w_branch_pc;
+    reg                 r_branch_pending;
+    reg [`HBIT_ADDR:0]  r_branch_pc_pending;
 
     // PCC mirror (from CSR window) for fetch gating
     reg [`HBIT_ADDR:0] r_pcc_base;
@@ -357,18 +359,31 @@ module amber(
 
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
-            r_ia_pc <= `SIZE_ADDR'b0;
-        end else if (w_branch_taken_eff) begin
-            r_ia_pc <= w_branch_pc;
-        end else if (r_core_halt) begin
-            r_ia_pc <= r_ia_pc;
-        end else if (w_stall) begin
-            r_ia_pc <= r_ia_pc;
+            r_ia_pc             <= `SIZE_ADDR'b0;
+            r_branch_pending    <= 1'b0;
+            r_branch_pc_pending <= {`SIZE_ADDR{1'b0}};
         end else begin
-            if (w_pcc_ok)
-                r_ia_pc <= r_ia_pc + `SIZE_ADDR'd1;
-            else
-                r_ia_pc <= r_ia_pc; // Hold on PCC violation (trap path TBD)
+            if (w_branch_taken_eff) begin
+                r_branch_pending    <= w_stall;
+                r_branch_pc_pending <= w_branch_pc;
+            end else if (!w_stall && r_branch_pending) begin
+                r_branch_pending <= 1'b0;
+            end
+
+            if (w_branch_taken_eff && !w_stall) begin
+                r_ia_pc <= w_branch_pc;
+            end else if (!w_branch_taken_eff && !w_stall && r_branch_pending) begin
+                r_ia_pc <= r_branch_pc_pending;
+            end else if (r_core_halt) begin
+                r_ia_pc <= r_ia_pc;
+            end else if (w_stall) begin
+                r_ia_pc <= r_ia_pc;
+            end else begin
+                if (w_pcc_ok)
+                    r_ia_pc <= r_ia_pc + `SIZE_ADDR'd1;
+                else
+                    r_ia_pc <= r_ia_pc; // Hold on PCC violation (trap path TBD)
+            end
         end
     end
 

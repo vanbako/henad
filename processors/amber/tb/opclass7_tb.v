@@ -95,10 +95,40 @@ module opclass7_tb;
         end
     endtask
 
+    task automatic dump_opclass7_state;
+        input string label;
+        integer base;
+        integer offset;
+        begin
+            $display("[opclass7:%s] PCs: IA=%h IAIF=%h IFXT=%h IDEX=%h EXMA=%h MAMO=%h MOWB=%h", label,
+                     u_amber.r_ia_pc, u_amber.w_iaif_pc, u_amber.w_ifxt_pc,
+                     u_amber.w_idex_pc, u_amber.w_exma_pc, u_amber.w_mamo_pc, u_amber.w_mowb_pc);
+            $display("[opclass7:%s] WB opc=%h PSTATE=%h LR=%h SSP=%h", label,
+                     u_amber.w_wb_opc, u_amber.u_regsr.r_sr[`SR_IDX_PSTATE],
+                     u_amber.u_regsr.r_sr[`SR_IDX_LR], u_amber.u_regsr.r_sr[`SR_IDX_SSP]);
+            $display("[opclass7:%s] CR0 base=%h len=%h cur=%h perms=%h attr=%h tag=%b", label,
+                     u_amber.u_regcr.r_base[0], u_amber.u_regcr.r_len[0], u_amber.u_regcr.r_cur[0],
+                     u_amber.u_regcr.r_perms[0], u_amber.u_regcr.r_attr[0], u_amber.u_regcr.r_tag[0]);
+            $display("[opclass7:%s] CR1 base=%h len=%h cur=%h perms=%h attr=%h tag=%b", label,
+                     u_amber.u_regcr.r_base[1], u_amber.u_regcr.r_len[1], u_amber.u_regcr.r_cur[1],
+                     u_amber.u_regcr.r_perms[1], u_amber.u_regcr.r_attr[1], u_amber.u_regcr.r_tag[1]);
+            $display("[opclass7:%s] CR2 base=%h len=%h cur=%h perms=%h attr=%h tag=%b", label,
+                     u_amber.u_regcr.r_base[2], u_amber.u_regcr.r_len[2], u_amber.u_regcr.r_cur[2],
+                     u_amber.u_regcr.r_perms[2], u_amber.u_regcr.r_attr[2], u_amber.u_regcr.r_tag[2]);
+            $display("[opclass7:%s] CR3 base=%h len=%h cur=%h perms=%h attr=%h tag=%b", label,
+                     u_amber.u_regcr.r_base[3], u_amber.u_regcr.r_len[3], u_amber.u_regcr.r_cur[3],
+                     u_amber.u_regcr.r_perms[3], u_amber.u_regcr.r_attr[3], u_amber.u_regcr.r_tag[3]);
+            base = u_amber.u_regsr.r_sr[`SR_IDX_SSP];
+            $display("[opclass7:%s] DMEM window around SSP (%0d)", label, base);
+            for (offset = -4; offset <= 7; offset = offset + 1)
+                $display("  mem[%0d]=%h", base + offset, u_amber.u_dmem.r_mem[base + offset]);
+        end
+    endtask
+
     task automatic expect_mem48;
         input integer addr;
         input [47:0] expected;
-        input [127:0] label;
+        input string label;
         begin
             if (u_amber.u_dmem.r_mem[addr] !== expected[23:0] ||
                 u_amber.u_dmem.r_mem[addr + 1] !== expected[47:24]) begin
@@ -106,23 +136,26 @@ module opclass7_tb;
                          label, addr + 1, addr,
                          u_amber.u_dmem.r_mem[addr + 1], u_amber.u_dmem.r_mem[addr],
                          expected[47:24], expected[23:0]);
+                dump_opclass7_state(label);
                 $fatal;
             end
         end
     endtask
 
     task automatic expect_no_trap;
-        input [127:0] label;
+        input string label;
         reg [47:0] pstate;
         begin
             pstate = u_amber.u_regsr.r_sr[`SR_IDX_PSTATE];
             if (pstate[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO] !== `PSTATE_CAUSE_NONE) begin
                 $display("FAIL (%s): unexpected trap cause %02h", label,
                          pstate[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO]);
+                dump_opclass7_state(label);
                 $fatal;
             end
             if (pstate[`PSTATE_BIT_TPE] !== 1'b0) begin
                 $display("FAIL (%s): PSTATE.TPE should be 0 on non-trap", label);
+                dump_opclass7_state(label);
                 $fatal;
             end
         end
@@ -130,7 +163,7 @@ module opclass7_tb;
 
     task automatic expect_trap;
         input [7:0] cause;
-        input [127:0] label;
+        input string label;
         reg [47:0] pstate;
         reg [47:0] lr;
         begin
@@ -139,15 +172,18 @@ module opclass7_tb;
             if (pstate[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO] !== cause) begin
                 $display("FAIL (%s): trap cause %02h expected %02h", label,
                          pstate[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO], cause);
+                dump_opclass7_state(label);
                 $fatal;
             end
             if (lr == 48'd0) begin
                 $display("FAIL (%s): LR not written on trap", label);
+                dump_opclass7_state(label);
                 $fatal;
             end
             if (pstate[`PSTATE_BIT_TPE] !== 1'b1 || pstate[`PSTATE_BIT_MODE] !== 1'b1) begin
                 $display("FAIL (%s): PSTATE trap bits TPE=%b MODE=%b", label,
                          pstate[`PSTATE_BIT_TPE], pstate[`PSTATE_BIT_MODE]);
+                dump_opclass7_state(label);
                 $fatal;
             end
         end
@@ -213,7 +249,7 @@ module opclass7_tb;
         input [23:0] dr_value;
         input bit expect_trap_flag;
         input [7:0] trap_cause;
-        input [127:0] label;
+        input string label;
         int new_addr;
         reg [23:0] sentinel;
         begin
@@ -271,7 +307,7 @@ module opclass7_tb;
         input bit src_tag;
         input bit expect_trap_flag;
         input [7:0] trap_cause;
-        input [127:0] label;
+        input string label;
         int addr_base;
         integer ww;
         reg [23:0] sentinel;
@@ -334,7 +370,7 @@ module opclass7_tb;
         input [23:0] mem_value;
         input bit expect_trap_flag;
         input [7:0] trap_cause;
-        input [127:0] label;
+        input string label;
         int addr;
         reg [23:0] sentinel;
         begin
@@ -394,7 +430,7 @@ module opclass7_tb;
         input bit exp_tag;
         input bit expect_trap_flag;
         input [7:0] trap_cause;
-        input [127:0] label;
+        input string label;
         int addr_base;
         begin
             apply_reset();
