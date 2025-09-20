@@ -103,11 +103,15 @@ module stg_mo(
                 ow_mem_is48[1] = 1'b1;
                 r_sr_result_next = iw_mem_rdata[iw_mem_mp];
                 r_result = r_sr_result_next[23:0];
+`ifndef SYNTHESIS
+                $display("[MO SRLDso] pc=%0d mp=%0d data=%h", iw_pc, iw_mem_mp, r_sr_result_next);
+`endif
             end
             `OPC_LDcso: begin
                 // 24-bit load from selected port
                 // is48 left at 0 (default); read low 24 bits
                 r_result = iw_mem_rdata[iw_mem_mp][23:0];
+                r_ar_result_next = iw_ar_result;
             end
             `OPC_STui, `OPC_STsi: begin
                 // 24-bit store to the selected port for this cycle

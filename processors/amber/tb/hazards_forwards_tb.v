@@ -232,12 +232,36 @@ module hazards_forwards_tb;
                                      (24'd1 << `CR_PERM_SC_BIT);
         u_amber.u_regcr.r_attr[0]  = 24'd0;
         u_amber.u_regcr.r_tag[0]   = 1'b1;
-        // Warm the I-cache line covering addresses 0..15 now that reset released.
-        for (idx = 0; idx < 16; idx = idx + 1) begin
+        u_amber.u_reggp.r_gp[0]    = 24'd7;
+        u_amber.u_reggp.r_gp[1]    = 24'd5;
+        u_amber.u_reggp.r_gp[2]    = 24'd1;
+        u_amber.u_reggp.r_gp[3]    = 24'd9;
+        u_amber.u_reggp.r_gp[4]    = 24'd2;
+        u_amber.u_reggp.r_gp[5]    = 24'd0;
+        u_amber.u_reggp.r_gp[6]    = 24'd0;
+        u_amber.u_reggp.r_gp[7]    = 24'd0;
+        u_amber.u_reggp.r_gp[8]    = 24'd3;
+        u_amber.u_reggp.r_gp[9]    = 24'd4;
+        u_amber.u_regsr.r_sr[`SR_IDX_SSP] = 48'd30;
+        u_amber.u_regsr.r_sr[`SR_IDX_LR]  = 48'd0;
+
+        // Preload instruction and data caches now that reset finished so they
+        // retain the seeded contents.
+        for (idx = 0; idx < 16; idx = idx + 1)
             u_amber.u_icache.data[{4'd0, idx[3:0]}] = u_amber.u_imem.r_mem[idx];
-        end
         u_amber.u_icache.valid[0] = 1'b1;
         u_amber.u_icache.tag[0]   = {40{1'b0}};
+
+        for (idx = 0; idx < 64; idx = idx + 1)
+            u_amber.u_dcache.data[idx] = u_amber.u_dmem.r_mem[idx];
+        u_amber.u_dcache.valid[0] = 1'b1;
+        u_amber.u_dcache.tag[0]   = {40{1'b0}};
+        u_amber.u_dcache.valid[1] = 1'b1;
+        u_amber.u_dcache.tag[1]   = {40{1'b0}};
+        u_amber.u_dcache.miss_active      = 1'b0;
+        u_amber.u_dcache.miss_issue       = 1'b0;
+        u_amber.u_dcache.miss_need_second = 1'b0;
+        u_amber.u_dcache.pend_store       = 1'b0;
     end
     // Reset + run -------------------------------------------------------------
     integer tick;
@@ -390,6 +414,14 @@ module hazards_forwards_tb;
             $display("[DBG BCCso] pc=%0d instr=%h imm12=%h branch_pc=%h taken=%b stall=%b", 
                      u_amber.w_exma_pc, u_amber.w_exma_instr, u_amber.u_stg_ex.iw_imm12_val,
                      u_amber.u_stg_ex.r_branch_pc, u_amber.u_stg_ex.r_branch_taken, u_amber.w_hazard_stall);
+        end
+        if (!rst && u_amber.w_mamo_opc == `OPC_LDcso) begin
+            $display("[DBG LDcso] pc=%0d addr0=%0d addr1=%0d mp=%b data=%h", u_amber.w_mamo_pc,
+                     u_amber.w_dmem_addr[0], u_amber.w_dmem_addr[1], u_amber.w_mem_mp,
+                     u_amber.w_mamo_result);
+            $display("[DBG LDcso] dcache_word=%h valid0=%b valid1=%b miss=%b rdata0=%h rdata1=%h", u_amber.u_dcache.data[23],
+                     u_amber.u_dcache.valid[0], u_amber.u_dcache.valid[1], u_amber.u_dcache.miss_active,
+                     u_amber.w_dmem_rdata[0], u_amber.w_dmem_rdata[1]);
         end
     end
 endmodule

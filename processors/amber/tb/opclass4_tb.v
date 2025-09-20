@@ -126,6 +126,9 @@ module opclass4_tb;
         u_amber.u_regcr.r_attr[3]  = 24'h0055AA;
         u_amber.u_regcr.r_tag[3]   = 1'b1;
 
+        // Ensure the stack pointer SR has a defined value for SRLD/SRST sequences
+        u_amber.u_regsr.r_sr[`SR_IDX_SSP] = 48'd0;
+
         // Prepare D-mem for LD/ST and CLD layout
         // For LDcso: place word at 105 + imm10(=0)
         u_amber.u_dmem.r_mem[105] = 24'h00C0DE;

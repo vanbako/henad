@@ -187,6 +187,9 @@ module stg_ex(
 
     always @* begin
         r_halt = 1'b0;
+        if (iw_flush) begin
+            r_kill_gp_we = 1'b0;
+        end
         if (!iw_stall) begin
             r_branch_taken = 1'b0;
             r_addr         = {`SIZE_ADDR{1'b0}};
@@ -253,7 +256,10 @@ module stg_ex(
                 reg        fault;
                 cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
-                eff = iw_cr_s_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                eff = iw_src_ar_val + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+`ifndef SYNTHESIS
+                $display("[LDcso] src_ar_val=%0d cr_s_cur=%0d eff=%0d", iw_src_ar_val, iw_cr_s_cur, eff);
+`endif
                 if (!iw_cr_s_tag) begin
                     fault = 1'b1;
                     cause = `PSTATE_CAUSE_CAP_TAG;
@@ -285,7 +291,7 @@ module stg_ex(
                 reg        fault;
                 cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
-                eff = iw_cr_t_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                eff = iw_tgt_ar_val + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
                 if (!iw_cr_t_tag) begin
                     fault = 1'b1;
                     cause = `PSTATE_CAUSE_CAP_TAG;
@@ -339,6 +345,9 @@ module stg_ex(
                     r_cr_write_addr = iw_tgt_ar;
                     r_cr_we_cur     = 1'b1;
                     r_cr_cur        = newc;
+                    // Preserve capability tag state; stack helpers rely on tag faults
+                    r_cr_we_tag     = 1'b1;
+                    r_cr_tag        = iw_cr_t_tag;
 `ifndef SYNTHESIS
                     $display("[EX] CINC%c (reg) set CR%0d.cur := %0d", (iw_opc==`OPC_CINCv)?"v":" ", iw_tgt_ar, newc);
 `endif
@@ -424,6 +433,8 @@ module stg_ex(
                     r_cr_write_addr = iw_tgt_ar;
                     r_cr_we_cur     = 1'b1;
                     r_cr_cur        = newc;
+                    r_cr_we_tag     = 1'b1;
+                    r_cr_tag        = iw_cr_t_tag;
 `ifndef SYNTHESIS
                     $display("[EX] CINC%c (imm) set CR%0d.cur := %0d", (iw_opc==`OPC_CINCiv)?"v":" ", iw_tgt_ar, newc);
 `endif
@@ -513,7 +524,7 @@ module stg_ex(
                 reg        fault;
                 cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
-                eff   = iw_cr_s_cur + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
+                eff   = iw_src_ar_val + {{38{iw_imm10_val[`HBIT_IMM10]}}, iw_imm10_val};
                 last  = eff + 48'd10; // exclusive upper bound (covers words [0..9])
                 bound = iw_cr_s_base + iw_cr_s_len;
                 if (!iw_cr_s_tag) begin
@@ -661,6 +672,9 @@ module stg_ex(
                 r_fl[`FLAG_Z] = (r_result == {`SIZE_DATA{1'b0}}) ? 1'b1 : 1'b0;
                 r_fl[`FLAG_C] = (r_result < iw_src_gp_val) ? 1'b1 : 1'b0;
                 r_flags_we = 1'b1;
+`ifndef SYNTHESIS
+                $display("[EX ADDur] pc=%0d src=%0d tgt=%0d res=%0d kill=%b", iw_pc, iw_src_gp_val, iw_tgt_gp_val, r_result, r_kill_gp_we);
+`endif
             end
             `OPC_SUBur: begin
                 r_result = iw_tgt_gp_val - iw_src_gp_val;
@@ -758,7 +772,7 @@ module stg_ex(
                 reg [47:0] eff;
                 reg [7:0]  cause;
                 reg        fault;
-                eff   = iw_cr_t_cur; // no offset
+                eff   = iw_tgt_ar_val; // forwarded cursor view
                 cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
                 if (!iw_cr_t_tag) begin
@@ -792,7 +806,7 @@ module stg_ex(
                 reg [47:0] eff;
                 reg [7:0]  cause;
                 reg        fault;
-                eff   = iw_cr_t_cur; // no offset
+                eff   = iw_tgt_ar_val; // forwarded cursor view
                 cause = `PSTATE_CAUSE_NONE;
                 fault = 1'b0;
                 if (!iw_cr_t_tag) begin
@@ -1459,7 +1473,10 @@ module stg_ex(
             end
             `OPC_SRLDso: begin
                 r_addr = $signed(iw_src_sr_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
-                // $display("SRLDu: addr=%h", r_addr);
+`ifndef SYNTHESIS
+                $display("[EX SRLDso] pc=%0d src=%0d imm=%0d addr=%0d", iw_pc, iw_src_sr_val,
+                         $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val}), r_addr);
+`endif
             end
             `OPC_SRSTso: begin
                 r_addr   = $signed(iw_tgt_sr_val) + $signed({{36{iw_imm12_val[`HBIT_IMM12]}}, iw_imm12_val});
