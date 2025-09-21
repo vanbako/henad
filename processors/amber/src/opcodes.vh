@@ -223,15 +223,21 @@
 `define OPC_CSRWR {`OPCLASS_8, `SUBOP_CSRWR}
 
 // OPCLASS_9 — privileged / kernel-only
-`define SUBOP_HLT     4'b0000 // isa
-`define SUBOP_SETSSP  4'b0001 // isa
-`define SUBOP_SYSCALL 4'b0010 // isa (aka SWI)
-`define SUBOP_KRET    4'b0011 // isa (aka SRET)
+`define SUBOP_HLT         4'b0000 // isa
+`define SUBOP_SETSSP      4'b0001 // isa
+`define SUBOP_SYSCALL     4'b0010 // isa (aka SWI)
+`define SUBOP_KRET        4'b0011 // isa (aka SRET)
+`define SUBOP_TLBINV_ALL  4'b0100 // isa
+`define SUBOP_TLBINV_ASID 4'b0101 // isa
+`define SUBOP_TLBINV_PAGE 4'b0110 // isa
 
-`define OPC_HLT     {`OPCLASS_9, `SUBOP_HLT}
-`define OPC_SETSSP  {`OPCLASS_9, `SUBOP_SETSSP}
-`define OPC_SYSCALL {`OPCLASS_9, `SUBOP_SYSCALL}
-`define OPC_KRET    {`OPCLASS_9, `SUBOP_KRET}
+`define OPC_HLT         {`OPCLASS_9, `SUBOP_HLT}
+`define OPC_SETSSP      {`OPCLASS_9, `SUBOP_SETSSP}
+`define OPC_SYSCALL     {`OPCLASS_9, `SUBOP_SYSCALL}
+`define OPC_KRET        {`OPCLASS_9, `SUBOP_KRET}
+`define OPC_TLBINV_ALL  {`OPCLASS_9, `SUBOP_TLBINV_ALL}
+`define OPC_TLBINV_ASID {`OPCLASS_9, `SUBOP_TLBINV_ASID}
+`define OPC_TLBINV_PAGE {`OPCLASS_9, `SUBOP_TLBINV_PAGE}
 
 // Backward-compatible aliases removed to avoid ambiguity
 
@@ -350,10 +356,13 @@ function automatic [79:0] opc2str;
             `OPC_CSRRD:   opc2str = "CSRRD";
             `OPC_CSRWR:   opc2str = "CSRWR";
 // OPCLASS_9 (priv)
-            `OPC_HLT:     opc2str = "HLT";
-            `OPC_SETSSP:  opc2str = "SETSSP";
-            `OPC_SYSCALL: opc2str = "SYSCALL";
-            `OPC_KRET:    opc2str = "KRET";
+            `OPC_HLT:         opc2str = "HLT";
+            `OPC_SETSSP:      opc2str = "SETSSP";
+            `OPC_SYSCALL:     opc2str = "SYSCALL";
+            `OPC_KRET:        opc2str = "KRET";
+            `OPC_TLBINV_ALL:  opc2str = "TLBINV_ALL";
+            `OPC_TLBINV_ASID: opc2str = "TLBINV_ASID";
+            `OPC_TLBINV_PAGE: opc2str = "TLBINV_PAGE";
 // OPCLASS_B
 // OPCLASS_C
 // OPCLASS_D

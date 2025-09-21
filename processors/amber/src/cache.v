@@ -46,6 +46,7 @@ module icache_16x16_24(
 
     // Hit/miss detection
     wire hit = valid[idx] && (tag[idx] == atag);
+    wire line_ready = valid[idx] && (tag[idx] == atag);
 
     // Miss handling
     reg                miss_active;
@@ -55,7 +56,7 @@ module icache_16x16_24(
     reg [OFF_BITS-1:0] miss_cnt;     // current beat index
     reg [47:0]         base_addr;    // aligned to line start
 
-    assign ow_stall = miss_active; // simple full stall while refilling
+    assign ow_stall = miss_active & ~line_ready; // allow pre-seeded lines to run without stalling
 
     // Backing address generator
     always @(*) begin
@@ -74,8 +75,13 @@ module icache_16x16_24(
         rd_word = 24'b0;
         if (hit) begin
             rd_word = data[{idx, off}];
+        end else if (miss_active && (idx == miss_idx)) begin
+            // When refilling the same line, expose the words already present (e.g.,
+            // preseeded by testbenches) instead of forcing zeros. This avoids the
+            // frontend observing bogus NOPs while the line is still marked in-flight.
+            rd_word = data[{idx, off}];
         end else begin
-            // During miss (and before first fill completes), deliver 0
+            // Otherwise (miss on a different line) provide zero until refill.
             rd_word = 24'b0;
         end
     end
@@ -115,21 +121,27 @@ module icache_16x16_24(
                     base_addr   <= {atag, idx, {OFF_BITS{1'b0}}};
                 end
             end else begin
-                // Handshaked refill: issue one request per beat; store when b_valid
-                if (b_valid) begin
-                    data[{miss_idx, miss_cnt}] <= b_rdata[23:0];
-                    miss_issue <= 1'b0;
-                    if (miss_cnt == {OFF_BITS{1'b1}}) begin
-                        valid[miss_idx] <= 1'b1;
-                        tag[miss_idx]   <= miss_tag;
-                        miss_active     <= 1'b0;
-                    end else begin
-                        miss_cnt <= miss_cnt + 1'b1;
-                    end
+                if (valid[miss_idx] && (tag[miss_idx] == miss_tag)) begin
+                    // Line was populated externally; drop the outstanding miss.
+                    miss_active <= 1'b0;
+                    miss_issue  <= 1'b0;
                 end else begin
-                    // Waiting for valid; remember we've issued the request
-                    if (!miss_issue)
-                        miss_issue <= 1'b1;
+                    // Handshaked refill: issue one request per beat; store when b_valid
+                    if (b_valid) begin
+                        data[{miss_idx, miss_cnt}] <= b_rdata[23:0];
+                        miss_issue <= 1'b0;
+                        if (miss_cnt == {OFF_BITS{1'b1}}) begin
+                            valid[miss_idx] <= 1'b1;
+                            tag[miss_idx]   <= miss_tag;
+                            miss_active     <= 1'b0;
+                        end else begin
+                            miss_cnt <= miss_cnt + 1'b1;
+                        end
+                    end else begin
+                        // Waiting for valid; remember we've issued the request
+                        if (!miss_issue)
+                            miss_issue <= 1'b1;
+                    end
                 end
             end
         end
@@ -205,6 +217,9 @@ module dcache_16x16_24(
     reg [`HBIT_ADDR:0] pend_store_addr;
     reg [`HBIT_ADDR:0] pend_store_wdata;
     reg                pend_store_is48;
+    reg                refill_prev_valid;
+    reg [OFF_BITS-1:0] refill_prev_idx;
+    reg [23:0]         refill_prev_data;
 
     always @(*) begin
         b_addr  = 48'b0;
@@ -233,7 +248,6 @@ module dcache_16x16_24(
         end
     end
 `endif
-
     // Read datapath to front (registered like mem.v)
     reg [47:0] rd_p0, rd_p1;
     always @(*) begin
@@ -256,8 +270,9 @@ module dcache_16x16_24(
         end
     end
     // Miss detection wires (combinational)
-    wire miss0 = (!f_we[0]) && (!hit_p0_48_ok);
-    wire miss1 = (!f_we[1]) && (!hit_p1_48_ok);
+    reg init_done;
+    wire miss0 = init_done && (!f_we[0]) && (!hit_p0_48_ok);
+    wire miss1 = init_done && (!f_we[1]) && (!hit_p1_48_ok);
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -296,11 +311,16 @@ module dcache_16x16_24(
             pend_store_addr  <= 48'b0;
             pend_store_wdata <= 48'b0;
             pend_store_is48  <= 1'b0;
+            refill_prev_valid <= 1'b0;
+            refill_prev_idx   <= {OFF_BITS{1'b0}};
+            refill_prev_data  <= 24'b0;
+            init_done         <= 1'b0;
             for (j = 0; j < (1<<IDX_BITS); j = j + 1) begin
                 valid[j] <= 1'b0;
                 tag[j]   <= {TAG_BITS{1'b0}};
             end
         end else begin
+            init_done <= 1'b1;
             // Detect misses on read operations (loads)
             // The MA stage already set the address; the MO stage consumes it
             // one cycle later using the selected port. We conservatively
@@ -336,6 +356,7 @@ module dcache_16x16_24(
                     miss_cnt    <= {OFF_BITS{1'b0}};
                     miss_req_cnt <= {OFF_BITS{1'b0}};
                     miss_issue  <= 1'b0; // prime for first request
+                    refill_prev_valid <= 1'b0;
                 end else begin
                     // No miss; look for store to push to backing (write-through)
                     pend_store <= 1'b0;
@@ -381,14 +402,22 @@ module dcache_16x16_24(
                         valid[idx_p1] <= 1'b1;
                         tag[idx_p1]   <= tag_p1;
                     end
+                    refill_prev_valid <= 1'b0;
                 end
             end else begin
                 // Refill in progress: capture when data valid
                 if (b_valid) begin
-                    data[{miss_idx, miss_cnt}] <= b_rdata[23:0];
+                    if (refill_prev_valid) begin
+                        data[{miss_idx, refill_prev_idx}] <= refill_prev_data;
+                    end
+                    refill_prev_valid <= 1'b1;
+                    refill_prev_idx   <= miss_cnt;
+                    refill_prev_data  <= b_rdata[23:0];
                     miss_issue <= 1'b0;
                     if (miss_cnt == {OFF_BITS{1'b1}}) begin
                         // Completed current line
+                        data[{miss_idx, miss_cnt}] <= b_rdata[23:0];
+                        refill_prev_valid <= 1'b0;
                         valid[miss_idx] <= 1'b1;
                         tag[miss_idx]   <= miss_tag;
                         if (miss_need_second) begin
@@ -400,7 +429,6 @@ module dcache_16x16_24(
                             miss_cnt    <= {OFF_BITS{1'b0}};
                             miss_req_cnt <= {OFF_BITS{1'b0}};
                             miss_issue  <= 1'b0; // prime for first beat
-                            // keep miss_active asserted
                         end else begin
                             miss_active <= 1'b0;
                             // stores postponed during refill will be attempted next

@@ -11,7 +11,7 @@
 
 - Capability-based memory safety with 24-bit BAU and 48-bit addressing.
 - All loads/stores and indirect control flow are checked against a capability (bounds, perms, tag, seal).
-- No MMU/virt yet; CHERI still enforces spatial safety and coarse CFI.
+- MMU with 4K-word pages and CHERI-aligned permission checks (`design/mmu.md`).
 - Clean split of ISA vs. micro-ops; checks occur in XT/MA without speculation.
 
 ## Architecture
@@ -60,8 +60,8 @@ Amber keeps the async 24-bit math CSR block. It is unaffected by CHERI and remai
 
 ## Status and Roadmap
 
-- Done in spec: capability register model; cap-checked loads/stores; syscall separation; CFI with `BTP/LR/SSP`.
-- Not yet: MMU/virt, caches, atomics.
+- Done in spec/RTL: capability register model; cap-checked loads/stores; syscall separation; CFI with `BTP/LR/SSP`; base MMU/TLB implementation.
+- Not yet: Hardware page-table walker, caches, atomics.
 
 HDL status (current tree)
 

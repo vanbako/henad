@@ -116,7 +116,7 @@ module amber(
     assign dmem_we_arr[1]    = dc_b_we;
     assign dmem_addr_arr[0]  = {(`HBIT_ADDR+1){1'b0}};
     // Use combinational address for write-throughs; latched address for refills
-    assign dmem_addr_arr[1]  = (dc_b_we ? dc_b_addr : dc_b_addr_q);
+    assign dmem_addr_arr[1]  = (dc_b_we ? dc_b_addr : (dc_b_req ? dc_b_addr : dc_b_addr_q));
     assign dmem_wdata_arr[0] = {(`HBIT_ADDR+1){1'b0}};
     assign dmem_wdata_arr[1] = dc_b_wdata;
     assign dmem_is48_arr[0]  = 1'b0;
@@ -339,6 +339,8 @@ module amber(
     wire                w_bubble;
     wire                w_branch_taken;
     wire [`HBIT_ADDR:0] w_branch_pc;
+    reg                 r_branch_pending;
+    reg [`HBIT_ADDR:0]  r_branch_pc_pending;
 
     // PCC mirror (from CSR window) for fetch gating
     reg [`HBIT_ADDR:0] r_pcc_base;
@@ -357,18 +359,31 @@ module amber(
 
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
-            r_ia_pc <= `SIZE_ADDR'b0;
-        end else if (w_branch_taken_eff) begin
-            r_ia_pc <= w_branch_pc;
-        end else if (r_core_halt) begin
-            r_ia_pc <= r_ia_pc;
-        end else if (w_stall) begin
-            r_ia_pc <= r_ia_pc;
+            r_ia_pc             <= `SIZE_ADDR'b0;
+            r_branch_pending    <= 1'b0;
+            r_branch_pc_pending <= {`SIZE_ADDR{1'b0}};
         end else begin
-            if (w_pcc_ok)
-                r_ia_pc <= r_ia_pc + `SIZE_ADDR'd1;
-            else
-                r_ia_pc <= r_ia_pc; // Hold on PCC violation (trap path TBD)
+            if (w_branch_taken_eff) begin
+                r_branch_pending    <= w_stall;
+                r_branch_pc_pending <= w_branch_pc;
+            end else if (!w_stall && r_branch_pending) begin
+                r_branch_pending <= 1'b0;
+            end
+
+            if (w_branch_taken_eff && !w_stall) begin
+                r_ia_pc <= w_branch_pc;
+            end else if (!w_branch_taken_eff && !w_stall && r_branch_pending) begin
+                r_ia_pc <= r_branch_pc_pending;
+            end else if (r_core_halt) begin
+                r_ia_pc <= r_ia_pc;
+            end else if (w_stall) begin
+                r_ia_pc <= r_ia_pc;
+            end else begin
+                if (w_pcc_ok)
+                    r_ia_pc <= r_ia_pc + `SIZE_ADDR'd1;
+                else
+                    r_ia_pc <= r_ia_pc; // Hold on PCC violation (trap path TBD)
+            end
         end
     end
 
@@ -596,6 +611,30 @@ module amber(
     wire                   w_csr_write_enable;
     wire [`HBIT_DATA:0]    w_csr_read_data1;
     wire [`HBIT_DATA:0]    w_csr_read_data2;
+    wire                   w_csr_write_enable_reg;
+    wire                   w_csr_write_enable_mmu;
+    wire [`HBIT_DATA:0]    w_csr_read_data1_mux;
+    wire                   w_mmu_csr_read_valid;
+    wire [`HBIT_DATA:0]    w_mmu_csr_read_data;
+
+    // MMU translation/control wires
+    wire                   w_mmu_d_stall;
+    wire                   w_mmu_d_resp_valid;
+    wire [`HBIT_ADDR:0]    w_mmu_d_resp_paddr;
+    wire [5:0]             w_mmu_d_resp_port;
+    wire                   w_mmu_d_resp_linear;
+    wire                   w_mmu_d_fault;
+    wire [2:0]             w_mmu_d_fault_code;
+    wire [`HBIT_ADDR:0]    w_mmu_d_fault_vaddr;
+    wire                   w_mmu_i_stall;
+    wire                   w_mmu_i_resp_valid;
+    wire [`HBIT_ADDR:0]    w_mmu_i_resp_paddr;
+    wire                   w_mmu_i_fault;
+    wire [2:0]             w_mmu_i_fault_code;
+    wire [`HBIT_ADDR:0]    w_mmu_i_fault_vaddr;
+    wire [3:0]             w_mmu_status_fault_bits;
+    wire [`HBIT_ADDR:0]    w_mmu_status_fault_va;
+    wire                   w_mmu_status_busy;
 
     // Wires for async CSR write port (e.g., math unit)
     wire                   w_csr_w2_en;
@@ -614,7 +653,7 @@ module amber(
         .iw_read_addr2  (w_csr_read_addr2),
         .iw_write_addr  (w_csr_write_addr),
         .iw_write_data  (w_csr_write_data),
-        .iw_write_enable(w_csr_write_enable),
+        .iw_write_enable(w_csr_write_enable_reg),
         // Aux write port from async engines
         .iw_w2_enable   (w_csr_w2_en),
         .iw_w2_addr     (w_csr_w2_addr),
@@ -638,6 +677,7 @@ module amber(
     // - PCC_CUR mirrors live PC (split across LO/HI)
     wire csr_is_read   = (w_opc == `OPC_CSRRD);
     wire [`HBIT_TGT_CSR:0] csr_idx = w_idex_instr[11:0];
+    assign w_csr_read_data1_mux = w_mmu_csr_read_valid ? w_mmu_csr_read_data : w_csr_read_data1;
     wire [`HBIT_DATA:0] w_csr_read_data1_eff =
         (csr_is_read && (csr_idx == `CSR_IDX_PSTATE_LO))
             ? w_sr_pstate[23:0]
@@ -647,7 +687,7 @@ module amber(
             ? r_pcc_cur[23:0]
         : (csr_is_read && (csr_idx == `CSR_IDX_PCC_CUR_HI))
             ? r_pcc_cur[47:24]
-        : w_csr_read_data1;
+        : w_csr_read_data1_mux;
     // Mux SR source value: for CSRRD feed CSR read data zero-extended
     wire [`HBIT_ADDR:0] w_src_sr_val_mux = (w_opc == `OPC_CSRRD) ? { {(`SIZE_ADDR-`SIZE_DATA){1'b0}}, w_csr_read_data1_eff } : w_src_sr_val;
 
@@ -655,6 +695,9 @@ module amber(
     assign w_csr_write_enable = (w_wb_opc == `OPC_CSRWR);
     assign w_csr_write_addr   = w_wb_instr[11:0];
     assign w_csr_write_data   = w_wb_result;
+    assign w_csr_write_enable_mmu = w_csr_write_enable &&
+        (w_csr_write_addr >= `CSR_IDX_MMU_CFG) && (w_csr_write_addr <= `CSR_IDX_MMU_TLBVPN_HI);
+    assign w_csr_write_enable_reg = w_csr_write_enable && ~w_csr_write_enable_mmu;
 
     // Mirror PCC window into local registers for fetch gating; keep PCC.cursor synced to PC
     always @(posedge iw_clk or posedge iw_rst) begin
@@ -787,7 +830,8 @@ module amber(
         .ow_stall         (w_hazard_stall)
     );
     // Global stall is OR of hazard and cache refills
-    assign w_stall = w_hazard_stall | w_ic_stall | w_dc_stall | r_core_halt;
+    assign w_stall = w_hazard_stall | w_ic_stall | w_dc_stall |
+        w_mmu_d_stall | w_mmu_i_stall | r_core_halt;
 `ifndef SYNTHESIS
     always @(posedge iw_clk) begin
         if (w_branch_taken_eff) begin
@@ -861,6 +905,9 @@ module amber(
         .ow_cr_we_tag     (w_exma_cr_we_tag),
         .ow_cr_tag        (w_exma_cr_tag),
         .iw_mode_kernel   (r_mode_kernel),
+        .iw_mmu_d_fault   (w_mmu_d_fault),
+        .iw_mmu_d_fault_code (w_mmu_d_fault_code),
+        .iw_mmu_d_fault_va   (w_mmu_d_fault_vaddr),
         // CR read views mapped from CR read ports 1/2 (driven by AR indices)
         .iw_cr_s_base     (w_cr_read_base1),
         .iw_cr_s_len      (w_cr_read_len1),
@@ -878,11 +925,67 @@ module amber(
         .iw_stall         (w_stall)
     );
 
+    wire w_exma_is_load  = (w_exma_opc == `OPC_SRLDso) || (w_exma_opc == `OPC_LDcso);
+    wire w_exma_is_store = (w_exma_opc == `OPC_STui) || (w_exma_opc == `OPC_STsi) ||
+                           (w_exma_opc == `OPC_STcso) || (w_exma_opc == `OPC_SRSTso);
+    wire w_exma_is_mem_op = w_exma_is_load | w_exma_is_store;
+
+    wire w_tlbinv_all_pulse  = (w_exma_opc == `OPC_TLBINV_ALL)  & ~w_stall;
+    wire w_tlbinv_asid_pulse = (w_exma_opc == `OPC_TLBINV_ASID) & ~w_stall;
+    wire w_tlbinv_page_pulse = (w_exma_opc == `OPC_TLBINV_PAGE) & ~w_stall;
+    wire [15:0] w_tlbinv_asid_value = w_src_gp_val[15:0];
+    wire [35:0] w_tlbinv_page_vpn   = w_src_sr_val[47:12];
+
+    amber_mmu u_mmu(
+        .iw_clk               (iw_clk),
+        .iw_rst               (iw_rst),
+        .iw_mode_kernel       (r_mode_kernel),
+        .iw_flush             (w_branch_taken_eff),
+        .iw_csr_read_en       (csr_is_read),
+        .iw_csr_read_addr     (w_csr_read_addr1),
+        .ow_csr_read_data     (w_mmu_csr_read_data),
+        .ow_csr_read_valid    (w_mmu_csr_read_valid),
+        .iw_csr_write_en      (w_csr_write_enable_mmu),
+        .iw_csr_write_addr    (w_csr_write_addr),
+        .iw_csr_write_data    (w_csr_write_data),
+        .iw_tlbinv_all        (w_tlbinv_all_pulse),
+        .iw_tlbinv_asid_valid (w_tlbinv_asid_pulse),
+        .iw_tlbinv_asid       (w_tlbinv_asid_value),
+        .iw_tlbinv_page_valid (w_tlbinv_page_pulse),
+        .iw_tlbinv_page_vpn   (w_tlbinv_page_vpn),
+        .iw_tlbinv_page_global(1'b1),
+        .iw_d_req_valid       (w_exma_is_mem_op),
+        .iw_d_req_vaddr       (w_exma_addr),
+        .iw_d_req_is_store    (w_exma_is_store),
+        .ow_d_stall           (w_mmu_d_stall),
+        .ow_d_resp_valid      (w_mmu_d_resp_valid),
+        .ow_d_resp_paddr      (w_mmu_d_resp_paddr),
+        .ow_d_resp_port       (w_mmu_d_resp_port),
+        .ow_d_resp_linear     (w_mmu_d_resp_linear),
+        .ow_d_fault           (w_mmu_d_fault),
+        .ow_d_fault_code      (w_mmu_d_fault_code),
+        .ow_d_fault_vaddr     (w_mmu_d_fault_vaddr),
+        .iw_i_req_valid       (1'b0),
+        .iw_i_req_vaddr       ({(`HBIT_ADDR+1){1'b0}}),
+        .ow_i_stall           (w_mmu_i_stall),
+        .ow_i_resp_valid      (w_mmu_i_resp_valid),
+        .ow_i_resp_paddr      (w_mmu_i_resp_paddr),
+        .ow_i_fault           (w_mmu_i_fault),
+        .ow_i_fault_code      (w_mmu_i_fault_code),
+        .ow_i_fault_vaddr     (w_mmu_i_fault_vaddr),
+        .ow_status_fault_bits (w_mmu_status_fault_bits),
+        .ow_status_fault_va   (w_mmu_status_fault_va),
+        .ow_status_busy       (w_mmu_status_busy)
+    );
+
+    wire [`HBIT_ADDR:0] w_exma_addr_phys = w_mmu_d_resp_valid ? w_mmu_d_resp_paddr : w_exma_addr;
+
     wire w_mem_mp;
 
     stg_ma u_stg_ma(
         .iw_clk      (iw_clk),
         .iw_rst      (iw_rst),
+        .iw_stall    (w_stall),
         .iw_pc       (w_exma_pc),
         .ow_pc       (w_mamo_pc),
         .iw_instr    (w_exma_instr),
@@ -905,7 +1008,7 @@ module amber(
         .ow_tgt_ar_we(w_mamo_tgt_ar_we),
         .ow_mem_mp   (w_mem_mp),
         .ow_mem_addr (w_dmem_addr),
-        .iw_addr     (w_exma_addr),
+        .iw_addr     (w_exma_addr_phys),
         .iw_result   (w_exma_result),
         .ow_result   (w_mamo_result),
         .iw_sr_result(w_exma_sr_result),
@@ -1099,5 +1202,3 @@ module amber(
         .ow_cr_tag         ()
     );
 endmodule
-
-

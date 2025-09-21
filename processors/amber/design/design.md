@@ -11,7 +11,8 @@ The diad-amber 8-stage microarchitecture core, with a CHERI capability model ada
 - Special registers: 48-bit (tetrad)
 - Memory model:
   - 24-bit BAU, 48-bit physical addressing
-  - No MMU/virt; no I/D caches (future)
+  - Virtual memory via 4K-word pages and a 3-level MMU/TLB (see `mmu.md`)
+  - No I/D caches (future)
 - Execution:
   - No branch prediction; no out-of-order; no speculation
   - Interrupts to be added; CHERI checks integrated in XT/MA

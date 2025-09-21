@@ -40,6 +40,7 @@ module mem_ldst_tb;
     stg_ma u_stg_ma(
         .iw_clk      (clk),
         .iw_rst      (rst),
+        .iw_stall    (1'b0),
         .iw_pc       (r_pc),
         .ow_pc       (w_mamo_pc),
         .iw_instr    (r_instr),
@@ -153,4 +154,3 @@ module mem_ldst_tb;
         $finish;
     end
 endmodule
-

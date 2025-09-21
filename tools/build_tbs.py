@@ -13,6 +13,11 @@ SRC_DIR = AMBER_DIR / "src"
 TB_DIR = AMBER_DIR / "tb"
 OUT_DIR = REPO_ROOT / "build" / "vvp" / "amber"
 
+# Benches that must always be present when running the full regression build.
+MANDATORY_BENCHES = {
+    "opclass9_tb.v",
+}
+
 
 def which_or_error(name: str) -> str:
     exe = shutil.which(name)
@@ -80,6 +85,13 @@ def main(argv: list[str] | None = None) -> int:
     if not benches:
         print("No testbenches found in processors/amber/tb/", file=sys.stderr)
         return 1
+
+    if args.pattern is None:
+        present = {tb.name for tb in benches}
+        missing = sorted(MANDATORY_BENCHES - present)
+        if missing:
+            print("error: mandatory benches missing:", ", ".join(missing), file=sys.stderr)
+            return 1
 
     print(f"[build-tbs] Found {len(benches)} benches")
     built = []

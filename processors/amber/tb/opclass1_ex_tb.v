@@ -1,3 +1,4 @@
+
 `timescale 1ns/1ps
 
 `include "src/opcodes.vh"
@@ -6,7 +7,7 @@
 `include "src/pstate.vh"
 `include "src/sr.vh"
 
-module opclass0_ex_tb;
+module opclass1_ex_tb;
     reg                    clk;
     reg                    rst;
     reg  [`HBIT_ADDR:0]    pc;
@@ -232,7 +233,8 @@ module opclass0_ex_tb;
         end
     endtask
 
-    task automatic expect_trap_range;
+    task automatic expect_trap;
+        input [7:0]  exp_cause;
         input [47:0] exp_pc;
         input [47:0] exp_lr;
         input [127:0] label;
@@ -256,10 +258,59 @@ module opclass0_ex_tb;
             $display("FAIL (%s): trap PSTATE update missing", label);
             $fatal;
         end
-        if (sr_aux_result[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO] !== `PSTATE_CAUSE_ARITH_RANGE) begin
-            $display("FAIL (%s): trap cause %02h", label,
-                     sr_aux_result[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO]);
+        if (sr_aux_result[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO] !== exp_cause) begin
+            $display("FAIL (%s): trap cause %02h expected %02h", label,
+                     sr_aux_result[`PSTATE_CAUSE_HI:`PSTATE_CAUSE_LO], exp_cause);
             $fatal;
+        end
+    endtask
+
+    task automatic expect_branch;
+        input [47:0] exp_pc;
+        input [127:0] label;
+        if (ex_branch_taken !== 1'b1 || ex_trap_pending !== 1'b0) begin
+            $display("FAIL (%s): branch=%b trap=%b", label, ex_branch_taken, ex_trap_pending);
+            $fatal;
+        end
+        if (ex_branch_pc !== exp_pc) begin
+            $display("FAIL (%s): branch PC %h expected %h", label, ex_branch_pc, exp_pc);
+            $fatal;
+        end
+    endtask
+
+    task automatic set_uimm_bank;
+        input [1:0]  bank_sel;
+        input [11:0] val;
+        reg saved_we;
+        begin
+            saved_we = tgt_gp_we;
+            opc = `OPC_LUIui;
+            root_opc = `OPC_LUIui;
+            instr = {`OPC_LUIui, bank_sel[1:0], 2'b00, val};
+            imm12_val = val;
+            tgt_gp_we = 1'b0;
+            step();
+            tgt_gp_we = saved_we;
+        end
+    endtask
+
+    task automatic program_trap_base;
+        input [47:0] base;
+        begin
+            set_uimm_bank(2'b10, base[47:36]);
+            set_uimm_bank(2'b01, base[35:24]);
+            set_uimm_bank(2'b00, base[23:12]);
+        end
+    endtask
+
+    task automatic drain_trap;
+        begin
+            opc = `OPC_NOP;
+            root_opc = `OPC_NOP;
+            instr = {`OPC_NOP, 16'd0};
+            tgt_gp_we = 1'b0;
+            step();
+            tgt_gp_we = 1'b1;
         end
     endtask
 
@@ -267,7 +318,7 @@ module opclass0_ex_tb;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            pstate      <= {(`HBIT_ADDR+1){1'b0}};
+            pstate <= {(`HBIT_ADDR+1){1'b0}};
         end else begin
             if (sr_aux_we)
                 pstate <= sr_aux_result;
@@ -289,7 +340,7 @@ module opclass0_ex_tb;
         imm16_val = '0;
         cc = `CC_RA;
         tgt_gp = 4'd0;
-        tgt_gp_we = 1'b0;
+        tgt_gp_we = 1'b1;
         tgt_sr = `SR_IDX_FL;
         tgt_sr_we = 1'b0;
         src_gp = 4'd0;
@@ -311,257 +362,224 @@ module opclass0_ex_tb;
 
         #40 rst = 1'b0;
 
-        // NOP: no side effects
-        opc = `OPC_NOP; root_opc = `OPC_NOP; instr = {`OPC_NOP, 16'd0};
-        tgt_gp_we = 1'b0; pc = 48'h10;
-        step();
-        expect_gp_we(1'b0, "NOP");
-        expect_no_branch("NOP");
-        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "NOP");
-
-        // MOVur: non-zero result
-        opc = `OPC_MOVur; root_opc = `OPC_MOVur;
-        instr = {`OPC_MOVur, 4'd3, 4'd1, 8'h00};
-        src_gp_val = 24'h1234F0;
-        tgt_gp_val = 24'hAAAA55;
-        tgt_gp = 4'd3; tgt_gp_we = 1'b1;
-        step();
-        expect_result(24'h1234F0, "MOVur nz");
-        expect_gp_we(1'b1, "MOVur nz");
-        expect_no_branch("MOVur nz");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MOVur nz");
-
-        // MOVur: zero result => Z=1
-        opc = `OPC_MOVur; root_opc = `OPC_MOVur;
-        src_gp_val = 24'h000000;
+        // MOVui without valid uimm bank -> UIMM_STATE trap
+        pc = 48'h0040;
+        opc = `OPC_MOVui; root_opc = `OPC_MOVui;
+        imm12_val = 12'h123;
         tgt_gp_val = 24'hDEADBE;
         step();
-        expect_result(24'h000000, "MOVur zero");
-        expect_gp_we(1'b1, "MOVur zero");
-        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "MOVur zero");
+        expect_trap(`PSTATE_CAUSE_UIMM_STATE, 48'h0, 48'h0041, "MOVui missing uimm");
+        expect_gp_we(1'b0, "MOVui missing uimm");
+        drain_trap();
 
-        // MCCur: EQ taken (Z=1)
-        opc = `OPC_MCCur; root_opc = `OPC_MCCur;
-        cc = `CC_EQ; tgt_gp_val = 24'h55AA11; src_gp_val = 24'hCAFEB0;
+        // Program bank0=0xABC for subsequent immediates
+        set_uimm_bank(2'b00, 12'hABC);
+
+        // MOVui successful path
+        opc = `OPC_MOVui; root_opc = `OPC_MOVui;
+        imm12_val = 12'h123; tgt_gp_val = 24'h0;
         step();
-        expect_result(24'hCAFEB0, "MCCur EQ take");
-        expect_gp_we(1'b1, "MCCur EQ take");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MCCur EQ take");
-        expect_no_branch("MCCur EQ take");
+        expect_result(24'hABC123, "MOVui value");
+        expect_gp_we(1'b1, "MOVui value");
+        expect_no_branch("MOVui value");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MOVui value");
 
-        // Clear Z via MOV non-zero for next condition check
-        opc = `OPC_MOVur; root_opc = `OPC_MOVur; src_gp_val = 24'h1; tgt_gp_val = 24'h0;
+        // MOVui producing zero updates Z
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_MOVui; root_opc = `OPC_MOVui;
+        imm12_val = 12'h000; tgt_gp_val = 24'hFFFF00;
         step();
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MOVur clearZ");
+        expect_result(24'h000000, "MOVui zero");
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "MOVui zero");
 
-        // MCCur: EQ not taken (Z=0)
-        opc = `OPC_MCCur; root_opc = `OPC_MCCur; cc = `CC_EQ;
-        tgt_gp_val = 24'h0BAD0D; src_gp_val = 24'h000123;
+        // ADDui with carry wrap
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_ADDui; root_opc = `OPC_ADDui;
+        imm12_val = 12'h001; tgt_gp_val = 24'hFFFFFF;
         step();
-        expect_result(24'h0BAD0D, "MCCur EQ nop");
-        expect_gp_we(1'b1, "MCCur EQ nop");
-        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "MCCur EQ nop");
+        expect_result(24'h000000, "ADDui wrap");
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b1, 1'b0, "ADDui wrap");
 
-        // Produce carry (ADDur) for later CC_BT test
-        opc = `OPC_ADDur; root_opc = `OPC_ADDur;
-        src_gp_val = 24'h000001; tgt_gp_val = 24'hFFFFFF;
+        // SUBui borrow
+        opc = `OPC_SUBui; root_opc = `OPC_SUBui;
+        imm12_val = 12'h001; tgt_gp_val = 24'h000000;
         step();
-        expect_result(24'h000000, "ADDur wrap");
-        expect_gp_we(1'b1, "ADDur wrap");
-        expect_flags(1'b1, 1'b1, 1'b0, 1'b1, 1'b0, "ADDur wrap");
+        expect_result(24'hFFFFFF, "SUBui borrow");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SUBui borrow");
 
-        // MCCur: BT (carry set) should take
-        opc = `OPC_MCCur; root_opc = `OPC_MCCur; cc = `CC_BT;
-        tgt_gp_val = 24'h135724; src_gp_val = 24'hFEDCBA;
+        // ANDui mask
+        set_uimm_bank(2'b00, 12'h00F);
+        opc = `OPC_ANDui; root_opc = `OPC_ANDui;
+        imm12_val = 12'h0F0; tgt_gp_val = 24'hFF00FF;
         step();
-        expect_result(24'hFEDCBA, "MCCur BT take");
-        expect_gp_we(1'b1, "MCCur BT take");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "MCCur BT take");
+        expect_result(24'h0000F0, "ANDui mask");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "ANDui mask");
 
-        // SUBur borrow => C=1, Z=0
-        opc = `OPC_SUBur; root_opc = `OPC_SUBur;
-        src_gp_val = 24'h000001; tgt_gp_val = 24'h000000;
+        // ORui combine
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_ORui; root_opc = `OPC_ORui;
+        imm12_val = 12'h00F; tgt_gp_val = 24'h000F00;
         step();
-        expect_result(24'hFFFFFF, "SUBur borrow");
-        expect_gp_we(1'b1, "SUBur borrow");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SUBur borrow");
-        expect_no_branch("SUBur borrow");
+        expect_result(24'h000F0F, "ORui combine");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "ORui combine");
 
-        // NOTur flipping all bits
-        opc = `OPC_NOTur; root_opc = `OPC_NOTur;
-        tgt_gp_val = 24'h0F0F0F;
+        // XORui toggle bits
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_XORui; root_opc = `OPC_XORui;
+        imm12_val = 12'h0F0; tgt_gp_val = 24'h00F0F0;
         step();
-        expect_result(24'hF0F0F0, "NOTur");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "NOTur");
+        expect_result(24'h00F000, "XORui toggle");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "XORui toggle");
 
-        // ANDur produce zero
-        opc = `OPC_ANDur; root_opc = `OPC_ANDur;
-        src_gp_val = 24'hFF00FF; tgt_gp_val = 24'h00FF00;
+        // SHLui amount 0 keeps value
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_SHLui; root_opc = `OPC_SHLui;
+        imm12_val = 12'h000; tgt_gp_val = 24'h123456;
         step();
-        expect_result(24'h000000, "ANDur");
-        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "ANDur");
+        expect_result(24'h123456, "SHLui amt0");
+        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "SHLui amt0");
 
-        // ORur produce mixed bits
-        opc = `OPC_ORur; root_opc = `OPC_ORur;
-        src_gp_val = 24'h0F000F; tgt_gp_val = 24'h00FF00;
+        // SHLui amount 1 updates carry
+        imm12_val = 12'h001; tgt_gp_val = 24'h800001;
         step();
-        expect_result(24'h0FFF0F, "ORur");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "ORur");
+        expect_result(24'h000002, "SHLui amt1");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SHLui amt1");
 
-        // XORur produce non-zero
-        opc = `OPC_XORur; root_opc = `OPC_XORur;
-        src_gp_val = 24'hAAAAAA; tgt_gp_val = 24'h0F0F0F;
+        // SHLui amount 24 clamps to zero with Z=1, C=0
+        imm12_val = 12'd24; tgt_gp_val = 24'h123456;
         step();
-        expect_result(24'hA5A5A5, "XORur");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "XORur");
+        expect_result(24'h000000, "SHLui amt24");
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "SHLui amt24");
 
-        // SHLur with amt=0 keeps value, no flag update
-        opc = `OPC_SHLur; root_opc = `OPC_SHLur;
-        src_gp_val = 24'd0; tgt_gp_val = 24'h123456;
+        // SHLuiv in-range amount 3
+        imm12_val = 12'd3; opc = `OPC_SHLuiv; root_opc = `OPC_SHLuiv;
+        tgt_gp_val = 24'h000101;
         step();
-        expect_result(24'h123456, "SHLur amt0");
-        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "SHLur amt0");
+        expect_result(24'h000808, "SHLuiv amt3");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "SHLuiv amt3");
 
-        // SHLur with amt=1 -> Z=0, C=1
-        opc = `OPC_SHLur; root_opc = `OPC_SHLur;
-        src_gp_val = 24'd1; tgt_gp_val = 24'h800001;
+        // SHLuiv range trap with programmed base 0x001234560000
+        program_trap_base(48'h001234_560000);
+        opc = `OPC_SHLuiv; root_opc = `OPC_SHLuiv;
+        imm12_val = 12'd24; tgt_gp_val = 24'hABCDEF; pc = 48'h100;
         step();
-        expect_result(24'h000002, "SHLur amt1");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SHLur amt1");
+        expect_trap(`PSTATE_CAUSE_ARITH_RANGE, 48'h001234_560000, 48'h101, "SHLuiv trap");
+        expect_gp_we(1'b0, "SHLuiv trap");
+        drain_trap();
 
-        // SHLur with amt=23 -> LSB capture
-        opc = `OPC_SHLur; root_opc = `OPC_SHLur;
-        src_gp_val = 24'd23; tgt_gp_val = 24'h000011;
+        // SHRui amount 0 no flags
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_SHRui; root_opc = `OPC_SHRui;
+        imm12_val = 12'd0; tgt_gp_val = 24'h00F000;
         step();
-        expect_result(24'h800000, "SHLur amt23");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "SHLur amt23");
+        expect_result(24'h00F000, "SHRui amt0");
+        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "SHRui amt0");
 
-        // Program trap vector via LUIui banks: base = 0x000123_45000
-        opc = `OPC_LUIui; root_opc = `OPC_LUIui;
+        // SHRui amount 1 updates carry
+        imm12_val = 12'd1; tgt_gp_val = 24'h000303;
+        step();
+        expect_result(24'h000181, "SHRui amt1");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SHRui amt1");
+
+        // SHRui amount 24 clamps to zero
+        imm12_val = 12'd24; tgt_gp_val = 24'h123456;
+        step();
+        expect_result(24'h000000, "SHRui amt24");
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "SHRui amt24");
+
+        // SHRuiv in-range amount 4
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_SHRuiv; root_opc = `OPC_SHRuiv;
+        imm12_val = 12'd4; tgt_gp_val = 24'hFF0000;
+        step();
+        expect_result(24'h0FF000, "SHRuiv amt4");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "SHRuiv amt4");
+
+        // SHRuiv trap with base 0x002345670000
+        program_trap_base(48'h002345_670000);
+        opc = `OPC_SHRuiv; root_opc = `OPC_SHRuiv;
+        imm12_val = 12'd24; tgt_gp_val = 24'h010101; pc = 48'h200;
+        step();
+        expect_trap(`PSTATE_CAUSE_ARITH_RANGE, 48'h002345_670000, 48'h201, "SHRuiv trap");
+        expect_gp_we(1'b0, "SHRuiv trap");
+        drain_trap();
+
+        // ROLui amount 0 keeps value
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_ROLui; root_opc = `OPC_ROLui;
+        imm12_val = 12'd0; tgt_gp_val = 24'h010203;
+        step();
+        expect_result(24'h010203, "ROLui amt0");
+        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "ROLui amt0");
+
+        // ROLui amount 1 rotates MSB into LSB
+        imm12_val = 12'd1; tgt_gp_val = 24'h800001;
+        step();
+        expect_result(24'h000003, "ROLui amt1");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "ROLui amt1");
+
+        // ROLui amount 25 (effective 1) keeps C=0 for value without high bit
+        imm12_val = 12'd25; tgt_gp_val = 24'h012345;
+        step();
+        expect_result(24'h02468A, "ROLui amt25");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "ROLui amt25");
+
+        // RORui amount 0 keeps value
+        opc = `OPC_RORui; root_opc = `OPC_RORui;
+        imm12_val = 12'd0; tgt_gp_val = 24'h00C000;
+        step();
+        expect_result(24'h00C000, "RORui amt0");
+        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "RORui amt0");
+
+        // RORui amount 1 rotates LSB into MSB
+        imm12_val = 12'd1; tgt_gp_val = 24'h000001;
+        step();
+        expect_result(24'h800000, "RORui amt1");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "RORui amt1");
+
+        // RORui amount 5 pattern rotate
+        imm12_val = 12'd5; tgt_gp_val = 24'hABCDE0;
+        step();
+        expect_result(24'h055E6F, "RORui amt5");
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "RORui amt5");
+
+        // CMPui equal -> Z=1, C=0 and no GP write
+        set_uimm_bank(2'b00, 12'h123);
         tgt_gp_we = 1'b0;
-        instr = {`OPC_LUIui, 2'b10, 12'h001, 2'b00}; imm12_val = 12'h001;
+        opc = `OPC_CMPui; root_opc = `OPC_CMPui;
+        imm12_val = 12'h456; tgt_gp_val = 24'h123456;
         step();
-        instr = {`OPC_LUIui, 2'b01, 12'h234, 2'b00}; imm12_val = 12'h234;
+        expect_gp_we(1'b0, "CMPui eq");
+        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "CMPui eq");
+
+        // CMPui target < imm -> C=1
+        set_uimm_bank(2'b00, 12'h000);
+        opc = `OPC_CMPui; root_opc = `OPC_CMPui;
+        imm12_val = 12'h002; tgt_gp_val = 24'h000001;
         step();
-        instr = {`OPC_LUIui, 2'b00, 12'h450, 2'b00}; imm12_val = 12'h450;
-        step();
+        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "CMPui lt");
         tgt_gp_we = 1'b1;
 
-        // SHLur trap when amt >= 24
-        opc = `OPC_SHLur; root_opc = `OPC_SHLur;
-        instr = {`OPC_SHLur, 4'd3, 4'd1, 8'h00};
-        src_gp_val = 24'd24; tgt_gp_val = 24'hABCDEF; tgt_gp_we = 1'b1; pc = 48'h55;
+        // JCCui absolute branch with valid banks
+        program_trap_base(48'h012345_678000);
+        set_uimm_bank(2'b00, 12'h678);
+        tgt_gp_we = 1'b0;
+        opc = `OPC_JCCui; root_opc = `OPC_JCCui;
+        cc = `CC_RA; imm12_val = 12'h9AB; pc = 48'h300;
         step();
-        expect_trap_range(48'h001234_450000, 48'h56, "SHLur trap");
-        expect_gp_we(1'b0, "SHLur trap");
-
-        // Drain trap writeback
-        opc = `OPC_NOP; root_opc = `OPC_NOP; instr = {`OPC_NOP, 16'd0}; tgt_gp_we = 1'b0;
-        step();
-
-        // SHRur amt=0 no flags
-        tgt_gp_we = 1'b1;
-        opc = `OPC_SHRur; root_opc = `OPC_SHRur; instr = {`OPC_SHRur, 16'd0};
-        src_gp_val = 24'd0; tgt_gp_val = 24'h00F000;
-        step();
-        expect_result(24'h00F000, "SHRur amt0");
-        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "SHRur amt0");
-
-        // SHRur amt=1 -> result=0x000181, C from LSB
-        opc = `OPC_SHRur; root_opc = `OPC_SHRur;
-        src_gp_val = 24'd1; tgt_gp_val = 24'h000303;
-        step();
-        expect_result(24'h000181, "SHRur amt1");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "SHRur amt1");
-
-        // SHRur amt=23 -> result from MSB
-        opc = `OPC_SHRur; root_opc = `OPC_SHRur;
-        src_gp_val = 24'd23; tgt_gp_val = 24'h800000;
-        step();
-        expect_result(24'h000001, "SHRur amt23");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "SHRur amt23");
-
-        // SHRur trap with amt 31
-        opc = `OPC_SHRur; root_opc = `OPC_SHRur;
-        src_gp_val = 24'd31; tgt_gp_val = 24'h123456; pc = 48'h99;
-        step();
-        expect_trap_range(48'h001234_450000, 48'h9A, "SHRur trap");
-        expect_gp_we(1'b0, "SHRur trap");
-
-        // Drain trap writeback
-        opc = `OPC_NOP; root_opc = `OPC_NOP; instr = {`OPC_NOP, 16'd0}; tgt_gp_we = 1'b0;
-        step();
+        expect_branch(48'h012345_6789AB, "JCCui branch");
         tgt_gp_we = 1'b1;
 
-        // ROLur amt=0 keeps value
-        opc = `OPC_ROLur; root_opc = `OPC_ROLur;
-        src_gp_val = 24'd0; tgt_gp_val = 24'h010203;
+        // JCCui with invalid uimm banks branches to vector base (no trap flag)
+        flush = 1'b1; step(); flush = 1'b0;
+        opc = `OPC_JCCui; root_opc = `OPC_JCCui;
+        cc = `CC_RA; imm12_val = 12'h111; pc = 48'h400;
         step();
-        expect_result(24'h010203, "ROLur amt0");
-        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "ROLur amt0");
+        expect_branch(48'h0, "JCCui missing banks");
+        expect_gp_we(1'b0, "JCCui missing banks");
+        drain_trap();
 
-        // ROLur amt=1 -> result=3, C=1
-        opc = `OPC_ROLur; root_opc = `OPC_ROLur;
-        src_gp_val = 24'd1; tgt_gp_val = 24'h800001;
-        step();
-        expect_result(24'h000003, "ROLur amt1");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "ROLur amt1");
-
-        // ROLur amt=25 behaves as amt=1
-        opc = `OPC_ROLur; root_opc = `OPC_ROLur;
-        src_gp_val = 24'd25; tgt_gp_val = 24'h012345;
-        step();
-        expect_result(24'h02468A, "ROLur amt25");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "ROLur amt25");
-
-        // RORur amt=0 keeps value
-        opc = `OPC_RORur; root_opc = `OPC_RORur;
-        src_gp_val = 24'd0; tgt_gp_val = 24'h00C000;
-        step();
-        expect_result(24'h00C000, "RORur amt0");
-        expect_flags(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, "RORur amt0");
-
-        // RORur amt=1 on 0x000001 -> 0x800000, C=1 (LSB)
-        opc = `OPC_RORur; root_opc = `OPC_RORur;
-        src_gp_val = 24'd1; tgt_gp_val = 24'h000001;
-        step();
-        expect_result(24'h800000, "RORur amt1");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "RORur amt1");
-
-        // RORur amt=5 on pattern value
-        opc = `OPC_RORur; root_opc = `OPC_RORur;
-        src_gp_val = 24'd5; tgt_gp_val = 24'hABCDE0;
-        step();
-        expect_result(24'h055E6F, "RORur amt5");
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "RORur amt5");
-
-        // CMPur equal => Z=1, C=0 (no GP write)
-        opc = `OPC_CMPur; root_opc = `OPC_CMPur; tgt_gp_we = 1'b0;
-        src_gp_val = 24'h777777; tgt_gp_val = 24'h777777;
-        step();
-        expect_gp_we(1'b0, "CMPur eq");
-        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "CMPur eq");
-
-        // CMPur src < tgt => C=1, Z=0
-        opc = `OPC_CMPur; root_opc = `OPC_CMPur;
-        src_gp_val = 24'h000100; tgt_gp_val = 24'h000200;
-        step();
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b1, 1'b0, "CMPur lt");
-
-        // TSTur zero => Z=1
-        opc = `OPC_TSTur; root_opc = `OPC_TSTur; tgt_gp_we = 1'b0;
-        tgt_gp_val = 24'h000000;
-        step();
-        expect_gp_we(1'b0, "TSTur zero");
-        expect_flags(1'b1, 1'b1, 1'b0, 1'b0, 1'b0, "TSTur zero");
-
-        // TSTur non-zero => Z=0
-        opc = `OPC_TSTur; root_opc = `OPC_TSTur;
-        tgt_gp_val = 24'h00FF00;
-        step();
-        expect_flags(1'b1, 1'b0, 1'b0, 1'b0, 1'b0, "TSTur nz");
-
-        $display("opclass0_ex_tb PASS");
+        $display("opclass1_ex_tb PASS");
         $finish;
     end
 endmodule

@@ -5,6 +5,7 @@
 module stg_ma(
     input wire                   iw_clk,
     input wire                   iw_rst,
+    input wire                   iw_stall,
     input wire  [`HBIT_ADDR:0]   iw_pc,
     output wire [`HBIT_ADDR:0]   ow_pc,
     input wire  [`HBIT_DATA:0]   iw_instr,
@@ -94,6 +95,7 @@ module stg_ma(
     reg [`HBIT_TGT_SR:0] r_sr_aux_addr_latch;
     reg [`HBIT_ADDR:0]   r_sr_aux_result_latch;
     reg                  r_trap_pending_latch;
+    reg                  r_prev_stall;
     // CR writeback latches
     reg [`HBIT_TGT_CR:0] r_cr_write_addr_latch;
     reg                  r_cr_we_base_latch;
@@ -117,6 +119,11 @@ module stg_ma(
         else
             ow_mem_addr[1] = iw_addr;
     end
+    wire w_is_mem_op =
+        (iw_opc == `OPC_SRLDso) || (iw_opc == `OPC_LDcso) ||
+        (iw_opc == `OPC_STui)   || (iw_opc == `OPC_STsi)  ||
+        (iw_opc == `OPC_STcso)  || (iw_opc == `OPC_SRSTso);
+
     always @(posedge iw_clk or posedge iw_rst) begin
         if (iw_rst) begin
             r_pc_latch        <= `SIZE_ADDR'b0;
@@ -137,6 +144,7 @@ module stg_ma(
             r_sr_aux_addr_latch  <= {(`HBIT_TGT_SR+1){1'b0}};
             r_sr_aux_result_latch<= {`SIZE_ADDR{1'b0}};
             r_trap_pending_latch <= 1'b0;
+            r_prev_stall         <= 1'b0;
         end
         else begin
             r_pc_latch        <= iw_pc;
@@ -149,8 +157,8 @@ module stg_ma(
             r_tgt_sr_we_latch <= iw_tgt_sr_we;
             r_tgt_ar_latch    <= iw_tgt_ar;
             r_tgt_ar_we_latch <= iw_tgt_ar_we;
-            // Toggle each cycle so MA/MO alternate [0]/[1]
-            r_mem_mp_latch    <= ~r_mem_mp_latch;
+            if (w_is_mem_op)
+                r_mem_mp_latch <= ~r_mem_mp_latch;
             r_result_latch    <= iw_result;
             r_sr_result_latch <= iw_sr_result;
             r_ar_result_latch <= iw_ar_result;
@@ -172,6 +180,7 @@ module stg_ma(
             r_cr_attr_latch       <= iw_cr_attr;
             r_cr_we_tag_latch     <= iw_cr_we_tag;
             r_cr_tag_latch        <= iw_cr_tag;
+            r_prev_stall          <= iw_stall;
         end
     end
     assign ow_pc        = r_pc_latch;

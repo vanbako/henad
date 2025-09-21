@@ -84,6 +84,9 @@ module stg_wb(
         if (iw_cr_we_cur) begin
             $display("[WB] CR write CUR CR%0d := %0d", iw_cr_write_addr, iw_cr_cur);
         end
+        if (iw_tgt_gp_we) begin
+            $display("[WB] GP write DR%0d := %0d (opc=%h)", iw_tgt_gp, iw_result, iw_opc);
+        end
     end
 `endif
     assign ow_ar_write_addr   = iw_tgt_ar;
