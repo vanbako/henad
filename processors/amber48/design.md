@@ -194,7 +194,18 @@ IA → IF → XT → ID → EX → MA → MF → WB
 * **Single‑cycle** µops from ID→WB on cache hits.
 * Misses stall MA/MF.
 * XT enforces packing rules: **branch/indirect targets land on syllable 0** of a bundle.
-* µops/ISA split enables `JSR/RET/PUSH/POP` without multi‑cycle instructions.
+* µops/ISA split enables `JSR/RET/PUSH/POP` without multi-cycle instructions.
+
+### Hazard considerations
+
+- **Syllable alignment guard:** variable 12/24/48-bit syllables demand that every control-flow target land on bundle slot 0; a malformed encoder or bad patch will leave IF/XT misaligned until the pipe flushes.
+- **Redirect latency:** branches resolve in XT and hardware traps drain the full IA→WB pipe, so each redirect inserts bubbles and mishandled `STATUS.IE` updates can reopen the window before state is saved.
+- **Direct-mapped cache conflicts:** the 16×16-BAU I$ and D$ are single-way; competing addresses thrash a line and hold MA/MF stalled, back-pressuring earlier stages.
+- **Packed lane read-modify-write:** memory only moves whole BAUs, forcing `CLD/modify/CST`; pre-emption or another hart between the load and store can clobber the untouched lane.
+- **Multi-BAU capability spills:** capabilities occupy two BAUs in memory and on the ABI stack, so faults between halves risk exposing a torn capability image.
+- **Upper-immediate latch misuse:** any `.EXT` consumer relies on a fresh `LUI`; failing to clear or refill the UI latch silently builds the wrong wide immediate without a validity trap.
+- **Packed saturation visibility:** `.S` packed ops only report summary NZCV flags unless the optional lane mask CSR is implemented, hiding per-lane overflow from software that expects it.
+- **TLB size-bit aliasing:** large-page entries bypass the final level; inconsistent size bits or stale ASIDs can hand different permission sets to the same BAU, generating capability or privilege faults at MA/MF.
 
 ---
 
